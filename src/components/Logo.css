@@ -1,0 +1,35 @@
+.brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #006a3a;
+  text-decoration: none;
+}
+
+.brand-mark {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 12px;
+  color: #ffffff;
+  background: #006a3a;
+  font-weight: 900;
+}
+
+.brand-lockup strong,
+.brand-lockup small {
+  display: block;
+}
+
+.brand-lockup strong {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.brand-lockup small {
+  margin-top: 3px;
+  color: #2d6a4f;
+  font-size: 12px;
+  font-weight: 700;
+}
