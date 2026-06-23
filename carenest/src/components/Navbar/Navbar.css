@@ -27,12 +27,18 @@
 }
 
 .nav-links a,
+.nav-auth {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nav-login,
 .nav-cta {
   display: inline-flex;
   align-items: center;
   min-height: 38px;
   border-radius: 999px;
-  color: #25513c;
   font-size: 14px;
   font-weight: 800;
   text-decoration: none;
@@ -41,6 +47,17 @@
 
 .nav-links a {
   padding: 0 14px;
+}
+
+.nav-login {
+  padding: 0 12px;
+  color: #25513c;
+}
+
+.nav-login:hover,
+.nav-login.active {
+  color: #006a3a;
+  background: #e8f6ec;
 }
 
 .nav-links a:hover,
@@ -67,5 +84,9 @@
     overflow-x: auto;
     justify-content: flex-start;
     order: 3;
+  }
+
+  .nav-auth {
+    justify-content: flex-end;
   }
 }

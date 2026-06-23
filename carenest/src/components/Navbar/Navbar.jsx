@@ -12,7 +12,10 @@ function Navbar() {
           <NavLink to="/how-it-works">How it works</NavLink>
           <NavLink to="/trust">Trust</NavLink>
         </div>
-        <Link className="nav-cta" to="/#book">Book now</Link>
+        <div className="nav-auth">
+          <NavLink className="nav-login" to="/login">Login</NavLink>
+          <Link className="nav-cta" to="/signup">Sign up</Link>
+        </div>
       </nav>
     </header>
   )
