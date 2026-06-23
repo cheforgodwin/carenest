@@ -1,0 +1,73 @@
+.booking-band {
+  padding: 0 clamp(16px, 5vw, 72px) 48px;
+}
+
+.booking-shell {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  gap: 12px;
+  align-items: end;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 18px;
+  border: 1px solid #dceee3;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 20px 55px rgba(7, 59, 37, 0.1);
+}
+
+.booking-shell label {
+  display: grid;
+  gap: 8px;
+  color: #0f1e17;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.booking-shell select,
+.booking-field {
+  min-height: 50px;
+  padding: 0 14px;
+  border: 1px solid #dceee3;
+  border-radius: 8px;
+  color: #466454;
+  background: #fbfffc;
+  box-sizing: border-box;
+  font: inherit;
+}
+
+.booking-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+}
+
+.booking-field .ui-icon {
+  width: 20px;
+  height: 20px;
+  color: #006a3a;
+}
+
+.booking-shell button {
+  min-height: 50px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 8px;
+  color: #ffffff;
+  background: #f07812;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+@media (max-width: 860px) {
+  .booking-shell {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .booking-shell {
+    grid-template-columns: 1fr;
+  }
+}

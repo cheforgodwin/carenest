@@ -1,0 +1,42 @@
+.trust-section {
+  padding-top: 24px;
+}
+
+.trust-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
+  gap: 32px;
+  padding: 34px;
+  border-radius: 8px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #006a3a, #073b25);
+}
+
+.trust-panel h2 {
+  color: #ffffff;
+}
+
+.trust-panel .lead {
+  color: #d9eee2;
+}
+
+.trust-list {
+  display: grid;
+  gap: 10px;
+}
+
+.trust-list span {
+  display: block;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  font-weight: 850;
+}
+
+@media (max-width: 760px) {
+  .trust-panel {
+    grid-template-columns: 1fr;
+    padding: 24px;
+  }
+}
