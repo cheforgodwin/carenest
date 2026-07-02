@@ -72,12 +72,12 @@ h2 {
 
 .primary-action {
   color: #ffffff;
-  background: #006a3a;
+  background: linear-gradient(135deg, #006a3a, #007f45);
 }
 
 .secondary-action {
-  color: #006a3a;
-  background: #e8f6ec;
+  color: #ffffff;
+  background: linear-gradient(135deg, #ff7a1a, #ec5f00);
 }
 
 .hero-card,
@@ -107,8 +107,8 @@ h2 {
   margin: 16px 0;
   padding: 7px 12px;
   border-radius: 999px;
-  color: #007a43;
-  background: #dff4e6;
+  color: #ffffff;
+  background: #ff7a1a;
   font-weight: 900;
 }
 
@@ -135,6 +135,10 @@ h2 {
   width: 34px;
   height: 34px;
   color: #008a4c;
+}
+
+.service-grid article:nth-child(even) svg {
+  color: #ff7a1a;
 }
 
 .service-grid p {
@@ -169,6 +173,11 @@ h2 {
   background: rgba(255, 255, 255, 0.1);
   text-decoration: none;
   font-weight: 900;
+}
+
+.trust-grid span:nth-child(2),
+.trust-grid a {
+  background: rgba(255, 122, 26, 0.18);
 }
 
 @media (max-width: 900px) {

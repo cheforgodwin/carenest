@@ -14,6 +14,10 @@
   background: #ffffff;
 }
 
+.dashboard-sidebar .cn-logo {
+  align-self: flex-start;
+}
+
 .dashboard-sidebar nav {
   display: grid;
   gap: 8px;
@@ -69,7 +73,7 @@
   padding: 0 14px;
   border-radius: 8px;
   color: #ffffff;
-  background: #006a3a;
+  background: linear-gradient(135deg, #ff7a1a, #ec5f00);
   text-decoration: none;
   font-weight: 900;
 }
@@ -106,6 +110,10 @@
   font-size: 28px;
 }
 
+.metric-card:nth-child(even) strong {
+  color: #ff7a1a;
+}
+
 .dashboard-panel {
   padding: 20px;
   overflow-x: auto;
@@ -138,8 +146,8 @@
   display: inline-flex;
   padding: 6px 10px;
   border-radius: 999px;
-  color: #007a43;
-  background: #dff4e6;
+  color: #ffffff;
+  background: #ff7a1a;
   font-size: 12px;
   font-weight: 900;
 }
@@ -149,7 +157,7 @@
     grid-template-columns: 84px 1fr;
   }
 
-  .dashboard-sidebar .brand-lockup span,
+  .dashboard-sidebar .cn-logo-copy,
   .dashboard-sidebar nav span {
     display: none;
   }

@@ -17,6 +17,10 @@
   margin: 0 auto;
 }
 
+.navbar .cn-logo {
+  flex: 0 0 auto;
+}
+
 .nav-links,
 .nav-auth {
   display: flex;
@@ -46,7 +50,13 @@
 
 .nav-auth .nav-cta {
   color: #ffffff;
-  background: #006a3a;
+  background: linear-gradient(135deg, #ff7a1a, #ec5f00);
+}
+
+.nav-links a:nth-child(even):hover,
+.nav-links a:nth-child(even).active {
+  color: #ec5f00;
+  background: #fff2e8;
 }
 
 @media (max-width: 760px) {

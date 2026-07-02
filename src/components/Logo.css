@@ -1,35 +1,127 @@
-.brand-lockup {
+.cn-logo {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   color: #006a3a;
   text-decoration: none;
 }
 
-.brand-mark {
+.cn-logo-mark {
   display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 10px 26px rgba(0, 106, 58, 0.12);
+}
+
+.cn-logo-mark svg {
+  width: 54px;
+  height: 54px;
+  overflow: visible;
+}
+
+.cn-logo-roof,
+.cn-logo-chimney,
+.cn-logo-window,
+.cn-logo-washer,
+.cn-logo-washer-door,
+.cn-logo-broom {
+  fill: none;
+  stroke: #006a3a;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 4.4;
+}
+
+.cn-logo-window {
+  fill: #006a3a;
+  stroke: 0;
+}
+
+.cn-logo-swoosh {
+  fill: #006a3a;
+}
+
+.cn-logo-arc {
+  fill: none;
+  stroke: #61a83a;
+  stroke-linecap: round;
+  stroke-width: 4;
+}
+
+.cn-logo-leaf {
+  fill: #61a83a;
+}
+
+.cn-logo-towel-orange {
+  fill: #f39a18;
+}
+
+.cn-logo-towel-green {
+  fill: #61a83a;
+}
+
+.cn-logo-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.cn-logo-copy strong {
+  color: #006a3a;
+  font-size: 30px;
+  font-weight: 950;
+  letter-spacing: 0;
+  line-height: 0.95;
+  white-space: nowrap;
+}
+
+.cn-logo-copy strong span {
+  color: #61a83a;
+}
+
+.cn-logo-copy small {
+  color: #0b4d32;
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.cn-logo--compact {
+  gap: 9px;
+}
+
+.cn-logo--compact .cn-logo-mark {
   width: 48px;
   height: 48px;
-  place-items: center;
-  border-radius: 12px;
-  color: #ffffff;
-  background: #006a3a;
-  font-weight: 900;
+  border-radius: 14px;
 }
 
-.brand-lockup strong,
-.brand-lockup small {
-  display: block;
+.cn-logo--compact .cn-logo-mark svg {
+  width: 45px;
+  height: 45px;
 }
 
-.brand-lockup strong {
-  font-size: 26px;
-  line-height: 1;
+.cn-logo--compact .cn-logo-copy strong {
+  font-size: 25px;
 }
 
-.brand-lockup small {
-  margin-top: 3px;
-  color: #2d6a4f;
-  font-size: 12px;
-  font-weight: 700;
+.cn-logo--compact .cn-logo-copy small {
+  font-size: 10px;
+}
+
+@media (max-width: 520px) {
+  .cn-logo-copy strong {
+    font-size: 24px;
+  }
+
+  .cn-logo-copy small {
+    font-size: 10px;
+  }
 }
