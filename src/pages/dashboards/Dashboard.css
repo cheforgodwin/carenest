@@ -166,6 +166,8 @@
 
   .dashboard-sidebar {
     flex-direction: row;
+    gap: 14px;
+    padding: 14px 16px;
     overflow-x: auto;
     border-right: 0;
     border-bottom: 1px solid #dceee3;
@@ -175,9 +177,30 @@
     grid-auto-flow: column;
   }
 
+  .dashboard-sidebar a {
+    white-space: nowrap;
+  }
+
+  .dashboard-main {
+    padding: 22px 16px;
+  }
+
   .dashboard-top,
   .metric-grid {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .dashboard-top a {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .dashboard-panel {
+    padding: 16px;
+  }
+
+  .dashboard-table {
+    min-width: 620px;
   }
 }

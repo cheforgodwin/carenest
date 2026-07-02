@@ -177,12 +177,51 @@ h2 {
   .trust-grid {
     grid-template-columns: 1fr 1fr;
   }
+
+  .hero {
+    align-items: start;
+    gap: 28px;
+  }
 }
 
 @media (max-width: 560px) {
   .hero,
+  .section {
+    padding: 44px 16px;
+  }
+
+  .hero,
   .service-grid,
   .trust-grid {
     grid-template-columns: 1fr;
+  }
+
+  h1 {
+    font-size: 40px;
+  }
+
+  h2 {
+    font-size: 30px;
+  }
+
+  .lead {
+    font-size: 16px;
+  }
+
+  .hero-actions {
+    display: grid;
+  }
+
+  .primary-action,
+  .secondary-action {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .hero-card,
+  .service-grid article,
+  .trust-grid span,
+  .trust-grid a {
+    padding: 18px;
   }
 }

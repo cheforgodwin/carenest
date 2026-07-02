@@ -54,7 +54,28 @@
     display: grid;
   }
 
+  .nav-links,
+  .nav-auth {
+    width: 100%;
+  }
+
   .nav-links {
     overflow-x: auto;
+  }
+
+  .nav-auth {
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 520px) {
+  .site-header {
+    padding: 12px 16px;
+  }
+
+  .nav-links a,
+  .nav-auth a {
+    padding: 0 12px;
+    white-space: nowrap;
   }
 }

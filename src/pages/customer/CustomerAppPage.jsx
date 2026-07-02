@@ -14,7 +14,7 @@ function CustomerAppPage() {
         <header className="mobile-status"><strong>9:41</strong><span>LTE</span></header>
 
         {!isServices && !isRequest && !isOrder && (
-          <section className="mobile-content">
+          <section className="mobile-content mobile-content-home">
             <h1>CareNest</h1>
             <p>Good morning, John Doe</p>
             <div className="mobile-hero">
@@ -36,7 +36,7 @@ function CustomerAppPage() {
         )}
 
         {isServices && (
-          <section className="mobile-content">
+          <section className="mobile-content mobile-content-services">
             <h1>Services</h1>
             {['Laundry Service', 'Home Cleaning', 'Essentials Delivery'].map((service) => (
               <article className="service-card" key={service}>
@@ -48,7 +48,7 @@ function CustomerAppPage() {
         )}
 
         {isRequest && (
-          <section className="mobile-content">
+          <section className="mobile-content mobile-content-request">
             <h1>Laundry Request</h1>
             <div className="request-box"><FiCheck /><strong>Normal</strong><span>2 - 3 Days</span></div>
             <label>Clothes Type<div>Select type</div></label>
@@ -59,7 +59,7 @@ function CustomerAppPage() {
         )}
 
         {isOrder && (
-          <section className="mobile-content">
+          <section className="mobile-content mobile-content-order">
             <h1>Order Tracking</h1>
             <div className="mobile-hero"><h2>Laundry Order CN-023</h2><span>In Progress</span></div>
             {['Requested', 'Picked Up', 'Washing', 'Ironing', 'Delivered'].map((step, index) => (
