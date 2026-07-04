@@ -1,4 +1,5 @@
-import { Link, useLocation } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   FiArrowLeft,
   FiArrowRight,
@@ -23,32 +24,270 @@ import Logo from '../../components/Logo'
 import './CustomerAppPage.css'
 
 const quickActions = [
-  ['Laundry', FiShoppingBag, '/customer/laundry-request'],
-  ['Cleaning', FiTool, '/customer/services'],
-  ['Essentials', FiPackage, '/customer/services'],
+  ['Laundry', FiShoppingBag, '/customer/request/laundry'],
+  ['Cleaning', FiTool, '/customer/request/cleaning'],
+  ['Delivery', FiPackage, '/customer/request/delivery'],
   ['Call CareNest', FiPhone, 'tel:+237612345678'],
+]
+
+const storageKey = 'carenest_customer_orders'
+const defaultOrders = [
+  {
+    id: 'CN-023',
+    service: 'Laundry',
+    serviceSpeed: 'Normal',
+    clothesType: 'Mixed clothes',
+    address: 'Bastos, Yaounde',
+    pickupDate: '2024-05-15',
+    pickupTime: '10:00',
+    note: '7 Shirts, 2 Trousers, 2 Towels',
+    amount: 3000,
+    status: 'In Progress',
+    placedAt: '12 May 2024',
+    currentStep: 2,
+  },
+  {
+    id: 'CN-021',
+    service: 'Laundry',
+    serviceSpeed: 'Normal',
+    clothesType: 'Shirts and trousers',
+    address: 'Bastos, Yaounde',
+    pickupDate: '2024-05-12',
+    pickupTime: '09:00',
+    note: '',
+    amount: 3000,
+    status: 'Completed',
+    placedAt: '12 May 2024',
+    currentStep: 5,
+  },
+  {
+    id: 'CN-018',
+    service: 'Cleaning',
+    serviceSpeed: 'Standard',
+    clothesType: 'Home cleaning',
+    address: 'Bastos, Yaounde',
+    pickupDate: '2024-05-10',
+    pickupTime: '13:00',
+    note: '',
+    amount: 6000,
+    status: 'Completed',
+    placedAt: '10 May 2024',
+    currentStep: 5,
+  },
 ]
 
 const services = [
   ['Laundry Service', 'We wash, iron and deliver to your door.', 'laundry'],
   ['Home Cleaning', 'Professional cleaning for your home.', 'cleaning'],
-  ['Essentials Delivery', 'Order household essentials and we deliver fast.', 'essentials'],
+  ['Essentials Delivery', 'Order household essentials and we deliver fast.', 'delivery'],
 ]
 
-const timeline = [
-  ['Requested', '12 May 2024, 09:15 AM', 'done'],
-  ['Picked Up', '12 May 2024, 10:05 AM', 'done'],
-  ['Washing', 'In Progress', 'active'],
-  ['Ironing', 'Pending', 'pending'],
-  ['Out for Delivery', 'Pending', 'pending'],
-  ['Delivered', 'Pending', 'pending'],
+const timelineSteps = [
+  'Requested',
+  'Assigned',
+  'In Progress',
+  'Quality Check',
+  'Out for Delivery',
+  'Completed',
+]
+
+const serviceConfig = {
+  laundry: {
+    label: 'Laundry',
+    title: 'Laundry Request',
+    icon: FiShoppingBag,
+    heading: 'Fresh laundry, handled carefully.',
+    copy: 'Choose your service speed, confirm pickup details, and CareNest will keep you updated from pickup to delivery.',
+    serviceOptions: [
+      ['Normal', '2 - 3 Days', 0],
+      ['Express', '24 Hours', 1500],
+    ],
+    primaryField: 'clothesType',
+    primaryLabel: 'Clothes Type',
+    primaryOptions: {
+      'Mixed clothes': 3000,
+      'Shirts and trousers': 2500,
+      'Beddings and towels': 4500,
+      'Large family load': 6500,
+    },
+    notePlaceholder: 'E.g. 7 shirts, gate code, special washing instructions...',
+  },
+  cleaning: {
+    label: 'Cleaning',
+    title: 'Cleaning Request',
+    icon: FiTool,
+    heading: 'A cleaner home, booked in minutes.',
+    copy: 'Tell us the home size, cleaning type, and arrival time. We will assign a verified cleaner near you.',
+    serviceOptions: [
+      ['Standard', 'Surface cleaning', 0],
+      ['Deep Clean', 'Detailed cleaning', 4000],
+    ],
+    primaryField: 'propertyType',
+    primaryLabel: 'Property Type',
+    primaryOptions: {
+      Studio: 5000,
+      '1 Bedroom': 7000,
+      '2 Bedrooms': 10000,
+      '3+ Bedrooms': 14000,
+    },
+    notePlaceholder: 'E.g. Bring floor cleaner, focus on kitchen and bathrooms...',
+  },
+  delivery: {
+    label: 'Delivery',
+    title: 'Delivery Request',
+    icon: FiPackage,
+    heading: 'Essentials delivered without the runaround.',
+    copy: 'Choose what you need, set pickup and delivery details, and CareNest will coordinate a rider.',
+    serviceOptions: [
+      ['Standard', 'Same day', 0],
+      ['Priority', 'Under 2 hours', 1000],
+    ],
+    primaryField: 'itemType',
+    primaryLabel: 'Item Type',
+    primaryOptions: {
+      Groceries: 2500,
+      'Household essentials': 3000,
+      Pharmacy: 3500,
+      'Custom errand': 4500,
+    },
+    notePlaceholder: 'E.g. Shopping list, shop name, recipient phone number...',
+  },
+}
+
+const serviceSlugs = Object.keys(serviceConfig)
+
+const formatAmount = (amount) => `${amount.toLocaleString()} FCFA`
+
+const formatPickupDate = (date) => {
+  if (!date) return 'Not selected'
+  return new Date(`${date}T00:00:00`).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+const formatPickupTime = (time) => {
+  if (!time) return 'Not selected'
+  const [hourValue, minute] = time.split(':').map(Number)
+  const suffix = hourValue >= 12 ? 'PM' : 'AM'
+  const hour = hourValue % 12 || 12
+  return `${hour}:${String(minute).padStart(2, '0')} ${suffix}`
+}
+
+const createOrderId = (orders) => {
+  const nextNumber = Math.max(...orders.map((order) => Number(order.id.replace(/\D/g, ''))), 23) + 1
+  return `CN-${String(nextNumber).padStart(3, '0')}`
+}
+
+const getTimeline = (order) => timelineSteps.map((step, index) => {
+  const status = index < order.currentStep ? 'done' : index === order.currentStep ? 'active' : 'pending'
+  const detail = index === 0
+    ? order.placedAt
+    : index === 1
+      ? `${formatPickupDate(order.pickupDate)}, ${formatPickupTime(order.pickupTime)}`
+      : status === 'active'
+        ? 'In Progress'
+        : status === 'done'
+          ? 'Completed'
+          : 'Pending'
+  return [step, detail, status]
+})
+
+const createEmptyForm = (serviceType = 'laundry') => {
+  const config = serviceConfig[serviceType] || serviceConfig.laundry
+  return {
+    serviceType,
+    serviceSpeed: config.serviceOptions[0][0],
+    [config.primaryField]: Object.keys(config.primaryOptions)[0],
+    address: 'Bastos, Yaounde',
+    pickupDate: '2024-05-15',
+    pickupTime: '10:00',
+    note: '',
+  }
+}
+
+const addresses = [
+  'Bastos, Yaounde',
+  'Mvog-Ada, Yaounde',
+  'Odza, Yaounde',
+  'Bonamoussadi, Douala',
 ]
 
 function CustomerAppPage() {
   const { pathname } = useLocation()
+  const navigate = useNavigate()
   const isServices = pathname.includes('/services')
-  const isRequest = pathname.includes('/laundry-request')
+  const requestMatch = pathname.match(/\/customer\/request\/([^/]+)/)
+  const currentServiceType = serviceSlugs.includes(requestMatch?.[1]) ? requestMatch[1] : 'laundry'
+  const isRequest = Boolean(requestMatch) || pathname.includes('/laundry-request')
   const isOrder = pathname.includes('/orders')
+  const [orders, setOrders] = useState(() => {
+    const savedOrders = JSON.parse(localStorage.getItem(storageKey) || 'null')
+    return Array.isArray(savedOrders) && savedOrders.length > 0 ? savedOrders : defaultOrders
+  })
+  const [forms, setForms] = useState(() => Object.fromEntries(
+    serviceSlugs.map((serviceType) => [serviceType, createEmptyForm(serviceType)]),
+  ))
+  const [requestMessage, setRequestMessage] = useState('')
+
+  useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify(orders))
+  }, [orders])
+
+  const activeOrder = useMemo(
+    () => orders.find((order) => order.status !== 'Completed') || orders[0],
+    [orders],
+  )
+  const viewedOrderId = pathname.split('/').pop()
+  const viewedOrder = orders.find((order) => order.id === viewedOrderId) || activeOrder
+  const requestConfig = serviceConfig[currentServiceType]
+  const PrimaryIcon = requestConfig.icon
+  const form = forms[currentServiceType]
+  const primaryValue = form[requestConfig.primaryField] || Object.keys(requestConfig.primaryOptions)[0]
+  const selectedOption = requestConfig.serviceOptions.find(([name]) => name === form.serviceSpeed) || requestConfig.serviceOptions[0]
+  const requestAmount = requestConfig.primaryOptions[primaryValue] + selectedOption[2]
+  const completedOrders = orders.filter((order) => order.status === 'Completed')
+
+  function updateForm(event) {
+    const { name, value } = event.target
+    setForms((current) => ({
+      ...current,
+      [currentServiceType]: {
+        ...current[currentServiceType],
+        [name]: value,
+      },
+    }))
+    setRequestMessage('')
+  }
+
+  function submitServiceRequest() {
+    const nextOrder = {
+      id: createOrderId(orders),
+      service: requestConfig.label,
+      serviceType: currentServiceType,
+      ...form,
+      serviceSpeed: selectedOption[0],
+      itemSummary: primaryValue,
+      amount: requestAmount,
+      status: 'In Progress',
+      placedAt: new Date().toLocaleString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      }),
+      currentStep: 0,
+    }
+    setOrders((current) => [nextOrder, ...current])
+    setForms((current) => ({
+      ...current,
+      [currentServiceType]: createEmptyForm(currentServiceType),
+    }))
+    setRequestMessage(`Request ${nextOrder.id} created successfully.`)
+    navigate(`/customer/orders/${nextOrder.id}`)
+  }
 
   return (
     <main className="mobile-app-page">
@@ -88,21 +327,28 @@ function CustomerAppPage() {
                     : <Link to={to} key={label}><Icon />{label}</Link>
                 ))}
               </div>
-              <div className="section-title"><strong>Your Current Order</strong><Link to="/customer/orders/CN-023">View all</Link></div>
-              <Link className="order-card" to="/customer/orders/CN-023">
+              <div className="section-title"><strong>Your Current Order</strong><Link to={`/customer/orders/${activeOrder.id}`}>View all</Link></div>
+              <Link className="order-card" to={`/customer/orders/${activeOrder.id}`}>
                 <div className="order-icon"><FiShoppingBag /></div>
                 <div className="order-summary">
-                  <strong>Laundry Order - CN-023</strong>
-                  <p>Pickup: Today, 10:00 AM</p>
-                  <p><b>Items:</b> 7 Shirts, 2 Trousers, 2 Towels</p>
+                  <strong>{activeOrder.service} Order - {activeOrder.id}</strong>
+                  <p>Pickup: {formatPickupDate(activeOrder.pickupDate)}, {formatPickupTime(activeOrder.pickupTime)}</p>
+                  <p><b>Details:</b> {activeOrder.note || activeOrder.itemSummary || activeOrder.clothesType}</p>
                 </div>
-                <span>In Progress</span>
+                <span>{activeOrder.status}</span>
                 <div className="mini-progress"><i></i><i></i><i></i><i></i></div>
               </Link>
-              <div className="section-title"><strong>Recent Activity</strong><Link to="/customer/orders/CN-023">See all</Link></div>
+              <div className="section-title"><strong>Recent Activity</strong><Link to={`/customer/orders/${activeOrder.id}`}>See all</Link></div>
               <div className="activity-list">
-                <div><FiShoppingBag /><strong>CN-021</strong><span>Laundry</span><b>Completed</b><small>12 May 2024<br />3,000 FCFA</small></div>
-                <div><FiTool /><strong>CN-018</strong><span>Cleaning</span><b>Completed</b><small>10 May 2024<br />6,000 FCFA</small></div>
+                {completedOrders.slice(0, 2).map((order) => (
+                  <Link to={`/customer/orders/${order.id}`} key={order.id}>
+                    {order.service === 'Laundry' ? <FiShoppingBag /> : <FiTool />}
+                    <strong>{order.id}</strong>
+                    <span>{order.service}</span>
+                    <b>{order.status}</b>
+                    <small>{order.placedAt}<br />{formatAmount(order.amount)}</small>
+                  </Link>
+                ))}
               </div>
             </div>
             <a className="floating-call" href="tel:+237612345678" aria-label="Call CareNest"><FiPhone /></a>
@@ -122,9 +368,9 @@ function CustomerAppPage() {
                     <div className={`service-art service-art-${tone}`}>
                       {tone === 'laundry' && <FiShoppingBag />}
                       {tone === 'cleaning' && <FiTool />}
-                      {tone === 'essentials' && <FiPackage />}
+                      {tone === 'delivery' && <FiPackage />}
                     </div>
-                    <div><h2>{service}</h2><p>{description}</p><Link to="/customer/laundry-request">Book Now <FiArrowRight /></Link></div>
+                    <div><h2>{service}</h2><p>{description}</p><Link to={`/customer/request/${tone}`}>Book Now <FiArrowRight /></Link></div>
                   </article>
                 ))}
               </div>
@@ -141,29 +387,36 @@ function CustomerAppPage() {
           <section className="mobile-content mobile-content-request">
             <div className="request-shell">
               <div className="request-main">
-                <div className="top-title"><Link to="/customer/services"><FiArrowLeft /></Link><h1>Laundry Request</h1></div>
+                <div className="top-title"><Link to="/customer/services"><FiArrowLeft /></Link><h1>{requestConfig.title}</h1></div>
                 <div className="stepper"><span className="active">1<small>Details</small></span><i></i><span>2<small>Pickup</small></span><i></i><span>3<small>Review</small></span></div>
                 <strong className="form-section-label">Service Type</strong>
                 <div className="request-options">
-                  <div className="request-box selected"><FiShoppingBag /><strong>Normal</strong><span>2 - 3 Days</span><b><FiCheck /></b></div>
-                  <div className="request-box"><FiZap /><strong>Express</strong><span>24 Hours</span></div>
+                  {requestConfig.serviceOptions.map(([speed, detail]) => (
+                    <button className={`request-box ${form.serviceSpeed === speed ? 'selected' : ''}`} type="button" onClick={() => setForms((current) => ({ ...current, [currentServiceType]: { ...current[currentServiceType], serviceSpeed: speed } }))} key={speed}>
+                      {speed === requestConfig.serviceOptions[0][0] ? <PrimaryIcon /> : <FiZap />}
+                      <strong>{speed}</strong>
+                      <span>{detail}</span>
+                      {form.serviceSpeed === speed && <b><FiCheck /></b>}
+                    </button>
+                  ))}
                 </div>
                 <div className="request-field-grid">
-                  <label>Clothes Type<div>Select type <FiChevronDown /></div></label>
-                  <label>Pickup Address<div><FiMapPin /> Bastos, Yaounde <FiChevronDown /></div></label>
-                  <label>Pickup Date<div><FiCalendar /> 15 May 2024</div></label>
-                  <label>Pickup Time<div><FiClock /> 10:00 AM</div></label>
-                  <label className="request-note-field">Additional Note (Optional)<div className="note-box">E.g. Gate code, special instructions...</div></label>
+                  <label>{requestConfig.primaryLabel}<span className="request-input"><select name={requestConfig.primaryField} value={primaryValue} onChange={updateForm}>{Object.keys(requestConfig.primaryOptions).map((type) => <option key={type} value={type}>{type}</option>)}</select><FiChevronDown /></span></label>
+                  <label>{currentServiceType === 'delivery' ? 'Delivery Address' : 'Service Address'}<span className="request-input"><FiMapPin /><select name="address" value={form.address} onChange={updateForm}>{addresses.map((address) => <option key={address} value={address}>{address}</option>)}</select><FiChevronDown /></span></label>
+                  <label>{currentServiceType === 'laundry' ? 'Pickup Date' : 'Service Date'}<span className="request-input"><FiCalendar /><input name="pickupDate" type="date" value={form.pickupDate} onChange={updateForm} /></span></label>
+                  <label>{currentServiceType === 'laundry' ? 'Pickup Time' : 'Service Time'}<span className="request-input"><FiClock /><input name="pickupTime" type="time" value={form.pickupTime} onChange={updateForm} /></span></label>
+                  <label className="request-note-field">Additional Note (Optional)<textarea name="note" value={form.note} onChange={updateForm} placeholder={requestConfig.notePlaceholder} /></label>
                 </div>
+                {requestMessage && <p className="request-message">{requestMessage}</p>}
                 <div className="request-submit-row">
-                  <span><small>Estimated total</small><strong>3,000 FCFA</strong></span>
-                  <button type="button">Continue</button>
+                  <span><small>Estimated total</small><strong>{formatAmount(requestAmount)}</strong></span>
+                  <button type="button" onClick={submitServiceRequest}>Create request</button>
                 </div>
               </div>
               <div className="request-aside">
-                <div className="aside-visual"><FiShoppingBag /></div>
-                <h2>Fresh laundry, handled carefully.</h2>
-                <p>Choose your service speed, confirm pickup details, and CareNest will keep you updated from pickup to delivery.</p>
+                <div className="aside-visual"><PrimaryIcon /></div>
+                <h2>{requestConfig.heading}</h2>
+                <p>{requestConfig.copy}</p>
                 <div className="aside-list">
                   <span><FiCheck /> Pickup reminder</span>
                   <span><FiCheck /> Status tracking</span>
@@ -182,18 +435,18 @@ function CustomerAppPage() {
                 <div className="top-title"><Link to="/customer"><FiArrowLeft /></Link><h1>Order Tracking</h1></div>
                 <div className="tracking-hero">
                   <div className="order-machine"><FiShoppingBag /></div>
-                  <div><h2>Laundry Order</h2><strong>CN-023</strong><p>Placed on 12 May 2024</p><span>In Progress</span></div>
+                  <div><h2>{viewedOrder.service} Order</h2><strong>{viewedOrder.id}</strong><p>Placed on {viewedOrder.placedAt}</p><span>{viewedOrder.status}</span></div>
                 </div>
-                {timeline.map(([step, detail, status]) => (
+                {getTimeline(viewedOrder).map(([step, detail, status]) => (
                   <div className={`track-row ${status}`} key={step}><span>{status !== 'pending' && <FiCheck />}</span><div><strong>{step}</strong><p>{detail}</p></div></div>
                 ))}
               </div>
               <aside className="tracking-aside">
                 <h2>Order summary</h2>
-                <div><span>Service</span><strong>Laundry</strong></div>
-                <div><span>Pickup</span><strong>Today, 10:00 AM</strong></div>
-                <div><span>Items</span><strong>11 clothes</strong></div>
-                <div><span>Amount</span><strong>3,000 FCFA</strong></div>
+                <div><span>Service</span><strong>{viewedOrder.service}</strong></div>
+                <div><span>Pickup</span><strong>{formatPickupDate(viewedOrder.pickupDate)}, {formatPickupTime(viewedOrder.pickupTime)}</strong></div>
+                <div><span>Details</span><strong>{viewedOrder.note || viewedOrder.itemSummary || viewedOrder.clothesType}</strong></div>
+                <div><span>Amount</span><strong>{formatAmount(viewedOrder.amount)}</strong></div>
                 <a className="call-card" href="tel:+237612345678"><div><strong>Need help?</strong><p>Call us for any support</p></div><span><FiPhone /> Call CareNest</span></a>
               </aside>
             </div>
@@ -204,7 +457,7 @@ function CustomerAppPage() {
           <Logo to="/customer" className="customer-nav-brand" />
           <div className="customer-nav-links">
             <Link to="/customer"><FiHome />Home</Link>
-            <Link to="/customer/orders/CN-023"><FiBriefcase />Orders</Link>
+            <Link to={`/customer/orders/${activeOrder.id}`}><FiBriefcase />Orders</Link>
             <Link to="/customer/services"><FiGift />Services</Link>
             <Link to="/login"><FiUser />Profile</Link>
           </div>
