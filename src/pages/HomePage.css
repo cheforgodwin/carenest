@@ -7,14 +7,23 @@
 .section {
   max-width: 1180px;
   margin: 0 auto;
-  padding: 72px clamp(16px, 5vw, 72px);
+  padding: clamp(40px, 6vw, 64px) clamp(16px, 5vw, 56px);
 }
 
 .hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
-  gap: 56px;
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: clamp(24px, 5vw, 48px);
+}
+
+.hero > div:first-child {
+  flex: 1 1 560px;
+  min-width: 0;
+}
+
+.hero-card {
+  flex: 0 1 380px;
 }
 
 .eyebrow {
@@ -36,8 +45,8 @@ h1 {
   max-width: 780px;
   margin-bottom: 18px;
   color: #073b25;
-  font-size: clamp(42px, 6vw, 76px);
-  line-height: 0.98;
+  font-size: clamp(38px, 5.5vw, 68px);
+  line-height: 1;
 }
 
 h2 {
@@ -119,14 +128,15 @@ h2 {
 
 .service-grid,
 .trust-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 16px;
 }
 
 .service-grid article,
 .trust-grid span,
 .trust-grid a {
+  flex: 1 1 230px;
   padding: 22px;
   border-radius: 8px;
 }
@@ -181,15 +191,14 @@ h2 {
 }
 
 @media (max-width: 900px) {
-  .hero,
-  .service-grid,
-  .trust-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-
   .hero {
+    flex-wrap: wrap;
     align-items: start;
     gap: 28px;
+  }
+
+  .hero-card {
+    flex-basis: 100%;
   }
 }
 
@@ -199,14 +208,8 @@ h2 {
     padding: 44px 16px;
   }
 
-  .hero,
-  .service-grid,
-  .trust-grid {
-    grid-template-columns: 1fr;
-  }
-
   h1 {
-    font-size: 40px;
+    font-size: 38px;
   }
 
   h2 {
@@ -218,7 +221,7 @@ h2 {
   }
 
   .hero-actions {
-    display: grid;
+    flex-direction: column;
   }
 
   .primary-action,

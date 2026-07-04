@@ -61,7 +61,7 @@
 
 @media (max-width: 760px) {
   .navbar {
-    display: grid;
+    flex-wrap: wrap;
   }
 
   .nav-links,
@@ -87,5 +87,14 @@
   .nav-auth a {
     padding: 0 12px;
     white-space: nowrap;
+  }
+
+  .nav-auth {
+    flex-wrap: wrap;
+  }
+
+  .nav-auth a {
+    flex: 1 1 auto;
+    justify-content: center;
   }
 }

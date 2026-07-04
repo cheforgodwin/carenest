@@ -148,14 +148,17 @@ function CustomerAppPage() {
                   <div className="request-box selected"><FiShoppingBag /><strong>Normal</strong><span>2 - 3 Days</span><b><FiCheck /></b></div>
                   <div className="request-box"><FiZap /><strong>Express</strong><span>24 Hours</span></div>
                 </div>
-                <label>Clothes Type<div>Select type <FiChevronDown /></div></label>
-                <label>Pickup Address<div><FiMapPin /> Bastos, Yaounde <FiChevronDown /></div></label>
-                <div className="split-fields">
+                <div className="request-field-grid">
+                  <label>Clothes Type<div>Select type <FiChevronDown /></div></label>
+                  <label>Pickup Address<div><FiMapPin /> Bastos, Yaounde <FiChevronDown /></div></label>
                   <label>Pickup Date<div><FiCalendar /> 15 May 2024</div></label>
                   <label>Pickup Time<div><FiClock /> 10:00 AM</div></label>
+                  <label className="request-note-field">Additional Note (Optional)<div className="note-box">E.g. Gate code, special instructions...</div></label>
                 </div>
-                <label>Additional Note (Optional)<div className="note-box">E.g. Gate code, special instructions...</div></label>
-                <button type="button">Continue</button>
+                <div className="request-submit-row">
+                  <span><small>Estimated total</small><strong>3,000 FCFA</strong></span>
+                  <button type="button">Continue</button>
+                </div>
               </div>
               <div className="request-aside">
                 <div className="aside-visual"><FiShoppingBag /></div>

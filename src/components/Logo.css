@@ -7,10 +7,11 @@
 }
 
 .cn-logo-mark {
-  display: grid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 58px;
   height: 58px;
-  place-items: center;
   flex: 0 0 auto;
   border-radius: 16px;
   background: #ffffff;
@@ -65,7 +66,8 @@
 }
 
 .cn-logo-copy {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 3px;
   min-width: 0;
 }
