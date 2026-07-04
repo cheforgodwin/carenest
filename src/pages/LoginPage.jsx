@@ -1,13 +1,16 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { FiPhone, FiUser, FiUsers } from 'react-icons/fi'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { FiLock, FiMail } from 'react-icons/fi'
+import { useAuth } from '../auth/useAuth'
 import Logo from '../components/Logo'
-import { getDashboardPath, getUserProfileByPhone, saveAuthSession } from '../firebase/authService'
+import { getAuthErrorMessage, getDashboardPath, loginWithEmail } from '../firebase/authService'
 import './AuthPages.css'
 
 function LoginPage() {
   const navigate = useNavigate()
-  const [form, setForm] = useState({ name: '', phone: '', accountType: 'customer' })
+  const location = useLocation()
+  const { setSession } = useAuth()
+  const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -20,15 +23,16 @@ function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      const profile = await getUserProfileByPhone(form.phone)
+      const profile = await loginWithEmail(form.email, form.password)
       if (!profile) {
-        setError('No account found for this telephone number. Please sign up first.')
+        setError('Your account profile was not found. Please contact CareNest support.')
         return
       }
-      saveAuthSession(profile)
-      navigate(getDashboardPath(profile.accountType))
+      setSession(profile)
+      const fallbackPath = getDashboardPath(profile.accountType)
+      navigate(location.state?.from || fallbackPath, { replace: true })
     } catch (err) {
-      setError(err.message || 'Unable to login.')
+      setError(getAuthErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -41,16 +45,15 @@ function LoginPage() {
           <Logo />
           <p className="eyebrow">Welcome back</p>
           <h1>Login to manage your CareNest requests.</h1>
-          <p className="lead">Enter your name, telephone number and account type.</p>
+          <p className="lead">Enter your email and password to continue.</p>
         </div>
         <form className="auth-card" onSubmit={handleSubmit}>
           <h2>Login</h2>
           <p>Access your account.</p>
-          <label>Name<span className="auth-input"><FiUser /><input name="name" value={form.name} onChange={updateField} required /></span></label>
-          <label>Telephone number<span className="auth-input"><FiPhone /><input name="phone" type="tel" value={form.phone} onChange={updateField} placeholder="+237 6XX XXX XXX" required /></span></label>
-          <label>Account type<span className="auth-input"><FiUsers /><select name="accountType" value={form.accountType} onChange={updateField}><option value="customer">Customer</option><option value="provider">Service provider</option><option value="admin">Admin / operations</option></select></span></label>
+          <label>Email<span className="auth-input"><FiMail /><input name="email" type="email" value={form.email} onChange={updateField} required /></span></label>
+          <label>Password<span className="auth-input"><FiLock /><input name="password" type="password" value={form.password} onChange={updateField} required /></span></label>
           {error && <p className="auth-status error">{error}</p>}
-          <button type="submit" disabled={loading}>{loading ? 'Submitting...' : 'Login'}</button>
+          <button type="submit" disabled={loading}>{loading ? 'Logging in...' : 'Login'}</button>
           <p className="auth-switch">New to CareNest? <Link to="/signup">Create an account</Link></p>
         </form>
       </section>

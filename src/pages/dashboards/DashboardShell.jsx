@@ -1,11 +1,20 @@
-import { NavLink } from 'react-router-dom'
-import { FiBriefcase, FiGrid, FiPlus, FiSettings, FiUsers } from 'react-icons/fi'
+import { Link, NavLink, useNavigate } from 'react-router-dom'
+import { FiBriefcase, FiGrid, FiLogOut, FiPlus, FiSettings, FiUsers } from 'react-icons/fi'
+import { useAuth } from '../../auth/useAuth'
 import Logo from '../../components/Logo'
 import './Dashboard.css'
 
 const icons = { bookings: FiBriefcase, dashboard: FiGrid, settings: FiSettings, users: FiUsers }
 
 function DashboardShell({ title, subtitle, action, metrics, rows, columns, nav }) {
+  const navigate = useNavigate()
+  const { logout, profile } = useAuth()
+
+  async function handleLogout() {
+    await logout()
+    navigate('/login', { replace: true })
+  }
+
   return (
     <main className="dashboard-page">
       <aside className="dashboard-sidebar">
@@ -23,7 +32,14 @@ function DashboardShell({ title, subtitle, action, metrics, rows, columns, nav }
             <h1>{title}</h1>
             <p>{subtitle}</p>
           </div>
-          <a href={action.href}><FiPlus />{action.label}</a>
+          <div className="dashboard-actions">
+            <div className="dashboard-user">
+              <strong>{profile?.name || 'CareNest user'}</strong>
+              <span>{profile?.accountType || 'account'}</span>
+            </div>
+            <Link to={action.href}><FiPlus />{action.label}</Link>
+            <button type="button" onClick={handleLogout}><FiLogOut />Logout</button>
+          </div>
         </header>
         <section className="metric-grid">
           {metrics.map(([label, value]) => <article className="metric-card" key={label}><span>{label}</span><strong>{value}</strong></article>)}

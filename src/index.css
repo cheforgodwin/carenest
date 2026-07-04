@@ -37,3 +37,12 @@ a {
 #root {
   min-height: 100vh;
 }
+
+.route-loader {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  color: #073b25;
+  background: #f4f8f6;
+  font-weight: 900;
+}
