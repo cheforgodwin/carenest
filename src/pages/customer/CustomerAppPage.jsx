@@ -20,7 +20,9 @@ import {
   FiUser,
   FiZap,
 } from 'react-icons/fi'
+import { useAuth } from '../../auth/useAuth'
 import Logo from '../../components/Logo'
+import { createRequestId, createServiceRequest, subscribeToCustomerOrders } from '../../firebase/orderService'
 import './CustomerAppPage.css'
 
 const quickActions = [
@@ -28,52 +30,6 @@ const quickActions = [
   ['Cleaning', FiTool, '/customer/request/cleaning'],
   ['Delivery', FiPackage, '/customer/request/delivery'],
   ['Call CareNest', FiPhone, 'tel:+237612345678'],
-]
-
-const storageKey = 'carenest_customer_orders'
-const defaultOrders = [
-  {
-    id: 'CN-023',
-    service: 'Laundry',
-    serviceSpeed: 'Normal',
-    clothesType: 'Mixed clothes',
-    address: 'Bastos, Yaounde',
-    pickupDate: '2024-05-15',
-    pickupTime: '10:00',
-    note: '7 Shirts, 2 Trousers, 2 Towels',
-    amount: 3000,
-    status: 'In Progress',
-    placedAt: '12 May 2024',
-    currentStep: 2,
-  },
-  {
-    id: 'CN-021',
-    service: 'Laundry',
-    serviceSpeed: 'Normal',
-    clothesType: 'Shirts and trousers',
-    address: 'Bastos, Yaounde',
-    pickupDate: '2024-05-12',
-    pickupTime: '09:00',
-    note: '',
-    amount: 3000,
-    status: 'Completed',
-    placedAt: '12 May 2024',
-    currentStep: 5,
-  },
-  {
-    id: 'CN-018',
-    service: 'Cleaning',
-    serviceSpeed: 'Standard',
-    clothesType: 'Home cleaning',
-    address: 'Bastos, Yaounde',
-    pickupDate: '2024-05-10',
-    pickupTime: '13:00',
-    note: '',
-    amount: 6000,
-    status: 'Completed',
-    placedAt: '10 May 2024',
-    currentStep: 5,
-  },
 ]
 
 const services = [
@@ -158,6 +114,19 @@ const serviceSlugs = Object.keys(serviceConfig)
 
 const formatAmount = (amount) => `${amount.toLocaleString()} FCFA`
 
+const formatPlacedAt = (order) => {
+  if (order?.createdAtDate) {
+    return order.createdAtDate.toLocaleString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+  }
+  return order?.placedAt || 'Just now'
+}
+
 const formatPickupDate = (date) => {
   if (!date) return 'Not selected'
   return new Date(`${date}T00:00:00`).toLocaleDateString('en-GB', {
@@ -175,15 +144,10 @@ const formatPickupTime = (time) => {
   return `${hour}:${String(minute).padStart(2, '0')} ${suffix}`
 }
 
-const createOrderId = (orders) => {
-  const nextNumber = Math.max(...orders.map((order) => Number(order.id.replace(/\D/g, ''))), 23) + 1
-  return `CN-${String(nextNumber).padStart(3, '0')}`
-}
-
 const getTimeline = (order) => timelineSteps.map((step, index) => {
   const status = index < order.currentStep ? 'done' : index === order.currentStep ? 'active' : 'pending'
   const detail = index === 0
-    ? order.placedAt
+    ? formatPlacedAt(order)
     : index === 1
       ? `${formatPickupDate(order.pickupDate)}, ${formatPickupTime(order.pickupTime)}`
       : status === 'active'
@@ -215,6 +179,7 @@ const addresses = [
 ]
 
 function CustomerAppPage() {
+  const { profile, user } = useAuth()
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const isServices = pathname.includes('/services')
@@ -222,21 +187,31 @@ function CustomerAppPage() {
   const currentServiceType = serviceSlugs.includes(requestMatch?.[1]) ? requestMatch[1] : 'laundry'
   const isRequest = Boolean(requestMatch) || pathname.includes('/laundry-request')
   const isOrder = pathname.includes('/orders')
-  const [orders, setOrders] = useState(() => {
-    const savedOrders = JSON.parse(localStorage.getItem(storageKey) || 'null')
-    return Array.isArray(savedOrders) && savedOrders.length > 0 ? savedOrders : defaultOrders
-  })
+  const [orders, setOrders] = useState([])
+  const [ordersLoading, setOrdersLoading] = useState(true)
   const [forms, setForms] = useState(() => Object.fromEntries(
     serviceSlugs.map((serviceType) => [serviceType, createEmptyForm(serviceType)]),
   ))
   const [requestMessage, setRequestMessage] = useState('')
+  const [requestError, setRequestError] = useState('')
 
   useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(orders))
-  }, [orders])
+    if (!user?.uid) return undefined
+    return subscribeToCustomerOrders(
+      user.uid,
+      (nextOrders) => {
+        setOrders(nextOrders)
+        setOrdersLoading(false)
+      },
+      (error) => {
+        setRequestError(error.message)
+        setOrdersLoading(false)
+      },
+    )
+  }, [user?.uid])
 
   const activeOrder = useMemo(
-    () => orders.find((order) => order.status !== 'Completed') || orders[0],
+    () => orders.find((order) => !['Completed', 'Cancelled'].includes(order.status)) || orders[0] || null,
     [orders],
   )
   const viewedOrderId = pathname.split('/').pop()
@@ -261,32 +236,41 @@ function CustomerAppPage() {
     setRequestMessage('')
   }
 
-  function submitServiceRequest() {
+  async function submitServiceRequest() {
+    setRequestMessage('')
+    setRequestError('')
+    if (!user?.uid) {
+      setRequestError('Please login again before creating a request.')
+      return
+    }
+    const requestId = createRequestId()
     const nextOrder = {
-      id: createOrderId(orders),
+      id: requestId,
+      customerUid: user.uid,
+      customerName: profile?.name || user.displayName || 'Customer',
+      customerEmail: user.email,
+      customerPhone: profile?.phone || '',
       service: requestConfig.label,
       serviceType: currentServiceType,
       ...form,
       serviceSpeed: selectedOption[0],
       itemSummary: primaryValue,
       amount: requestAmount,
-      status: 'In Progress',
-      placedAt: new Date().toLocaleString('en-GB', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-      }),
+      status: 'Pending',
+      placedAt: 'Just now',
       currentStep: 0,
     }
-    setOrders((current) => [nextOrder, ...current])
-    setForms((current) => ({
-      ...current,
-      [currentServiceType]: createEmptyForm(currentServiceType),
-    }))
-    setRequestMessage(`Request ${nextOrder.id} created successfully.`)
-    navigate(`/customer/orders/${nextOrder.id}`)
+    try {
+      await createServiceRequest(nextOrder)
+      setForms((current) => ({
+        ...current,
+        [currentServiceType]: createEmptyForm(currentServiceType),
+      }))
+      setRequestMessage(`Request ${nextOrder.id} created successfully.`)
+      navigate(`/customer/orders/${nextOrder.id}`)
+    } catch (error) {
+      setRequestError(error.message)
+    }
   }
 
   return (
@@ -327,18 +311,20 @@ function CustomerAppPage() {
                     : <Link to={to} key={label}><Icon />{label}</Link>
                 ))}
               </div>
-              <div className="section-title"><strong>Your Current Order</strong><Link to={`/customer/orders/${activeOrder.id}`}>View all</Link></div>
-              <Link className="order-card" to={`/customer/orders/${activeOrder.id}`}>
-                <div className="order-icon"><FiShoppingBag /></div>
-                <div className="order-summary">
-                  <strong>{activeOrder.service} Order - {activeOrder.id}</strong>
-                  <p>Pickup: {formatPickupDate(activeOrder.pickupDate)}, {formatPickupTime(activeOrder.pickupTime)}</p>
-                  <p><b>Details:</b> {activeOrder.note || activeOrder.itemSummary || activeOrder.clothesType}</p>
-                </div>
-                <span>{activeOrder.status}</span>
-                <div className="mini-progress"><i></i><i></i><i></i><i></i></div>
-              </Link>
-              <div className="section-title"><strong>Recent Activity</strong><Link to={`/customer/orders/${activeOrder.id}`}>See all</Link></div>
+              <div className="section-title"><strong>Your Current Order</strong><Link to={activeOrder ? `/customer/orders/${activeOrder.id}` : '/customer/services'}>View all</Link></div>
+              {activeOrder ? (
+                <Link className="order-card" to={`/customer/orders/${activeOrder.id}`}>
+                  <div className="order-icon"><FiShoppingBag /></div>
+                  <div className="order-summary">
+                    <strong>{activeOrder.service} Order - {activeOrder.id}</strong>
+                    <p>Pickup: {formatPickupDate(activeOrder.pickupDate)}, {formatPickupTime(activeOrder.pickupTime)}</p>
+                    <p><b>Details:</b> {activeOrder.note || activeOrder.itemSummary || activeOrder.clothesType}</p>
+                  </div>
+                  <span>{activeOrder.status}</span>
+                  <div className="mini-progress"><i></i><i></i><i></i><i></i></div>
+                </Link>
+              ) : <p className="request-message">{ordersLoading ? 'Loading your orders...' : 'No orders yet. Choose a service to create your first request.'}</p>}
+              <div className="section-title"><strong>Recent Activity</strong><Link to={activeOrder ? `/customer/orders/${activeOrder.id}` : '/customer/services'}>See all</Link></div>
               <div className="activity-list">
                 {completedOrders.slice(0, 2).map((order) => (
                   <Link to={`/customer/orders/${order.id}`} key={order.id}>
@@ -346,9 +332,10 @@ function CustomerAppPage() {
                     <strong>{order.id}</strong>
                     <span>{order.service}</span>
                     <b>{order.status}</b>
-                    <small>{order.placedAt}<br />{formatAmount(order.amount)}</small>
+                    <small>{formatPlacedAt(order)}<br />{formatAmount(order.amount)}</small>
                   </Link>
                 ))}
+                {completedOrders.length === 0 && <p className="request-message">Completed orders will appear here.</p>}
               </div>
             </div>
             <a className="floating-call" href="tel:+237612345678" aria-label="Call CareNest"><FiPhone /></a>
@@ -408,6 +395,7 @@ function CustomerAppPage() {
                   <label className="request-note-field">Additional Note (Optional)<textarea name="note" value={form.note} onChange={updateForm} placeholder={requestConfig.notePlaceholder} /></label>
                 </div>
                 {requestMessage && <p className="request-message">{requestMessage}</p>}
+                {requestError && <p className="request-message request-error">{requestError}</p>}
                 <div className="request-submit-row">
                   <span><small>Estimated total</small><strong>{formatAmount(requestAmount)}</strong></span>
                   <button type="button" onClick={submitServiceRequest}>Create request</button>
@@ -428,14 +416,14 @@ function CustomerAppPage() {
           </section>
         )}
 
-        {isOrder && (
+        {isOrder && viewedOrder && (
           <section className="mobile-content mobile-content-order">
             <div className="tracking-shell">
               <div className="tracking-main">
                 <div className="top-title"><Link to="/customer"><FiArrowLeft /></Link><h1>Order Tracking</h1></div>
                 <div className="tracking-hero">
                   <div className="order-machine"><FiShoppingBag /></div>
-                  <div><h2>{viewedOrder.service} Order</h2><strong>{viewedOrder.id}</strong><p>Placed on {viewedOrder.placedAt}</p><span>{viewedOrder.status}</span></div>
+                  <div><h2>{viewedOrder.service} Order</h2><strong>{viewedOrder.id}</strong><p>Placed on {formatPlacedAt(viewedOrder)}</p><span>{viewedOrder.status}</span></div>
                 </div>
                 {getTimeline(viewedOrder).map(([step, detail, status]) => (
                   <div className={`track-row ${status}`} key={step}><span>{status !== 'pending' && <FiCheck />}</span><div><strong>{step}</strong><p>{detail}</p></div></div>
@@ -453,11 +441,22 @@ function CustomerAppPage() {
           </section>
         )}
 
+        {isOrder && !viewedOrder && (
+          <section className="mobile-content mobile-content-order">
+            <div className="tracking-shell">
+              <div className="tracking-main">
+                <div className="top-title"><Link to="/customer"><FiArrowLeft /></Link><h1>Order Tracking</h1></div>
+                <p className="request-message">{ordersLoading ? 'Loading order details...' : 'No order found. Create a request to start tracking.'}</p>
+              </div>
+            </div>
+          </section>
+        )}
+
         <nav className="mobile-tabs">
           <Logo to="/customer" className="customer-nav-brand" />
           <div className="customer-nav-links">
             <Link to="/customer"><FiHome />Home</Link>
-            <Link to={`/customer/orders/${activeOrder.id}`}><FiBriefcase />Orders</Link>
+            <Link to={activeOrder ? `/customer/orders/${activeOrder.id}` : '/customer/services'}><FiBriefcase />Orders</Link>
             <Link to="/customer/services"><FiGift />Services</Link>
             <Link to="/login"><FiUser />Profile</Link>
           </div>

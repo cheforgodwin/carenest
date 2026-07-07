@@ -1090,6 +1090,11 @@
   font-weight: 850;
 }
 
+.request-error {
+  color: #991b1b;
+  background: #fef2f2;
+}
+
 .request-submit-row {
   display: flex;
   align-items: center;
