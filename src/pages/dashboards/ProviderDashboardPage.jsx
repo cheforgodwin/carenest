@@ -3,7 +3,8 @@ import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../auth/useAuth'
 import {
   assignServiceRequestToProvider,
-  subscribeToAllOrders,
+  subscribeToOpenProviderOrders,
+  subscribeToProviderOrders,
   updateProviderAvailability,
   updateServiceRequestStatus,
 } from '../../firebase/orderService'
@@ -28,6 +29,7 @@ function ProviderDashboardPage() {
   const activeView = searchParams.get('view') || 'overview'
   const { profile, user } = useAuth()
   const [orders, setOrders] = useState([])
+  const [openOrders, setOpenOrders] = useState([])
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [query, setQuery] = useState('')
@@ -38,12 +40,23 @@ function ProviderDashboardPage() {
     phone: profile?.phone || '',
   }))
 
-  useEffect(() => subscribeToAllOrders(
-    setOrders,
-    (nextError) => setError(nextError.message),
-  ), [])
+  useEffect(() => {
+    const unsubOpen = subscribeToOpenProviderOrders(
+      setOpenOrders,
+      (nextError) => setError(nextError.message),
+    )
+    const unsubMine = subscribeToProviderOrders(
+      user?.uid,
+      setOrders,
+      (nextError) => setError(nextError.message),
+    )
+    return () => {
+      unsubOpen()
+      unsubMine()
+    }
+  }, [user?.uid])
 
-  const openJobs = orders.filter((order) => !order.providerUid && order.status === 'Pending')
+  const openJobs = openOrders.filter((order) => !order.providerUid && order.status === 'Pending')
   const myJobs = orders.filter((order) => order.providerUid === user.uid)
   const activeJobs = myJobs.filter((order) => !['Completed', 'Cancelled'].includes(order.status))
   const completedJobs = myJobs.filter((order) => order.status === 'Completed')

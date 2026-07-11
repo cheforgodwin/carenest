@@ -256,6 +256,12 @@
   padding: 0 12px;
 }
 
+.dashboard-textarea {
+  min-height: 96px;
+  padding-top: 10px;
+  resize: vertical;
+}
+
 .dashboard-tools {
   display: flex;
   flex-wrap: wrap;
@@ -322,6 +328,10 @@
   cursor: pointer;
   font: inherit;
   font-weight: 900;
+}
+
+.table-action.danger {
+  background: #dc2626;
 }
 
 .dashboard-form {

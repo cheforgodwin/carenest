@@ -1,7 +1,19 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { FiDownload } from 'react-icons/fi'
-import { subscribeToAllOrders, subscribeToUsers, updateServiceRequestStatus } from '../../firebase/orderService'
+import {
+  paymentStatuses,
+  subscribeToAllOrders,
+  subscribeToUsers,
+  updatePaymentStatus,
+  updateServiceRequestStatus,
+} from '../../firebase/orderService'
+import {
+  approveProviderApplication,
+  rejectProviderApplication,
+  subscribeToProviderApplications,
+} from '../../firebase/providerApplicationService'
+import { useAuth } from '../../auth/useAuth'
 import DashboardShell from './DashboardShell'
 import { useEffect } from 'react'
 
@@ -39,11 +51,14 @@ function downloadCsv(filename, rows) {
 
 function AdminDashboardPage() {
   const [searchParams] = useSearchParams()
+  const { user } = useAuth()
   const activeView = searchParams.get('view') || 'overview'
   const [orders, setOrders] = useState([])
   const [users, setUsers] = useState([])
+  const [applications, setApplications] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
 
@@ -62,9 +77,14 @@ function AdminDashboardPage() {
       setUsers,
       (nextError) => setError(nextError.message),
     )
+    const unsubApplications = subscribeToProviderApplications(
+      setApplications,
+      (nextError) => setError(nextError.message),
+    )
     return () => {
       unsubOrders()
       unsubUsers()
+      unsubApplications()
     }
   }, [])
 
@@ -75,6 +95,7 @@ function AdminDashboardPage() {
   const completedOrders = orders.filter((order) => order.status === 'Completed')
   const openOrders = orders.filter((order) => !['Completed', 'Cancelled'].includes(order.status))
   const complaints = orders.filter((order) => order.status === 'Complaint')
+  const pendingApplications = applications.filter((application) => application.status === 'Pending')
   const revenue = completedOrders.reduce((total, order) => total + Number(order.amount || 0), 0)
   const bookingsToday = orders.filter((order) => order.createdAtDate?.toDateString() === todayKey).length
 
@@ -84,7 +105,7 @@ function AdminDashboardPage() {
     ['Providers', String(providers.length)],
     ['Revenue', formatAmount(revenue)],
     ['Open requests', String(openOrders.length)],
-    ['Complaints', String(complaints.length)],
+    ['Applications', String(pendingApplications.length)],
   ]
 
   const filteredOrders = useMemo(() => {
@@ -142,10 +163,34 @@ function AdminDashboardPage() {
     }
   }
 
+  async function updatePayment(order, paymentStatus) {
+    try {
+      await updatePaymentStatus(order.firestoreId, paymentStatus)
+    } catch (nextError) {
+      setError(nextError.message)
+    }
+  }
+
+  async function reviewApplication(application, status) {
+    setError('')
+    setMessage('')
+    try {
+      if (status === 'Approved') {
+        await approveProviderApplication(application, user.uid)
+      } else {
+        await rejectProviderApplication(application, user.uid)
+      }
+      setMessage(`${application.name} marked as ${status.toLowerCase()}.`)
+    } catch (nextError) {
+      setError(nextError.message)
+    }
+  }
+
   const nav = [
     { label: 'Overview', to: '/dashboard/admin?view=overview', icon: 'dashboard' },
     { label: 'Users', to: '/dashboard/admin?view=users', icon: 'users' },
     { label: 'Requests', to: '/dashboard/admin?view=requests', icon: 'bookings' },
+    { label: 'Applications', to: '/dashboard/admin?view=applications', icon: 'users' },
     { label: 'Settings', to: '/dashboard/admin?view=settings', icon: 'settings' },
   ]
 
@@ -158,6 +203,7 @@ function AdminDashboardPage() {
       metrics={metrics}
     >
       {error && <p className="dashboard-error">{error}</p>}
+      {message && <p className="dashboard-success">{message}</p>}
 
       {activeView === 'overview' && (
         <section className="dashboard-panel">
@@ -233,7 +279,7 @@ function AdminDashboardPage() {
           </div>
           {filteredOrders.length > 0 ? (
             <table className="dashboard-table">
-              <thead><tr><th>Order</th><th>Customer</th><th>Service</th><th>Address</th><th>Amount</th><th>Status</th></tr></thead>
+              <thead><tr><th>Order</th><th>Customer</th><th>Service</th><th>Address</th><th>Amount</th><th>Status</th><th>Payment</th></tr></thead>
               <tbody>
                 {filteredOrders.map((order) => (
                   <tr key={order.firestoreId}>
@@ -247,11 +293,52 @@ function AdminDashboardPage() {
                         {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
                       </select>
                     </td>
+                    <td>
+                      <select className="dashboard-select" value={order.paymentStatus || 'Pending'} onChange={(event) => updatePayment(order, event.target.value)}>
+                        {paymentStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
+                      </select>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           ) : <p className="dashboard-empty">No matching requests found.</p>}
+        </section>
+      )}
+
+      {activeView === 'applications' && (
+        <section className="dashboard-panel">
+          <div className="dashboard-panel-header">
+            <div>
+              <h2>Provider applications</h2>
+              <p>Review customers who want to become service providers.</p>
+            </div>
+          </div>
+          {applications.length > 0 ? (
+            <table className="dashboard-table">
+              <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Services</th><th>Area</th><th>Status</th><th>Action</th></tr></thead>
+              <tbody>
+                {applications.map((application) => (
+                  <tr key={application.firestoreId}>
+                    <td>{application.name}</td>
+                    <td>{application.email}</td>
+                    <td>{application.phone}</td>
+                    <td>{application.services}</td>
+                    <td>{application.area}</td>
+                    <td><span className={`status-chip ${normalizeStatus(application.status)}`}>{application.status}</span></td>
+                    <td>
+                      {application.status === 'Pending' ? (
+                        <div className="dashboard-tools">
+                          <button className="table-action" type="button" onClick={() => reviewApplication(application, 'Approved')}>Approve</button>
+                          <button className="table-action danger" type="button" onClick={() => reviewApplication(application, 'Rejected')}>Reject</button>
+                        </div>
+                      ) : <span className="dashboard-muted">Reviewed</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : <p className="dashboard-empty">No provider applications yet.</p>}
         </section>
       )}
 

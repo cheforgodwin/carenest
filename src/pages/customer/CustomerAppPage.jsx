@@ -167,6 +167,7 @@ const createEmptyForm = (serviceType = 'laundry') => {
     address: 'Bastos, Yaounde',
     pickupDate: '2024-05-15',
     pickupTime: '10:00',
+    paymentMethod: 'Cash',
     note: '',
   }
 }
@@ -256,6 +257,8 @@ function CustomerAppPage() {
       serviceSpeed: selectedOption[0],
       itemSummary: primaryValue,
       amount: requestAmount,
+      paymentMethod: form.paymentMethod,
+      paymentStatus: 'Pending',
       status: 'Pending',
       placedAt: 'Just now',
       currentStep: 0,
@@ -392,6 +395,7 @@ function CustomerAppPage() {
                   <label>{currentServiceType === 'delivery' ? 'Delivery Address' : 'Service Address'}<span className="request-input"><FiMapPin /><select name="address" value={form.address} onChange={updateForm}>{addresses.map((address) => <option key={address} value={address}>{address}</option>)}</select><FiChevronDown /></span></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Date' : 'Service Date'}<span className="request-input"><FiCalendar /><input name="pickupDate" type="date" value={form.pickupDate} onChange={updateForm} /></span></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Time' : 'Service Time'}<span className="request-input"><FiClock /><input name="pickupTime" type="time" value={form.pickupTime} onChange={updateForm} /></span></label>
+                  <label>Payment Method<span className="request-input"><select name="paymentMethod" value={form.paymentMethod} onChange={updateForm}><option value="Cash">Cash</option><option value="Mobile Money">Mobile Money</option><option value="Orange Money">Orange Money</option></select><FiChevronDown /></span></label>
                   <label className="request-note-field">Additional Note (Optional)<textarea name="note" value={form.note} onChange={updateForm} placeholder={requestConfig.notePlaceholder} /></label>
                 </div>
                 {requestMessage && <p className="request-message">{requestMessage}</p>}
@@ -434,6 +438,7 @@ function CustomerAppPage() {
                 <div><span>Service</span><strong>{viewedOrder.service}</strong></div>
                 <div><span>Pickup</span><strong>{formatPickupDate(viewedOrder.pickupDate)}, {formatPickupTime(viewedOrder.pickupTime)}</strong></div>
                 <div><span>Details</span><strong>{viewedOrder.note || viewedOrder.itemSummary || viewedOrder.clothesType}</strong></div>
+                <div><span>Payment</span><strong>{viewedOrder.paymentMethod || 'Cash'} - {viewedOrder.paymentStatus || 'Pending'}</strong></div>
                 <div><span>Amount</span><strong>{formatAmount(viewedOrder.amount)}</strong></div>
                 <a className="call-card" href="tel:+237612345678"><div><strong>Need help?</strong><p>Call us for any support</p></div><span><FiPhone /> Call CareNest</span></a>
               </aside>

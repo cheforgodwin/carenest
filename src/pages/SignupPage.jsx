@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { FiLock, FiMail, FiPhone, FiUser, FiUsers } from 'react-icons/fi'
+import { FiLock, FiMail, FiPhone, FiUser } from 'react-icons/fi'
 import { useAuth } from '../auth/useAuth'
 import Logo from '../components/Logo'
 import { getAuthErrorMessage, getDashboardPath, signUpWithProfile } from '../firebase/authService'
@@ -58,7 +58,6 @@ function SignupPage() {
           <label>Email<span className="auth-input"><FiMail /><input name="email" type="email" value={form.email} onChange={updateField} required /></span></label>
           <label>Telephone number<span className="auth-input"><FiPhone /><input name="phone" type="tel" value={form.phone} onChange={updateField} placeholder="+237 6XX XXX XXX" required /></span></label>
           <label>Password<span className="auth-input"><FiLock /><input name="password" type="password" minLength="6" value={form.password} onChange={updateField} required /></span></label>
-          <label>Account type<span className="auth-input"><FiUsers /><select name="accountType" value={form.accountType} onChange={updateField}><option value="customer">Customer</option><option value="provider">Service provider</option><option value="admin">Admin / operations</option></select></span></label>
           {error && <p className="auth-status error">{error}</p>}
           <button type="submit" disabled={loading}>{loading ? 'Creating account...' : 'Create account'}</button>
           <p className="auth-switch">Already have an account? <Link to="/login">Login</Link></p>

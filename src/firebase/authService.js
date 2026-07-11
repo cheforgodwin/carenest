@@ -52,7 +52,7 @@ export async function createUserProfile(user, profile) {
     phone: formatPhoneNumber(profile.phone),
     name: profile.name.trim(),
     userIdentifier: createUserIdentifier({ ...profile, email: user.email }),
-    accountType: normalizeRole(profile.accountType),
+    accountType: 'customer',
     createdAt: existing.exists() ? existing.data().createdAt : serverTimestamp(),
     updatedAt: serverTimestamp(),
   }

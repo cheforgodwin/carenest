@@ -1,0 +1,243 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function hasUserDoc() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function currentUser() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function role() {
+      return hasUserDoc() ? currentUser().data.accountType : null;
+    }
+
+    function isAdmin() {
+      return role() == 'admin';
+    }
+
+    function isProvider() {
+      return role() == 'provider';
+    }
+
+    function isCustomer() {
+      return role() == 'customer';
+    }
+
+    function ownsUserDoc(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function validStatus(status) {
+      return status in [
+        'Pending',
+        'Assigned',
+        'In Progress',
+        'Quality Check',
+        'Out for Delivery',
+        'Completed',
+        'Complaint',
+        'Cancelled'
+      ];
+    }
+
+    function validPaymentStatus(status) {
+      return status in ['Pending', 'Paid', 'Failed', 'Refunded'];
+    }
+
+    function validPaymentMethod(method) {
+      return method in ['Cash', 'Mobile Money', 'Orange Money'];
+    }
+
+    function validStepForStatus(status, step) {
+      return (status == 'Pending' && step == 0)
+        || (status == 'Assigned' && step == 1)
+        || (status == 'In Progress' && step == 2)
+        || (status == 'Quality Check' && step == 3)
+        || (status == 'Out for Delivery' && step == 4)
+        || (status == 'Completed' && step == 5)
+        || (status == 'Complaint' && step == 2)
+        || (status == 'Cancelled' && step == 0);
+    }
+
+    function validPrice(serviceType, itemSummary, serviceSpeed, amount) {
+      return (
+        serviceType == 'laundry'
+        && (
+          (itemSummary == 'Mixed clothes' && ((serviceSpeed == 'Normal' && amount == 3000) || (serviceSpeed == 'Express' && amount == 4500)))
+          || (itemSummary == 'Shirts and trousers' && ((serviceSpeed == 'Normal' && amount == 2500) || (serviceSpeed == 'Express' && amount == 4000)))
+          || (itemSummary == 'Beddings and towels' && ((serviceSpeed == 'Normal' && amount == 4500) || (serviceSpeed == 'Express' && amount == 6000)))
+          || (itemSummary == 'Large family load' && ((serviceSpeed == 'Normal' && amount == 6500) || (serviceSpeed == 'Express' && amount == 8000)))
+        )
+      ) || (
+        serviceType == 'cleaning'
+        && (
+          (itemSummary == 'Studio' && ((serviceSpeed == 'Standard' && amount == 5000) || (serviceSpeed == 'Deep Clean' && amount == 9000)))
+          || (itemSummary == '1 Bedroom' && ((serviceSpeed == 'Standard' && amount == 7000) || (serviceSpeed == 'Deep Clean' && amount == 11000)))
+          || (itemSummary == '2 Bedrooms' && ((serviceSpeed == 'Standard' && amount == 10000) || (serviceSpeed == 'Deep Clean' && amount == 14000)))
+          || (itemSummary == '3+ Bedrooms' && ((serviceSpeed == 'Standard' && amount == 14000) || (serviceSpeed == 'Deep Clean' && amount == 18000)))
+        )
+      ) || (
+        serviceType == 'delivery'
+        && (
+          (itemSummary == 'Groceries' && ((serviceSpeed == 'Standard' && amount == 2500) || (serviceSpeed == 'Priority' && amount == 3500)))
+          || (itemSummary == 'Household essentials' && ((serviceSpeed == 'Standard' && amount == 3000) || (serviceSpeed == 'Priority' && amount == 4000)))
+          || (itemSummary == 'Pharmacy' && ((serviceSpeed == 'Standard' && amount == 3500) || (serviceSpeed == 'Priority' && amount == 4500)))
+          || (itemSummary == 'Custom errand' && ((serviceSpeed == 'Standard' && amount == 4500) || (serviceSpeed == 'Priority' && amount == 5500)))
+        )
+      );
+    }
+
+    match /users/{userId} {
+      allow create: if ownsUserDoc(userId)
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.accountType == 'customer';
+
+      allow get: if ownsUserDoc(userId) || isAdmin();
+
+      allow list: if isAdmin();
+
+      allow update: if isAdmin()
+        || (
+          ownsUserDoc(userId)
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'accountType',
+            'uid',
+            'email',
+            'createdAt'
+          ])
+        );
+
+      allow delete: if isAdmin();
+    }
+
+    match /providerApplications/{applicationId} {
+      allow create: if signedIn()
+        && applicationId == request.auth.uid
+        && request.resource.data.userUid == request.auth.uid
+        && request.resource.data.status == 'Pending';
+
+      allow get: if signedIn()
+        && (isAdmin() || resource.data.userUid == request.auth.uid);
+
+      allow list: if signedIn()
+        && (isAdmin() || resource.data.userUid == request.auth.uid);
+
+      allow update: if isAdmin()
+        || (
+          signedIn()
+          && applicationId == request.auth.uid
+          && resource.data.userUid == request.auth.uid
+          && request.resource.data.userUid == request.auth.uid
+          && request.resource.data.status == 'Pending'
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'reviewerUid',
+            'reviewedAt'
+          ])
+        );
+
+      allow delete: if isAdmin();
+    }
+
+    match /serviceRequests/{requestId} {
+      allow create: if signedIn()
+        && isCustomer()
+        && request.resource.data.keys().hasAll([
+          'customerUid',
+          'customerEmail',
+          'serviceType',
+          'serviceSpeed',
+          'itemSummary',
+          'amount',
+          'status',
+          'currentStep',
+          'paymentMethod',
+          'paymentStatus'
+        ])
+        && request.resource.data.customerUid == request.auth.uid
+        && request.resource.data.status == 'Pending'
+        && request.resource.data.currentStep == 0
+        && request.resource.data.paymentStatus == 'Pending'
+        && validPaymentMethod(request.resource.data.paymentMethod)
+        && validPrice(
+          request.resource.data.serviceType,
+          request.resource.data.itemSummary,
+          request.resource.data.serviceSpeed,
+          request.resource.data.amount
+        )
+        && !request.resource.data.keys().hasAny([
+          'providerUid',
+          'providerName',
+          'providerEmail',
+          'paidAt'
+        ]);
+
+      allow get: if signedIn()
+        && (
+          isAdmin()
+          || resource.data.customerUid == request.auth.uid
+          || resource.data.providerUid == request.auth.uid
+          || (isProvider() && resource.data.status == 'Pending')
+        );
+
+      allow list: if signedIn()
+        && (
+          isAdmin()
+          || resource.data.customerUid == request.auth.uid
+          || resource.data.providerUid == request.auth.uid
+          || (isProvider() && resource.data.status == 'Pending')
+        );
+
+      allow update: if isAdmin()
+        && validStatus(request.resource.data.status)
+        && validStepForStatus(request.resource.data.status, request.resource.data.currentStep)
+        && validPaymentStatus(request.resource.data.paymentStatus)
+        || (
+          isProvider()
+          && validStatus(request.resource.data.status)
+          && validStepForStatus(request.resource.data.status, request.resource.data.currentStep)
+          && request.resource.data.customerUid == resource.data.customerUid
+          && request.resource.data.customerEmail == resource.data.customerEmail
+          && request.resource.data.amount == resource.data.amount
+          && request.resource.data.paymentStatus == resource.data.paymentStatus
+          && (
+            resource.data.providerUid == request.auth.uid
+            || (
+              !('providerUid' in resource.data)
+              && resource.data.status == 'Pending'
+              && request.resource.data.providerUid == request.auth.uid
+              && request.resource.data.status == 'Assigned'
+              && request.resource.data.currentStep == 1
+            )
+          )
+        )
+        || (
+          isCustomer()
+          && resource.data.customerUid == request.auth.uid
+          && request.resource.data.customerUid == resource.data.customerUid
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'status',
+            'currentStep',
+            'providerUid',
+            'providerName',
+            'providerEmail',
+            'amount',
+            'customerUid',
+            'customerEmail',
+            'paymentStatus',
+            'paidAt',
+            'createdAt'
+          ])
+        );
+
+      allow delete: if isAdmin();
+    }
+  }
+}
