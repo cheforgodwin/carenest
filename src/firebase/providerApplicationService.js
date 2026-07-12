@@ -7,7 +7,6 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
-  where,
   writeBatch,
 } from 'firebase/firestore'
 import { db } from './firebaseConfig'
@@ -51,8 +50,8 @@ export function createProviderApplication(user, profile, application) {
 export function subscribeToMyProviderApplications(userUid, onNext, onError) {
   if (!userUid) return () => {}
   return onSnapshot(
-    query(applicationsRef, where('userUid', '==', userUid)),
-    (snapshot) => onNext(snapshot.docs.map(normalizeApplication)),
+    doc(db, 'providerApplications', userUid),
+    (snapshot) => onNext(snapshot.exists() ? [normalizeApplication(snapshot)] : []),
     onError,
   )
 }

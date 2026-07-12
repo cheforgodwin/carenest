@@ -1,7 +1,9 @@
 import {
   createUserWithEmailAndPassword,
+  browserSessionPersistence,
   signInWithEmailAndPassword,
   signOut,
+  setPersistence,
   updateProfile,
 } from 'firebase/auth'
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore'
@@ -67,6 +69,7 @@ export async function getUserProfile(uid) {
 }
 
 export async function signUpWithProfile(profile) {
+  await setPersistence(auth, browserSessionPersistence)
   const credential = await createUserWithEmailAndPassword(
     auth,
     profile.email.trim(),
@@ -77,6 +80,7 @@ export async function signUpWithProfile(profile) {
 }
 
 export async function loginWithEmail(email, password) {
+  await setPersistence(auth, browserSessionPersistence)
   const credential = await signInWithEmailAndPassword(auth, email.trim(), password)
   return getUserProfile(credential.user.uid)
 }

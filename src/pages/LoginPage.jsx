@@ -3,14 +3,16 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { FiLock, FiMail } from 'react-icons/fi'
 import { useAuth } from '../auth/useAuth'
 import Logo from '../components/Logo'
-import { getAuthErrorMessage, getDashboardPath, loginWithEmail } from '../firebase/authService'
+import { getAuthErrorMessage, getDashboardPath, loginWithEmail, logout } from '../firebase/authService'
 import './AuthPages.css'
 
-function LoginPage() {
+const adminEmail = import.meta.env.VITE_ADMIN_EMAIL?.trim().toLowerCase() || ''
+
+function LoginPage({ adminOnly = false }) {
   const navigate = useNavigate()
   const location = useLocation()
   const { setSession } = useAuth()
-  const [form, setForm] = useState({ email: '', password: '' })
+  const [form, setForm] = useState({ email: adminOnly ? adminEmail : '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -23,13 +25,24 @@ function LoginPage() {
     setError('')
     setLoading(true)
     try {
+      const normalizedEmail = form.email.trim().toLowerCase()
+      if (adminOnly && adminEmail && normalizedEmail !== adminEmail) {
+        setError('This admin entrance is only for the CareNest owner account.')
+        return
+      }
       const profile = await loginWithEmail(form.email, form.password)
       if (!profile) {
         setError('Your account profile was not found. Please contact CareNest support.')
         return
       }
+      if (adminOnly && profile.accountType !== 'admin') {
+        await logout()
+        setSession(null)
+        setError('This account is not registered as the CareNest admin.')
+        return
+      }
       setSession(profile)
-      const fallbackPath = getDashboardPath(profile.accountType)
+      const fallbackPath = adminOnly ? '/dashboard/admin' : getDashboardPath(profile.accountType)
       navigate(location.state?.from || fallbackPath, { replace: true })
     } catch (err) {
       setError(getAuthErrorMessage(err))
@@ -43,18 +56,18 @@ function LoginPage() {
       <section className="auth-shell">
         <div className="auth-copy">
           <Logo />
-          <p className="eyebrow">Welcome back</p>
-          <h1>Login to manage your CareNest requests.</h1>
-          <p className="lead">Enter your email and password to continue.</p>
+          <p className="eyebrow">{adminOnly ? 'Owner access' : 'Welcome back'}</p>
+          <h1>{adminOnly ? 'CareNest admin dashboard.' : 'Login to manage your CareNest requests.'}</h1>
+          <p className="lead">{adminOnly ? 'Use the owner account to manage users, providers, orders, and payments.' : 'Enter your email and password to continue.'}</p>
         </div>
         <form className="auth-card" onSubmit={handleSubmit}>
-          <h2>Login</h2>
-          <p>Access your account.</p>
-          <label>Email<span className="auth-input"><FiMail /><input name="email" type="email" value={form.email} onChange={updateField} required /></span></label>
+          <h2>{adminOnly ? 'Admin login' : 'Login'}</h2>
+          <p>{adminOnly ? 'Owner account only.' : 'Access your account.'}</p>
+          <label>Email<span className="auth-input"><FiMail /><input name="email" type="email" value={form.email} onChange={updateField} readOnly={adminOnly && Boolean(adminEmail)} required /></span></label>
           <label>Password<span className="auth-input"><FiLock /><input name="password" type="password" value={form.password} onChange={updateField} required /></span></label>
           {error && <p className="auth-status error">{error}</p>}
-          <button type="submit" disabled={loading}>{loading ? 'Logging in...' : 'Login'}</button>
-          <p className="auth-switch">New to CareNest? <Link to="/signup">Create an account</Link></p>
+          <button type="submit" disabled={loading}>{loading ? 'Logging in...' : adminOnly ? 'Open admin dashboard' : 'Login'}</button>
+          {!adminOnly && <p className="auth-switch">New to CareNest? <Link to="/signup">Create an account</Link></p>}
         </form>
       </section>
     </main>

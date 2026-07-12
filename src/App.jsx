@@ -14,6 +14,7 @@ function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/carenest-admin" element={<LoginPage adminOnly />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/dashboard/customer" element={<ProtectedRoute role="customer"><CustomerDashboardPage /></ProtectedRoute>} />
         <Route path="/dashboard/provider" element={<ProtectedRoute role="provider"><ProviderDashboardPage /></ProtectedRoute>} />

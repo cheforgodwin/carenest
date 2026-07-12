@@ -2,7 +2,7 @@
   position: sticky;
   top: 0;
   z-index: 10;
-  padding: 16px clamp(16px, 5vw, 72px);
+  padding: 14px clamp(16px, 5vw, 72px);
   border-bottom: 1px solid #dceee3;
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(16px);
@@ -12,7 +12,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  gap: 16px;
   max-width: 1180px;
   margin: 0 auto;
 }
@@ -25,7 +25,7 @@
 .nav-auth {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .nav-links a,
@@ -38,7 +38,7 @@
   color: #25513c;
   text-decoration: none;
   font-size: 14px;
-  font-weight: 850;
+  font-weight: 800;
 }
 
 .nav-links a:hover,
@@ -64,6 +64,10 @@
     flex-wrap: wrap;
   }
 
+  .navbar .cn-logo {
+    max-width: 100%;
+  }
+
   .nav-links,
   .nav-auth {
     width: 100%;
@@ -71,6 +75,8 @@
 
   .nav-links {
     overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
   }
 
   .nav-auth {
@@ -96,5 +102,14 @@
   .nav-auth a {
     flex: 1 1 auto;
     justify-content: center;
+  }
+}
+
+@media (max-width: 380px) {
+  .nav-links a,
+  .nav-auth a {
+    min-height: 38px;
+    padding: 0 10px;
+    font-size: 13px;
   }
 }

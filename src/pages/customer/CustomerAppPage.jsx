@@ -279,8 +279,6 @@ function CustomerAppPage() {
   return (
     <main className="mobile-app-page">
       <section className="mobile-phone">
-        <header className="mobile-status"><strong>9:41</strong><span>LTE</span></header>
-
         {!isServices && !isRequest && !isOrder && (
           <section className="mobile-content mobile-content-home">
             <div className="app-header">
@@ -429,9 +427,11 @@ function CustomerAppPage() {
                   <div className="order-machine"><FiShoppingBag /></div>
                   <div><h2>{viewedOrder.service} Order</h2><strong>{viewedOrder.id}</strong><p>Placed on {formatPlacedAt(viewedOrder)}</p><span>{viewedOrder.status}</span></div>
                 </div>
-                {getTimeline(viewedOrder).map(([step, detail, status]) => (
-                  <div className={`track-row ${status}`} key={step}><span>{status !== 'pending' && <FiCheck />}</span><div><strong>{step}</strong><p>{detail}</p></div></div>
-                ))}
+                <div className="tracking-steps">
+                  {getTimeline(viewedOrder).map(([step, detail, status]) => (
+                    <div className={`track-row ${status}`} key={step}><span>{status !== 'pending' && <FiCheck />}</span><div><strong>{step}</strong><p>{detail}</p></div></div>
+                  ))}
+                </div>
               </div>
               <aside className="tracking-aside">
                 <h2>Order summary</h2>

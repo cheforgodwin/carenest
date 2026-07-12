@@ -119,11 +119,36 @@
 }
 
 @media (max-width: 520px) {
+  .cn-logo {
+    gap: 8px;
+  }
+
+  .cn-logo-mark {
+    width: 46px;
+    height: 46px;
+    border-radius: 13px;
+  }
+
+  .cn-logo-mark svg {
+    width: 43px;
+    height: 43px;
+  }
+
   .cn-logo-copy strong {
-    font-size: 24px;
+    font-size: 22px;
   }
 
   .cn-logo-copy small {
-    font-size: 10px;
+    font-size: 9px;
+  }
+}
+
+@media (max-width: 380px) {
+  .cn-logo-copy strong {
+    font-size: 20px;
+  }
+
+  .cn-logo-copy small {
+    font-size: 8px;
   }
 }

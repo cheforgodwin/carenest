@@ -11,9 +11,9 @@
 }
 
 .mobile-app-page {
-  height: 100vh;
   min-height: 100vh;
-  overflow: hidden;
+  min-height: 100dvh;
+  overflow-x: hidden;
   padding: 0;
   background:
     radial-gradient(circle at 16% 10%, rgba(255, 122, 26, 0.16), transparent 26%),
@@ -25,18 +25,14 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 100vh;
-  min-height: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
   margin: 0 auto;
-  overflow: hidden;
+  overflow: visible;
   border: 0;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-}
-
-.mobile-status {
-  display: none;
 }
 
 .mobile-tabs {
@@ -45,8 +41,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  min-height: 72px;
+  gap: 20px;
+  min-height: 68px;
   padding: 8px max(24px, calc((100vw - 1280px) / 2 + 24px));
   border-bottom: 1px solid var(--cn-line);
   background: rgba(255, 255, 255, 0.92);
@@ -84,7 +80,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 6px;
 }
 
 .customer-nav-links a {
@@ -97,7 +93,8 @@
   color: var(--cn-muted);
   text-decoration: none;
   font-size: 14px;
-  font-weight: 850;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .customer-nav-links a:hover {
@@ -117,8 +114,9 @@
   margin: 0 auto;
   min-height: 0;
   height: auto;
-  overflow: hidden;
-  padding: clamp(14px, 1.7vw, 22px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: clamp(14px, 1.5vw, 20px);
 }
 
 .mobile-content h1,
@@ -129,14 +127,14 @@
 
 .mobile-content h1 {
   color: var(--cn-ink);
-  font-size: clamp(28px, 3vw, 42px);
-  line-height: 1.04;
+  font-size: clamp(26px, 2.6vw, 38px);
+  line-height: 1.08;
 }
 
 .mobile-content p {
   color: #253b32;
-  font-size: 16px;
-  line-height: 1.55;
+  font-size: 15px;
+  line-height: 1.5;
 }
 
 .app-header {
@@ -204,7 +202,7 @@
   flex: 1 1 540px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   min-height: 0;
 }
 
@@ -212,10 +210,10 @@
   flex: 1 1 380px;
   display: flex;
   flex-direction: column;
-  gap: 11px;
+  gap: 10px;
   align-self: start;
   min-height: 0;
-  padding: 18px;
+  padding: 16px;
   border: 1px solid var(--cn-line);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.86);
@@ -226,9 +224,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  gap: 16px;
   margin-bottom: 0;
-  padding: 16px;
+  padding: 14px;
   border: 1px solid var(--cn-line);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.86);
@@ -240,8 +238,9 @@
 }
 
 .customer-greeting h1 {
-  margin: 0 0 12px;
-  font-size: clamp(30px, 3vw, 44px);
+  margin: 0 0 8px;
+  font-size: clamp(28px, 2.8vw, 40px);
+  line-height: 1.08;
 }
 
 .customer-greeting h1 span {
@@ -277,13 +276,13 @@
 
 .mobile-hero {
   display: flex;
-  gap: 22px;
+  gap: 18px;
   align-items: center;
   justify-content: space-between;
   flex: 1 1 auto;
   min-height: 0;
   margin-bottom: 0;
-  padding: clamp(18px, 2vw, 24px);
+  padding: clamp(16px, 1.8vw, 22px);
   overflow: hidden;
   border-radius: 14px;
   color: #ffffff;
@@ -295,9 +294,9 @@
 
 .mobile-hero h2 {
   max-width: 620px;
-  margin: 0 0 22px;
+  margin: 0 0 18px;
   color: #ffffff;
-  font-size: clamp(28px, 3vw, 42px);
+  font-size: clamp(26px, 2.6vw, 38px);
   line-height: 1.12;
 }
 
@@ -369,7 +368,7 @@
 
 .section-title strong {
   color: var(--cn-ink);
-  font-size: 18px;
+  font-size: 17px;
 }
 
 .section-title a {
@@ -380,7 +379,7 @@
 .quick-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
   margin-bottom: 6px;
 }
 
@@ -390,8 +389,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  min-height: 86px;
+  gap: 10px;
+  min-height: 82px;
   border: 1px solid var(--cn-line);
   border-radius: 12px;
   color: var(--cn-ink);
@@ -574,6 +573,7 @@
   display: flex;
   align-items: stretch;
   justify-content: center;
+  min-height: 0;
 }
 
 .services-shell {
@@ -597,9 +597,9 @@
   display: flex;
   flex: 1 1 280px;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
   min-height: 0;
-  padding: 18px;
+  padding: 16px;
   border: 1px solid var(--cn-line);
   border-radius: 14px;
   background: linear-gradient(135deg, #f1faf5, #ffffff);
@@ -647,7 +647,8 @@
 .service-card h2 {
   margin: 0 0 8px;
   color: var(--cn-ink);
-  font-size: 20px;
+  font-size: 19px;
+  line-height: 1.2;
 }
 
 .service-card a {
@@ -694,7 +695,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .top-title a {
@@ -713,7 +714,8 @@
   flex: 1 1 auto;
   margin: 0;
   text-align: center;
-  font-size: 24px;
+  font-size: 23px;
+  line-height: 1.15;
 }
 
 .mobile-content-request {
@@ -731,6 +733,7 @@
   justify-content: center;
   gap: clamp(14px, 1.8vw, 24px);
   width: min(1360px, 100%);
+  min-width: 0;
 }
 
 .request-main,
@@ -744,7 +747,7 @@
 .request-main {
   flex: 1 1 720px;
   min-width: 0;
-  padding: clamp(16px, 1.7vw, 22px);
+  padding: clamp(16px, 1.6vw, 20px);
 }
 
 .request-aside {
@@ -754,9 +757,9 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 9px;
   min-width: 300px;
-  padding: 20px;
+  padding: 18px;
   overflow: hidden;
   background:
     radial-gradient(circle at 88% 12%, rgba(255, 122, 26, 0.2), transparent 30%),
@@ -767,7 +770,7 @@
 .request-aside h2 {
   margin: 0;
   color: var(--cn-ink);
-  font-size: 22px;
+  font-size: 21px;
   line-height: 1.14;
 }
 
@@ -840,6 +843,7 @@
   gap: clamp(24px, 4vw, 48px);
   align-items: stretch;
   justify-content: center;
+  min-width: 0;
 }
 
 .tracking-main,
@@ -862,21 +866,22 @@
   flex: 0 1 420px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 28px;
+  gap: 12px;
+  padding: 24px;
 }
 
 .tracking-aside h2 {
   margin: 0 0 8px;
   color: var(--cn-ink);
-  font-size: 28px;
+  font-size: 26px;
+  line-height: 1.15;
 }
 
 .tracking-aside > div {
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  padding: 14px 0;
+  padding: 12px 0;
   border-bottom: 1px solid var(--cn-line);
 }
 
@@ -942,19 +947,19 @@
 .request-options {
   display: flex;
   gap: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .request-box {
   position: relative;
   display: flex;
   flex: 1 1 0;
-  min-height: 76px;
+  min-height: 72px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 4px;
-  padding: 12px;
+  padding: 10px;
   border: 1px solid var(--cn-line);
   border-radius: 12px;
   color: var(--cn-ink);
@@ -1019,7 +1024,7 @@
   margin-bottom: 0;
   color: var(--cn-ink);
   font-size: 14px;
-  font-weight: 950;
+  font-weight: 850;
 }
 
 .request-note-field {
@@ -1135,10 +1140,10 @@
 
 .tracking-hero {
   display: flex;
-  gap: 20px;
+  gap: 18px;
   align-items: center;
-  margin-bottom: 28px;
-  padding: 24px;
+  margin-bottom: 24px;
+  padding: 22px;
   border-radius: 14px;
   color: #ffffff;
   background:
@@ -1167,7 +1172,8 @@
 .tracking-hero strong {
   display: block;
   margin-bottom: 6px;
-  font-size: 26px;
+  font-size: 25px;
+  line-height: 1.15;
 }
 
 .tracking-hero p {
@@ -1180,25 +1186,33 @@
   background: rgba(255, 122, 26, 0.9);
 }
 
-.track-row {
+.tracking-steps {
   position: relative;
   display: flex;
-  gap: 14px;
-  min-height: 74px;
+  justify-content: space-between;
+  gap: 10px;
 }
 
-.track-row::before {
+.tracking-steps::before {
   content: "";
   position: absolute;
-  top: 36px;
-  bottom: -2px;
-  left: 16px;
-  width: 2px;
+  top: 17px;
+  right: 8%;
+  left: 8%;
+  height: 2px;
   background: #ccd4d0;
 }
 
-.track-row:last-of-type::before {
-  display: none;
+.track-row {
+  position: relative;
+  display: flex;
+  z-index: 1;
+  flex: 1 1 0;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  text-align: center;
 }
 
 .track-row span {
@@ -1232,12 +1246,15 @@
   display: block;
   margin-bottom: 4px;
   color: var(--cn-ink);
+  font-size: 13px;
+  line-height: 1.2;
 }
 
 .track-row p {
   margin: 0;
   color: var(--cn-muted);
-  font-size: 14px;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .track-row.active p {
@@ -1249,9 +1266,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
-  margin-top: 14px;
-  padding: 18px;
+  gap: 14px;
+  margin-top: 12px;
+  padding: 16px;
   border-radius: 14px;
   color: var(--cn-ink);
   background: var(--cn-mint);
@@ -1273,6 +1290,129 @@
   background: linear-gradient(135deg, var(--cn-orange), var(--cn-orange-dark));
   font-weight: 950;
   white-space: nowrap;
+}
+
+@media (min-width: 981px) {
+  .mobile-app-page {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .mobile-phone {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .mobile-content {
+    overflow: hidden;
+  }
+
+  .mobile-content-order {
+    display: flex;
+    min-height: 0;
+  }
+
+  .tracking-shell {
+    flex: 1 1 auto;
+    gap: clamp(18px, 2.5vw, 36px);
+    min-height: 0;
+  }
+
+  .tracking-main {
+    display: flex;
+    flex-direction: column;
+    padding: clamp(18px, 2vw, 28px);
+  }
+
+  .tracking-aside {
+    gap: 8px;
+    padding: clamp(18px, 2vw, 28px);
+  }
+
+  .tracking-aside h2 {
+    margin-bottom: 4px;
+    font-size: clamp(24px, 2vw, 30px);
+  }
+
+  .tracking-aside > div {
+    padding: 10px 0;
+  }
+
+  .top-title {
+    margin-bottom: 10px;
+  }
+
+  .tracking-hero {
+    gap: 18px;
+    margin-bottom: 18px;
+    padding: 18px;
+  }
+
+  .order-machine {
+    flex-basis: 96px;
+    height: 92px;
+  }
+
+  .order-machine svg {
+    width: 46px;
+    height: 46px;
+  }
+
+  .tracking-hero h2 {
+    margin-bottom: 6px;
+    font-size: clamp(30px, 3vw, 46px);
+  }
+
+  .tracking-hero strong {
+    margin-bottom: 4px;
+    font-size: clamp(24px, 2vw, 30px);
+  }
+
+  .tracking-hero p {
+    margin-bottom: 8px;
+  }
+
+  .call-card {
+    gap: 12px;
+    margin-top: 8px;
+    padding: 14px;
+  }
+
+  .call-card > span {
+    min-height: 40px;
+    padding-inline: 16px;
+  }
+}
+
+@media (max-width: 860px) {
+  .mobile-tabs {
+    gap: 12px;
+    padding-inline: 14px;
+  }
+
+  .customer-nav-brand {
+    min-width: 178px;
+  }
+
+  .customer-nav-brand .cn-logo-copy strong {
+    font-size: 20px;
+  }
+
+  .customer-nav-links {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .customer-nav-links a {
+    padding-inline: 9px;
+    font-size: 13px;
+  }
 }
 
 @media (max-width: 980px) {
@@ -1303,11 +1443,15 @@
   .tracking-aside {
     position: static;
     order: -1;
+    min-width: 0;
+    width: 100%;
   }
 }
 
 @media (max-width: 640px) {
   .mobile-app-page {
+    height: 100dvh;
+    min-height: 100dvh;
     padding: 0;
     background: #f7faf8;
   }
@@ -1315,7 +1459,8 @@
   .mobile-phone {
     position: relative;
     width: 100%;
-    min-height: 100vh;
+    height: 100dvh;
+    min-height: 100dvh;
     overflow: hidden;
     border: 0;
     border-radius: 0;
@@ -1323,21 +1468,14 @@
     box-shadow: none;
   }
 
-  .mobile-status {
-    display: flex;
-    justify-content: space-between;
-    padding: 14px 22px 8px;
-    color: #000000;
-    font-size: 14px;
-    font-weight: 900;
-  }
-
   .mobile-content {
-    height: calc(100vh - 48px);
+    flex: 1 1 auto;
+    height: auto;
     width: 100%;
     overflow-y: auto;
     margin: 0;
-    padding: 10px 16px 104px;
+    padding: 10px 16px 112px;
+    -webkit-overflow-scrolling: touch;
   }
 
   .app-header {
@@ -1417,13 +1555,13 @@
   }
 
   .quick-grid {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     gap: 10px;
     margin-bottom: 16px;
   }
 
   .quick-grid a {
-    flex: 1 1 0;
+    flex: 1 1 calc(50% - 10px);
     min-width: 0;
     min-height: 92px;
     padding: 8px 4px;
@@ -1459,7 +1597,7 @@
     font-size: 10px;
   }
 
-  .activity-list div {
+  .activity-list a {
     gap: 8px;
   }
 
@@ -1521,15 +1659,15 @@
   }
 
   .service-card {
-    flex-direction: row;
+    flex-direction: column;
     gap: 16px;
-    min-height: 176px;
+    min-height: 0;
     margin-bottom: 18px;
     padding: 18px;
   }
 
   .service-art {
-    min-height: 130px;
+    min-height: 112px;
   }
 
   .service-art svg {
@@ -1554,37 +1692,80 @@
   }
 
   .request-box {
-    min-height: 110px;
+    min-height: 96px;
     padding: 16px;
   }
 
-  .split-fields {
-    display: flex;
-    gap: 10px;
+  .request-options,
+  .request-field-grid {
+    flex-direction: column;
   }
 
   .mobile-content label {
+    flex-basis: auto;
     margin-bottom: 16px;
     font-size: 14px;
   }
 
-  .mobile-content label div {
+  .mobile-content label div,
+  .request-input,
+  .mobile-content textarea {
     min-height: 48px;
     padding: 0 12px;
     font-size: 13px;
   }
 
+  .request-submit-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .request-submit-row button {
+    width: 100%;
+    min-width: 0;
+  }
+
   .tracking-hero {
+    flex-direction: column;
+    align-items: flex-start;
     gap: 14px;
     padding: 18px;
   }
 
   .order-machine {
+    width: 100%;
     height: 76px;
+  }
+
+  .tracking-aside > div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .tracking-aside strong {
+    text-align: left;
   }
 
   .tracking-hero strong {
     font-size: 20px;
+  }
+
+  .tracking-steps {
+    gap: 8px;
+  }
+
+  .tracking-steps::before {
+    right: 10%;
+    left: 10%;
+  }
+
+  .track-row strong {
+    font-size: 11px;
+  }
+
+  .track-row p {
+    font-size: 10px;
   }
 
   .call-card {
@@ -1594,6 +1775,9 @@
 
   .call-card > span {
     justify-content: center;
+    width: 100%;
+    min-width: 0;
+    white-space: normal;
   }
 
   .mobile-tabs {
@@ -1633,6 +1817,7 @@
     color: #727775;
     font-size: 11px;
     font-weight: 800;
+    white-space: normal;
   }
 
   .customer-nav-links a:first-child,
@@ -1643,5 +1828,57 @@
   .customer-nav-links a:nth-child(3),
   .customer-nav-links a:nth-child(4) {
     color: #727775;
+  }
+}
+
+@media (max-width: 420px) {
+  .mobile-content {
+    padding-inline: 12px;
+  }
+
+  .customer-greeting {
+    align-items: flex-start;
+  }
+
+  .avatar {
+    width: 58px;
+    height: 58px;
+    border-width: 4px;
+    font-size: 18px;
+  }
+
+  .mobile-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .hero-art {
+    width: 100%;
+    height: 96px;
+  }
+
+  .quick-grid a {
+    flex-basis: 100%;
+    min-height: 72px;
+  }
+
+  .top-title {
+    gap: 10px;
+  }
+
+  .top-title h1 {
+    text-align: left;
+  }
+
+  .stepper span small {
+    font-size: 10px;
+  }
+
+  .request-box {
+    width: 100%;
+  }
+
+  .customer-nav-links a {
+    font-size: 10px;
   }
 }
