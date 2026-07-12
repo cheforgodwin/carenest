@@ -10,7 +10,6 @@ function Navbar() {
         <div className="nav-links">
           <a href="#services">Services</a>
           <a href="#how">How it works</a>
-          <NavLink to="/dashboard/customer">Dashboard</NavLink>
         </div>
         <div className="nav-auth">
           <NavLink to="/login">Login</NavLink>

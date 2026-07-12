@@ -61,55 +61,93 @@
 
 @media (max-width: 760px) {
   .navbar {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "logo auth"
+      "links links";
+    align-items: center;
+    gap: 12px;
   }
 
   .navbar .cn-logo {
+    grid-area: logo;
     max-width: 100%;
   }
 
-  .nav-links,
-  .nav-auth {
-    width: 100%;
-  }
-
   .nav-links {
-    overflow-x: auto;
-    padding-bottom: 4px;
-    scrollbar-width: thin;
+    grid-area: links;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
   }
 
   .nav-auth {
-    justify-content: space-between;
+    grid-area: auth;
+    justify-content: end;
+    gap: 8px;
+  }
+
+  .nav-links a,
+  .nav-auth a {
+    justify-content: center;
   }
 }
 
 @media (max-width: 520px) {
   .site-header {
-    padding: 12px 16px;
+    padding: 10px 16px 12px;
   }
 
-  .nav-links a,
-  .nav-auth a {
-    padding: 0 12px;
-    white-space: nowrap;
+  .navbar {
+    gap: 10px;
   }
 
-  .nav-auth {
-    flex-wrap: wrap;
-  }
-
-  .nav-auth a {
-    flex: 1 1 auto;
-    justify-content: center;
-  }
-}
-
-@media (max-width: 380px) {
   .nav-links a,
   .nav-auth a {
     min-height: 38px;
     padding: 0 10px;
+    white-space: nowrap;
+    font-size: 13px;
+  }
+
+  .nav-auth {
+    display: grid;
+    grid-template-columns: auto minmax(104px, 1fr);
+    min-width: 178px;
+  }
+
+  .nav-auth a {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 380px) {
+  .site-header {
+    padding-inline: 12px;
+  }
+
+  .navbar {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "logo"
+      "auth"
+      "links";
+  }
+
+  .navbar .cn-logo {
+    justify-content: center;
+  }
+
+  .nav-auth {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nav-links a,
+  .nav-auth a {
+    min-height: 36px;
+    padding: 0 8px;
     font-size: 13px;
   }
 }

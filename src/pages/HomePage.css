@@ -208,7 +208,7 @@ h2 {
 @media (max-width: 560px) {
   .hero,
   .section {
-    padding: 36px 16px;
+    padding: 28px 16px;
   }
 
   h1 {
@@ -225,7 +225,8 @@ h2 {
   }
 
   .hero-actions {
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .primary-action,
@@ -238,12 +239,53 @@ h2 {
   .service-grid article,
   .trust-grid span,
   .trust-grid a {
-    padding: 18px;
+    padding: 16px;
   }
 
   .service-grid,
   .trust-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .service-grid article,
+  .trust-grid span,
+  .trust-grid a {
+    min-width: 0;
+  }
+
+  .service-grid article {
+    display: flex;
     flex-direction: column;
+    gap: 8px;
+    min-height: 176px;
+  }
+
+  .service-grid svg {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 auto;
+  }
+
+  .service-grid h3 {
+    margin-bottom: 0;
+    font-size: 17px;
+    line-height: 1.15;
+  }
+
+  .service-grid p {
+    margin-bottom: 0;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
+  .trust-grid span,
+  .trust-grid a {
+    min-height: 58px;
+    padding: 14px;
+    font-size: 14px;
+    line-height: 1.2;
   }
 }
 
@@ -259,5 +301,15 @@ h2 {
 
   .hero-card strong {
     font-size: 22px;
+  }
+
+  .hero-actions,
+  .service-grid,
+  .trust-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .service-grid article {
+    min-height: auto;
   }
 }
