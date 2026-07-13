@@ -409,13 +409,30 @@
   }
 
   .dashboard-main {
+    width: 100%;
     padding: 22px 16px;
   }
 
   .dashboard-top,
-  .dashboard-panel-header,
-  .metric-grid {
+  .dashboard-panel-header {
     flex-direction: column;
+  }
+
+  .metric-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .metric-card {
+    min-width: 0;
+    min-height: 120px;
+    padding: 14px;
+    border-color: #cfe5d8;
+  }
+
+  .metric-card strong {
+    overflow-wrap: anywhere;
   }
 
   .dashboard-top h1 {
@@ -451,6 +468,7 @@
 
   .dashboard-panel {
     padding: 16px;
+    border-color: #cfe5d8;
   }
 
   .dashboard-table {
@@ -475,6 +493,14 @@
 
   .dashboard-main {
     padding: 18px 12px;
+  }
+
+  .metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .metric-card {
+    min-height: auto;
   }
 
   .dashboard-top h1 {
