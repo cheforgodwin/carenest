@@ -16,7 +16,7 @@ function HomePage() {
           <p className="lead">CareNest helps households book verified providers, schedule pickup times, pay clearly and track every request.</p>
           <div className="hero-actions">
             <Link className="primary-action" to="/signup">Create account</Link>
-            <Link className="secondary-action" to="/customer">View mobile app</Link>
+            <Link className="secondary-action" to="/dashboard/customer">Book a service</Link>
           </div>
         </div>
         <div className="hero-card">

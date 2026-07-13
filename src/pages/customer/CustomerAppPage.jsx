@@ -6,6 +6,7 @@ import {
   FiBell,
   FiBriefcase,
   FiCalendar,
+  FiCamera,
   FiCheck,
   FiChevronDown,
   FiClock,
@@ -17,25 +18,25 @@ import {
   FiPhone,
   FiShoppingBag,
   FiTool,
-  FiUser,
   FiZap,
 } from 'react-icons/fi'
 import { useAuth } from '../../auth/useAuth'
 import Logo from '../../components/Logo'
 import { createRequestId, createServiceRequest, subscribeToCustomerOrders } from '../../firebase/orderService'
+import { uploadCustomerProfilePhoto } from '../../firebase/profilePhotoService'
 import './CustomerAppPage.css'
 
 const quickActions = [
-  ['Laundry', FiShoppingBag, '/customer/request/laundry'],
-  ['Cleaning', FiTool, '/customer/request/cleaning'],
-  ['Delivery', FiPackage, '/customer/request/delivery'],
+  ['Laundry', FiShoppingBag, '/dashboard/customer/request/laundry'],
+  ['Cleaning', FiTool, '/dashboard/customer/request/cleaning'],
+  ['Delivery', FiPackage, '/dashboard/customer/request/delivery'],
   ['Call CareNest', FiPhone, 'tel:+237612345678'],
 ]
 
 const services = [
-  ['Laundry Service', 'We wash, iron and deliver to your door.', 'laundry'],
-  ['Home Cleaning', 'Professional cleaning for your home.', 'cleaning'],
-  ['Essentials Delivery', 'Order household essentials and we deliver fast.', 'delivery'],
+  ['Laundry Service', 'We wash, iron and deliver to your door.', 'laundry', 2500],
+  ['Home Cleaning', 'Professional cleaning for your home.', 'cleaning', 5000],
+  ['Essentials Delivery', 'Order household essentials and we deliver fast.', 'delivery', 2500],
 ]
 
 const timelineSteps = [
@@ -160,12 +161,15 @@ const getTimeline = (order) => timelineSteps.map((step, index) => {
 
 const createEmptyForm = (serviceType = 'laundry') => {
   const config = serviceConfig[serviceType] || serviceConfig.laundry
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const pickupDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`
   return {
     serviceType,
     serviceSpeed: config.serviceOptions[0][0],
     [config.primaryField]: Object.keys(config.primaryOptions)[0],
     address: 'Bastos, Yaounde',
-    pickupDate: '2024-05-15',
+    pickupDate,
     pickupTime: '10:00',
     paymentMethod: 'Cash',
     note: '',
@@ -180,14 +184,15 @@ const addresses = [
 ]
 
 function CustomerAppPage() {
-  const { profile, user } = useAuth()
+  const { profile, setSession, user } = useAuth()
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const isServices = pathname.includes('/services')
-  const requestMatch = pathname.match(/\/customer\/request\/([^/]+)/)
+  const requestMatch = pathname.match(/\/request\/([^/]+)/)
   const currentServiceType = serviceSlugs.includes(requestMatch?.[1]) ? requestMatch[1] : 'laundry'
   const isRequest = Boolean(requestMatch) || pathname.includes('/laundry-request')
   const isOrder = pathname.includes('/orders')
+  const isOrdersIndex = pathname.endsWith('/orders')
   const [orders, setOrders] = useState([])
   const [ordersLoading, setOrdersLoading] = useState(true)
   const [forms, setForms] = useState(() => Object.fromEntries(
@@ -195,6 +200,10 @@ function CustomerAppPage() {
   ))
   const [requestMessage, setRequestMessage] = useState('')
   const [requestError, setRequestError] = useState('')
+  const [showReview, setShowReview] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [recentOrder, setRecentOrder] = useState(null)
+  const [photoStatus, setPhotoStatus] = useState({ loading: false, error: '', message: '' })
 
   useEffect(() => {
     if (!user?.uid) return undefined
@@ -212,11 +221,12 @@ function CustomerAppPage() {
   }, [user?.uid])
 
   const activeOrder = useMemo(
-    () => orders.find((order) => !['Completed', 'Cancelled'].includes(order.status)) || orders[0] || null,
+    () => orders.find((order) => !['Completed', 'Cancelled'].includes(order.status)) || null,
     [orders],
   )
   const viewedOrderId = pathname.split('/').pop()
-  const viewedOrder = orders.find((order) => order.id === viewedOrderId) || activeOrder
+  const viewedOrder = orders.find((order) => order.id === viewedOrderId)
+    || (recentOrder?.id === viewedOrderId ? recentOrder : null)
   const requestConfig = serviceConfig[currentServiceType]
   const PrimaryIcon = requestConfig.icon
   const form = forms[currentServiceType]
@@ -224,6 +234,30 @@ function CustomerAppPage() {
   const selectedOption = requestConfig.serviceOptions.find(([name]) => name === form.serviceSpeed) || requestConfig.serviceOptions[0]
   const requestAmount = requestConfig.primaryOptions[primaryValue] + selectedOption[2]
   const completedOrders = orders.filter((order) => order.status === 'Completed')
+  const customerName = profile?.name || user?.displayName || 'Customer'
+  const customerAddress = profile?.address || profile?.area || 'Yaounde, Cameroon'
+  const customerInitials = customerName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'CU'
+  const greeting = new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening'
+  const minimumPickupDate = new Date().toISOString().slice(0, 10)
+
+  async function uploadProfilePhoto(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setPhotoStatus({ loading: true, error: '', message: '' })
+    try {
+      const uploaded = await uploadCustomerProfilePhoto(user, file)
+      setSession({ ...profile, ...uploaded })
+      setPhotoStatus({ loading: false, error: '', message: 'Profile photo updated.' })
+    } catch (error) {
+      setPhotoStatus({ loading: false, error: error.message, message: '' })
+    }
+  }
 
   function updateForm(event) {
     const { name, value } = event.target
@@ -235,15 +269,32 @@ function CustomerAppPage() {
       },
     }))
     setRequestMessage('')
+    setRequestError('')
+    setShowReview(false)
   }
 
-  async function submitServiceRequest() {
+  function reviewServiceRequest() {
     setRequestMessage('')
     setRequestError('')
     if (!user?.uid) {
       setRequestError('Please login again before creating a request.')
       return
     }
+    if (!form.pickupDate || form.pickupDate < minimumPickupDate) {
+      setRequestError('Please choose today or a future service date.')
+      return
+    }
+    if (!form.pickupTime || !form.address) {
+      setRequestError('Please select an address, date, and time.')
+      return
+    }
+    setShowReview(true)
+  }
+
+  async function submitServiceRequest() {
+    if (isSubmitting) return
+    setIsSubmitting(true)
+    setRequestError('')
     const requestId = createRequestId()
     const nextOrder = {
       id: requestId,
@@ -264,15 +315,19 @@ function CustomerAppPage() {
       currentStep: 0,
     }
     try {
-      await createServiceRequest(nextOrder)
+      const createdOrder = await createServiceRequest(nextOrder)
+      setRecentOrder(createdOrder)
       setForms((current) => ({
         ...current,
         [currentServiceType]: createEmptyForm(currentServiceType),
       }))
       setRequestMessage(`Request ${nextOrder.id} created successfully.`)
-      navigate(`/customer/orders/${nextOrder.id}`)
+      setShowReview(false)
+      navigate(`/dashboard/customer/orders/${nextOrder.id}`)
     } catch (error) {
       setRequestError(error.message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -282,29 +337,34 @@ function CustomerAppPage() {
         {!isServices && !isRequest && !isOrder && (
           <section className="mobile-content mobile-content-home">
             <div className="app-header">
-              <button className="icon-button" type="button" aria-label="Open menu"><FiMenu /></button>
-              <Logo to="/customer" compact />
-              <button className="icon-button notification-button" type="button" aria-label="Notifications"><FiBell /><span>3</span></button>
+              <Link className="icon-button" to="/dashboard/customer" aria-label="Open customer dashboard"><FiMenu /></Link>
+              <Logo to="/dashboard/customer" compact />
+              <Link className="icon-button notification-button" to={activeOrder ? `/dashboard/customer/orders/${activeOrder.id}` : '/dashboard/customer/services'} aria-label={activeOrder ? 'View active order' : 'No active-order notifications'}><FiBell />{activeOrder && <span>1</span>}</Link>
             </div>
             <div className="home-primary">
               <div className="customer-greeting">
                 <div>
-                  <p>Good morning,</p>
-                  <h1>John Doe <span>waves</span></h1>
-                  <small><FiMapPin /> Bastos, Yaounde</small>
+                  <p>{greeting},</p>
+                  <h1>{customerName}</h1>
+                  <small><FiMapPin /> {customerAddress}</small>
                 </div>
-                <div className="avatar">JD</div>
+                <label className={`avatar-upload ${photoStatus.loading ? 'uploading' : ''}`} aria-label="Upload profile photo">
+                  <span className="avatar">{profile?.photoURL ? <img src={profile.photoURL} alt={`${customerName}'s profile`} /> : customerInitials}</span>
+                  <span className="avatar-upload-action"><FiCamera />{photoStatus.loading ? 'Uploading' : 'Photo'}</span>
+                  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={uploadProfilePhoto} disabled={photoStatus.loading} />
+                </label>
               </div>
+              {(photoStatus.error || photoStatus.message) && <p className={`photo-status ${photoStatus.error ? 'error' : ''}`} role="status">{photoStatus.error || photoStatus.message}</p>}
               <div className="mobile-hero">
                 <div>
                   <h2>We take care of what matters at home.</h2>
-                  <Link to="/customer/services">Learn More</Link>
+                  <Link to="/dashboard/customer/services">Learn More</Link>
                 </div>
                 <div className="hero-art hero-art-laundry"><FiShoppingBag /></div>
               </div>
             </div>
             <div className="home-secondary">
-              <div className="section-title"><strong>Quick Actions</strong><Link to="/customer/services">See all</Link></div>
+              <div className="section-title"><strong>Quick Actions</strong><Link to="/dashboard/customer/services">See all</Link></div>
               <div className="quick-grid">
                 {quickActions.map(([label, Icon, to]) => (
                   to.startsWith('tel:')
@@ -312,9 +372,9 @@ function CustomerAppPage() {
                     : <Link to={to} key={label}><Icon />{label}</Link>
                 ))}
               </div>
-              <div className="section-title"><strong>Your Current Order</strong><Link to={activeOrder ? `/customer/orders/${activeOrder.id}` : '/customer/services'}>View all</Link></div>
+              <div className="section-title"><strong>Your Current Order</strong><Link to="/dashboard/customer/orders">View all</Link></div>
               {activeOrder ? (
-                <Link className="order-card" to={`/customer/orders/${activeOrder.id}`}>
+                <Link className="order-card" to={`/dashboard/customer/orders/${activeOrder.id}`}>
                   <div className="order-icon"><FiShoppingBag /></div>
                   <div className="order-summary">
                     <strong>{activeOrder.service} Order - {activeOrder.id}</strong>
@@ -324,11 +384,13 @@ function CustomerAppPage() {
                   <span>{activeOrder.status}</span>
                   <div className="mini-progress"><i></i><i></i><i></i><i></i></div>
                 </Link>
-              ) : <p className="request-message">{ordersLoading ? 'Loading your orders...' : 'No orders yet. Choose a service to create your first request.'}</p>}
-              <div className="section-title"><strong>Recent Activity</strong><Link to={activeOrder ? `/customer/orders/${activeOrder.id}` : '/customer/services'}>See all</Link></div>
+              ) : ordersLoading
+                ? <p className="request-message" role="status">Loading your orders…</p>
+                : <div className="customer-empty"><FiShoppingBag /><div><strong>No active orders</strong><p>Choose a service and create your first request in a few steps.</p></div><Link to="/dashboard/customer/services">Browse services</Link></div>}
+              <div className="section-title"><strong>Recent Activity</strong><Link to="/dashboard/customer/orders">See all</Link></div>
               <div className="activity-list">
                 {completedOrders.slice(0, 2).map((order) => (
-                  <Link to={`/customer/orders/${order.id}`} key={order.id}>
+                  <Link to={`/dashboard/customer/orders/${order.id}`} key={order.id}>
                     {order.service === 'Laundry' ? <FiShoppingBag /> : <FiTool />}
                     <strong>{order.id}</strong>
                     <span>{order.service}</span>
@@ -336,7 +398,7 @@ function CustomerAppPage() {
                     <small>{formatPlacedAt(order)}<br />{formatAmount(order.amount)}</small>
                   </Link>
                 ))}
-                {completedOrders.length === 0 && <p className="request-message">Completed orders will appear here.</p>}
+                {completedOrders.length === 0 && <p className="dashboard-muted-empty">Your completed services will appear here.</p>}
               </div>
             </div>
             <a className="floating-call" href="tel:+237612345678" aria-label="Call CareNest"><FiPhone /></a>
@@ -351,14 +413,14 @@ function CustomerAppPage() {
                 <p>Choose a service to get started</p>
               </div>
               <div className="services-grid">
-                {services.map(([service, description, tone]) => (
+                {services.map(([service, description, tone, startingPrice]) => (
                   <article className={`service-card service-card-${tone}`} key={service}>
                     <div className={`service-art service-art-${tone}`}>
                       {tone === 'laundry' && <FiShoppingBag />}
                       {tone === 'cleaning' && <FiTool />}
                       {tone === 'delivery' && <FiPackage />}
                     </div>
-                    <div><h2>{service}</h2><p>{description}</p><Link to={`/customer/request/${tone}`}>Book Now <FiArrowRight /></Link></div>
+                    <div><h2>{service}</h2><p>{description}</p><strong className="service-price">From {formatAmount(startingPrice)}</strong><Link to={`/dashboard/customer/request/${tone}`}>Book Now <FiArrowRight /></Link></div>
                   </article>
                 ))}
               </div>
@@ -375,7 +437,7 @@ function CustomerAppPage() {
           <section className="mobile-content mobile-content-request">
             <div className="request-shell">
               <div className="request-main">
-                <div className="top-title"><Link to="/customer/services"><FiArrowLeft /></Link><h1>{requestConfig.title}</h1></div>
+                <div className="top-title"><Link to="/dashboard/customer/services"><FiArrowLeft /></Link><h1>{requestConfig.title}</h1></div>
                 <div className="stepper"><span className="active">1<small>Details</small></span><i></i><span>2<small>Pickup</small></span><i></i><span>3<small>Review</small></span></div>
                 <strong className="form-section-label">Service Type</strong>
                 <div className="request-options">
@@ -391,17 +453,31 @@ function CustomerAppPage() {
                 <div className="request-field-grid">
                   <label>{requestConfig.primaryLabel}<span className="request-input"><select name={requestConfig.primaryField} value={primaryValue} onChange={updateForm}>{Object.keys(requestConfig.primaryOptions).map((type) => <option key={type} value={type}>{type}</option>)}</select><FiChevronDown /></span></label>
                   <label>{currentServiceType === 'delivery' ? 'Delivery Address' : 'Service Address'}<span className="request-input"><FiMapPin /><select name="address" value={form.address} onChange={updateForm}>{addresses.map((address) => <option key={address} value={address}>{address}</option>)}</select><FiChevronDown /></span></label>
-                  <label>{currentServiceType === 'laundry' ? 'Pickup Date' : 'Service Date'}<span className="request-input"><FiCalendar /><input name="pickupDate" type="date" value={form.pickupDate} onChange={updateForm} /></span></label>
+                  <label>{currentServiceType === 'laundry' ? 'Pickup Date' : 'Service Date'}<span className="request-input"><FiCalendar /><input name="pickupDate" type="date" min={minimumPickupDate} value={form.pickupDate} onChange={updateForm} /></span></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Time' : 'Service Time'}<span className="request-input"><FiClock /><input name="pickupTime" type="time" value={form.pickupTime} onChange={updateForm} /></span></label>
                   <label>Payment Method<span className="request-input"><select name="paymentMethod" value={form.paymentMethod} onChange={updateForm}><option value="Cash">Cash</option><option value="Mobile Money">Mobile Money</option><option value="Orange Money">Orange Money</option></select><FiChevronDown /></span></label>
                   <label className="request-note-field">Additional Note (Optional)<textarea name="note" value={form.note} onChange={updateForm} placeholder={requestConfig.notePlaceholder} /></label>
                 </div>
                 {requestMessage && <p className="request-message">{requestMessage}</p>}
-                {requestError && <p className="request-message request-error">{requestError}</p>}
-                <div className="request-submit-row">
+                {requestError && <p className="request-message request-error" role="alert">{requestError}</p>}
+                {showReview && (
+                  <section className="booking-review" aria-labelledby="booking-review-title">
+                    <div className="booking-review-header"><div><small>Final step</small><h2 id="booking-review-title">Review your request</h2></div><button type="button" onClick={() => setShowReview(false)}>Edit</button></div>
+                    <dl>
+                      <div><dt>Service</dt><dd>{requestConfig.label} · {selectedOption[0]}</dd></div>
+                      <div><dt>Details</dt><dd>{primaryValue}</dd></div>
+                      <div><dt>When</dt><dd>{formatPickupDate(form.pickupDate)}, {formatPickupTime(form.pickupTime)}</dd></div>
+                      <div><dt>Address</dt><dd>{form.address}</dd></div>
+                      <div><dt>Payment</dt><dd>{form.paymentMethod}</dd></div>
+                      <div><dt>Total</dt><dd>{formatAmount(requestAmount)}</dd></div>
+                    </dl>
+                    <button className="confirm-request" type="button" onClick={submitServiceRequest} disabled={isSubmitting}>{isSubmitting ? 'Creating request…' : 'Confirm and create request'}</button>
+                  </section>
+                )}
+                {!showReview && <div className="request-submit-row">
                   <span><small>Estimated total</small><strong>{formatAmount(requestAmount)}</strong></span>
-                  <button type="button" onClick={submitServiceRequest}>Create request</button>
-                </div>
+                  <button type="button" onClick={reviewServiceRequest}>Review request</button>
+                </div>}
               </div>
               <div className="request-aside">
                 <div className="aside-visual"><PrimaryIcon /></div>
@@ -418,11 +494,31 @@ function CustomerAppPage() {
           </section>
         )}
 
-        {isOrder && viewedOrder && (
+        {isOrdersIndex && (
+          <section className="mobile-content mobile-content-order">
+            <div className="orders-history-shell">
+              <div className="page-heading"><h1>Your orders</h1><p>Track active requests and review completed services.</p></div>
+              {ordersLoading ? <p className="request-message" role="status">Loading your orders…</p> : orders.length > 0 ? (
+                <div className="orders-history-grid">
+                  {orders.map((order) => (
+                    <Link className="order-card" to={`/dashboard/customer/orders/${order.id}`} key={order.firestoreId || order.id}>
+                      <div className="order-icon">{order.serviceType === 'delivery' ? <FiPackage /> : order.serviceType === 'cleaning' ? <FiTool /> : <FiShoppingBag />}</div>
+                      <div className="order-summary"><strong>{order.service} · {order.id}</strong><p>{formatPlacedAt(order)}</p><p>{formatAmount(order.amount)}</p></div>
+                      <span>{order.status}</span>
+                    </Link>
+                  ))}
+                </div>
+              ) : <div className="customer-empty"><FiShoppingBag /><div><strong>No orders yet</strong><p>Your service requests will appear here after you book.</p></div><Link to="/dashboard/customer/services">Browse services</Link></div>}
+            </div>
+          </section>
+        )}
+
+        {isOrder && !isOrdersIndex && viewedOrder && (
           <section className="mobile-content mobile-content-order">
             <div className="tracking-shell">
               <div className="tracking-main">
-                <div className="top-title"><Link to="/customer"><FiArrowLeft /></Link><h1>Order Tracking</h1></div>
+                <div className="top-title"><Link to="/dashboard/customer" aria-label="Back to home"><FiArrowLeft /></Link><h1>Order Tracking</h1></div>
+                {requestMessage && <p className="booking-confirmation" role="status"><FiCheck /> {requestMessage}</p>}
                 <div className="tracking-hero">
                   <div className="order-machine"><FiShoppingBag /></div>
                   <div><h2>{viewedOrder.service} Order</h2><strong>{viewedOrder.id}</strong><p>Placed on {formatPlacedAt(viewedOrder)}</p><span>{viewedOrder.status}</span></div>
@@ -440,30 +536,30 @@ function CustomerAppPage() {
                 <div><span>Details</span><strong>{viewedOrder.note || viewedOrder.itemSummary || viewedOrder.clothesType}</strong></div>
                 <div><span>Payment</span><strong>{viewedOrder.paymentMethod || 'Cash'} - {viewedOrder.paymentStatus || 'Pending'}</strong></div>
                 <div><span>Amount</span><strong>{formatAmount(viewedOrder.amount)}</strong></div>
+                {viewedOrder.providerName && <div><span>Provider</span><strong>{viewedOrder.providerName} · Verified</strong></div>}
                 <a className="call-card" href="tel:+237612345678"><div><strong>Need help?</strong><p>Call us for any support</p></div><span><FiPhone /> Call CareNest</span></a>
               </aside>
             </div>
           </section>
         )}
 
-        {isOrder && !viewedOrder && (
+        {isOrder && !isOrdersIndex && !viewedOrder && (
           <section className="mobile-content mobile-content-order">
             <div className="tracking-shell">
               <div className="tracking-main">
-                <div className="top-title"><Link to="/customer"><FiArrowLeft /></Link><h1>Order Tracking</h1></div>
-                <p className="request-message">{ordersLoading ? 'Loading order details...' : 'No order found. Create a request to start tracking.'}</p>
+                <div className="top-title"><Link to="/dashboard/customer"><FiArrowLeft /></Link><h1>Order Tracking</h1></div>
+                <p className="request-message" role="status">{ordersLoading ? 'Loading order details…' : 'This order could not be found. Return home or create a new request.'}</p>
               </div>
             </div>
           </section>
         )}
 
         <nav className="mobile-tabs">
-          <Logo to="/customer" className="customer-nav-brand" />
+          <Logo to="/dashboard/customer" className="customer-nav-brand" />
           <div className="customer-nav-links">
-            <Link to="/customer"><FiHome />Home</Link>
-            <Link to={activeOrder ? `/customer/orders/${activeOrder.id}` : '/customer/services'}><FiBriefcase />Orders</Link>
-            <Link to="/customer/services"><FiGift />Services</Link>
-            <Link to="/login"><FiUser />Profile</Link>
+            <Link className={!isServices && !isRequest && !isOrder ? 'active' : ''} aria-current={!isServices && !isRequest && !isOrder ? 'page' : undefined} to="/dashboard/customer"><FiHome />Home</Link>
+            <Link className={isOrder ? 'active' : ''} aria-current={isOrder ? 'page' : undefined} to="/dashboard/customer/orders"><FiBriefcase />Orders</Link>
+            <Link className={isServices || isRequest ? 'active' : ''} aria-current={isServices || isRequest ? 'page' : undefined} to="/dashboard/customer/services"><FiGift />Services</Link>
           </div>
         </nav>
       </section>
