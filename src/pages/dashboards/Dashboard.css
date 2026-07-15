@@ -373,6 +373,74 @@
   background: linear-gradient(135deg, #ff7a1a, #ec5f00);
 }
 
+.provider-profile-upload {
+  display: grid;
+  grid-template-columns: minmax(160px, 240px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid #dceee3;
+  border-radius: 12px;
+  background: #f8fcfa;
+}
+
+.provider-profile-preview {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: 10px;
+  color: #007f45;
+  background: #e8f6ec;
+}
+
+.provider-profile-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.provider-profile-preview svg {
+  width: 42px;
+  height: 42px;
+}
+
+.provider-profile-upload h3 {
+  margin: 0 0 6px;
+  color: #073b25;
+}
+
+.provider-profile-upload p {
+  margin: 0 0 12px;
+  color: #466454;
+  font-weight: 700;
+}
+
+.provider-profile-upload label {
+  width: fit-content;
+}
+
+.provider-profile-upload input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.provider-profile-upload small {
+  display: block;
+  margin-top: 8px;
+  color: #007f45;
+  font-weight: 800;
+}
+
+.provider-profile-upload small.error {
+  color: #991b1b;
+}
+
 @media (max-width: 980px) {
   .dashboard-sidebar {
     flex-basis: 84px;
@@ -501,6 +569,14 @@
 
   .dashboard-form {
     grid-template-columns: 1fr;
+  }
+
+  .provider-profile-upload {
+    grid-template-columns: 1fr;
+  }
+
+  .provider-profile-preview {
+    max-height: 220px;
   }
 }
 

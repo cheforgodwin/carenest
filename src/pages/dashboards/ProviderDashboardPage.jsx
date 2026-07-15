@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { FiCamera } from 'react-icons/fi'
 import { useAuth } from '../../auth/useAuth'
 import {
   assignServiceRequestToProvider,
@@ -8,6 +9,7 @@ import {
   updateProviderAvailability,
   updateServiceRequestStatus,
 } from '../../firebase/orderService'
+import { uploadProviderBusinessPhoto } from '../../firebase/profilePhotoService'
 import DashboardShell from './DashboardShell'
 
 const providerStatuses = ['Assigned', 'In Progress', 'Quality Check', 'Out for Delivery', 'Completed']
@@ -27,7 +29,7 @@ function getArea(address = '') {
 function ProviderDashboardPage() {
   const [searchParams] = useSearchParams()
   const activeView = searchParams.get('view') || 'overview'
-  const { profile, user } = useAuth()
+  const { profile, setSession, user } = useAuth()
   const [orders, setOrders] = useState([])
   const [openOrders, setOpenOrders] = useState([])
   const [error, setError] = useState('')
@@ -39,6 +41,7 @@ function ProviderDashboardPage() {
     services: profile?.availability?.services || '',
     phone: profile?.phone || '',
   }))
+  const [photoStatus, setPhotoStatus] = useState({ loading: false, error: '', message: '' })
 
   useEffect(() => {
     const unsubOpen = subscribeToOpenProviderOrders(
@@ -118,6 +121,20 @@ function ProviderDashboardPage() {
     setAvailability((current) => ({ ...current, [name]: value }))
   }
 
+  async function uploadBusinessPhoto(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setPhotoStatus({ loading: true, error: '', message: '' })
+    try {
+      const uploaded = await uploadProviderBusinessPhoto(user, file)
+      setSession({ ...profile, ...uploaded })
+      setPhotoStatus({ loading: false, error: '', message: 'Professional photo updated.' })
+    } catch (nextError) {
+      setPhotoStatus({ loading: false, error: nextError.message, message: '' })
+    }
+  }
+
   const nav = [
     { label: 'Overview', to: '/dashboard/provider?view=overview', icon: 'dashboard' },
     { label: 'Jobs', to: '/dashboard/provider?view=jobs', icon: 'bookings' },
@@ -183,6 +200,10 @@ function ProviderDashboardPage() {
               <h2>Availability</h2>
               <p>Set your status, service area, and services so operations can route work properly.</p>
             </div>
+          </div>
+          <div className="provider-profile-upload">
+            <div className="provider-profile-preview">{profile?.businessPhotoURL ? <img src={profile.businessPhotoURL} alt="Provider professional or service location" /> : <FiCamera />}</div>
+            <div><h3>Professional or business photo</h3><p>Upload a clear portrait, laundry point, workshop, or service location so customers can recognize your business.</p><label className="dashboard-action-button">{photoStatus.loading ? 'Uploading…' : 'Choose photo'}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={uploadBusinessPhoto} disabled={photoStatus.loading} /></label>{(photoStatus.error || photoStatus.message) && <small className={photoStatus.error ? 'error' : ''} role="status">{photoStatus.error || photoStatus.message}</small>}</div>
           </div>
           <form className="dashboard-form" onSubmit={saveAvailability}>
             <label>Status<select className="dashboard-select" name="status" value={availability.status} onChange={updateAvailability}>

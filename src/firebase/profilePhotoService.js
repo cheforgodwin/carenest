@@ -28,3 +28,23 @@ export async function uploadCustomerProfilePhoto(user, file) {
 
   return { photoURL, photoStoragePath: storagePath }
 }
+
+export async function uploadProviderBusinessPhoto(user, file) {
+  if (!user?.uid) throw new Error('Please login again before uploading a photo.')
+  if (!allowedImageTypes.includes(file?.type)) throw new Error('Choose a JPG, PNG, or WebP image.')
+  if (file.size > maximumPhotoSize) throw new Error('Your business photo must be smaller than 5 MB.')
+
+  const extension = file.type.split('/')[1].replace('jpeg', 'jpg')
+  const storagePath = `providerPhotos/${user.uid}/business-${Date.now()}.${extension}`
+  const photoRef = ref(storage, storagePath)
+  await uploadBytes(photoRef, file, { contentType: file.type })
+  const businessPhotoURL = await getDownloadURL(photoRef)
+
+  await updateDoc(doc(db, 'users', user.uid), {
+    businessPhotoURL,
+    businessPhotoStoragePath: storagePath,
+    updatedAt: serverTimestamp(),
+  })
+
+  return { businessPhotoURL, businessPhotoStoragePath: storagePath }
+}
