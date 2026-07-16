@@ -1,0 +1,40 @@
+plugins {
+    id "com.android.application"
+}
+
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withInputStream { stream -> localProperties.load(stream) }
+}
+
+def firebaseProjectId = localProperties.getProperty("firebase.projectId", "")
+def firebaseApiKey = localProperties.getProperty("firebase.apiKey", "")
+def verifierProvider = localProperties.getProperty("verifier.provider", "mtn")
+def adminDashboardUrl = localProperties.getProperty("admin.dashboardUrl", "https://${firebaseProjectId}.web.app/carenest-admin")
+def testReceiptAmount = localProperties.getProperty("testReceipt.amount", "0")
+def testReceiptSenderPhone = localProperties.getProperty("testReceipt.senderPhone", "")
+
+android {
+    namespace "com.carenest.verifier"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.carenest.verifier"
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName "1.0"
+
+        buildConfigField "String", "FIREBASE_PROJECT_ID", "\"${firebaseProjectId}\""
+        buildConfigField "String", "FIREBASE_API_KEY", "\"${firebaseApiKey}\""
+        buildConfigField "String", "VERIFIER_PROVIDER", "\"${verifierProvider}\""
+        buildConfigField "String", "ADMIN_DASHBOARD_URL", "\"${adminDashboardUrl}\""
+        buildConfigField "String", "TEST_RECEIPT_AMOUNT", "\"${testReceiptAmount}\""
+        buildConfigField "String", "TEST_RECEIPT_SENDER_PHONE", "\"${testReceiptSenderPhone}\""
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+}

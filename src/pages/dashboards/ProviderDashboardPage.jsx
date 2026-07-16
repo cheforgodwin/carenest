@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { FiCamera } from 'react-icons/fi'
 import { useAuth } from '../../auth/useAuth'
+import { phonePlaceholder, serviceAreaPlaceholder } from '../../config/businessConfig'
 import {
   assignServiceRequestToProvider,
   subscribeToOpenProviderOrders,
@@ -211,9 +212,9 @@ function ProviderDashboardPage() {
               <option>Busy</option>
               <option>Offline</option>
             </select></label>
-            <label>Service area<input className="dashboard-input" name="area" value={availability.area} onChange={updateAvailability} placeholder="Bastos, Yaounde" /></label>
+            <label>Service area<input className="dashboard-input" name="area" value={availability.area} onChange={updateAvailability} placeholder={serviceAreaPlaceholder} /></label>
             <label>Services<input className="dashboard-input" name="services" value={availability.services} onChange={updateAvailability} placeholder="Laundry, Cleaning, Delivery" /></label>
-            <label>Phone<input className="dashboard-input" name="phone" value={availability.phone} onChange={updateAvailability} placeholder="+237 6XX XXX XXX" /></label>
+            <label>Phone<input className="dashboard-input" name="phone" value={availability.phone} onChange={updateAvailability} placeholder={phonePlaceholder} /></label>
             <button className="dashboard-action-button form-action" type="submit">Save availability</button>
           </form>
         </section>

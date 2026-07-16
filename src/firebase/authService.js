@@ -7,6 +7,7 @@ import {
   updateProfile,
 } from 'firebase/auth'
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore'
+import { phoneCountryCode } from '../config/businessConfig'
 import { auth, db } from './firebaseConfig'
 
 const allowedRoles = ['admin', 'customer', 'provider']
@@ -16,7 +17,8 @@ export function formatPhoneNumber(phone) {
   if (!trimmed) return ''
   if (trimmed.startsWith('+')) return trimmed.replace(/\s+/g, '')
   const digits = trimmed.replace(/\D/g, '')
-  return digits.startsWith('237') ? `+${digits}` : `+237${digits}`
+  if (!phoneCountryCode || digits.startsWith(phoneCountryCode)) return `+${digits}`
+  return `+${phoneCountryCode}${digits}`
 }
 
 export function normalizeRole(role) {

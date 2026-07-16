@@ -18,9 +18,19 @@ import {
   FiPhone,
   FiShoppingBag,
   FiTool,
+  FiX,
   FiZap,
 } from 'react-icons/fi'
 import { useAuth } from '../../auth/useAuth'
+import {
+  defaultCustomerAddress,
+  defaultCustomerCity,
+  getStartingPrice,
+  phonePlaceholder,
+  serviceAddresses,
+  servicePrices,
+  supportPhoneHref,
+} from '../../config/businessConfig'
 import Logo from '../../components/Logo'
 import { createRequestId, createServiceRequest, subscribeToCustomerOrders } from '../../firebase/orderService'
 import { uploadCustomerProfilePhoto } from '../../firebase/profilePhotoService'
@@ -30,13 +40,13 @@ const quickActions = [
   ['Laundry', FiShoppingBag, '/dashboard/customer/request/laundry'],
   ['Cleaning', FiTool, '/dashboard/customer/request/cleaning'],
   ['Delivery', FiPackage, '/dashboard/customer/request/delivery'],
-  ['Call CareNest', FiPhone, 'tel:+237612345678'],
+  ['Call CareNest', FiPhone, supportPhoneHref],
 ]
 
 const services = [
-  ['Laundry Service', 'We wash, iron and deliver to your door.', 'laundry', 2500],
-  ['Home Cleaning', 'Professional cleaning for your home.', 'cleaning', 5000],
-  ['Essentials Delivery', 'Order household essentials and we deliver fast.', 'delivery', 2500],
+  ['Laundry Service', 'We wash, iron and deliver to your door.', 'laundry', getStartingPrice('laundry')],
+  ['Home Cleaning', 'Professional cleaning for your home.', 'cleaning', getStartingPrice('cleaning')],
+  ['Essentials Delivery', 'Order household essentials and we deliver fast.', 'delivery', getStartingPrice('delivery')],
 ]
 
 const timelineSteps = [
@@ -56,16 +66,13 @@ const serviceConfig = {
     heading: 'Fresh laundry, handled carefully.',
     copy: 'Choose your service speed, confirm pickup details, and CareNest will keep you updated from pickup to delivery.',
     serviceOptions: [
-      ['Normal', '2 - 3 Days', 0],
-      ['Express', '24 Hours', 1500],
+      ['Normal', '2 - 3 Days', servicePrices.laundry.serviceOptions.Normal],
+      ['Express', '24 Hours', servicePrices.laundry.serviceOptions.Express],
     ],
     primaryField: 'clothesType',
     primaryLabel: 'Clothes Type',
     primaryOptions: {
-      'Mixed clothes': 3000,
-      'Shirts and trousers': 2500,
-      'Beddings and towels': 4500,
-      'Large family load': 6500,
+      ...servicePrices.laundry.primaryOptions,
     },
     notePlaceholder: 'E.g. 7 shirts, gate code, special washing instructions...',
   },
@@ -76,16 +83,13 @@ const serviceConfig = {
     heading: 'A cleaner home, booked in minutes.',
     copy: 'Tell us the home size, cleaning type, and arrival time. We will assign a verified cleaner near you.',
     serviceOptions: [
-      ['Standard', 'Surface cleaning', 0],
-      ['Deep Clean', 'Detailed cleaning', 4000],
+      ['Standard', 'Surface cleaning', servicePrices.cleaning.serviceOptions.Standard],
+      ['Deep Clean', 'Detailed cleaning', servicePrices.cleaning.serviceOptions['Deep Clean']],
     ],
     primaryField: 'propertyType',
     primaryLabel: 'Property Type',
     primaryOptions: {
-      Studio: 5000,
-      '1 Bedroom': 7000,
-      '2 Bedrooms': 10000,
-      '3+ Bedrooms': 14000,
+      ...servicePrices.cleaning.primaryOptions,
     },
     notePlaceholder: 'E.g. Bring floor cleaner, focus on kitchen and bathrooms...',
   },
@@ -96,16 +100,13 @@ const serviceConfig = {
     heading: 'Essentials delivered without the runaround.',
     copy: 'Choose what you need, set pickup and delivery details, and CareNest will coordinate a rider.',
     serviceOptions: [
-      ['Standard', 'Same day', 0],
-      ['Priority', 'Under 2 hours', 1000],
+      ['Standard', 'Same day', servicePrices.delivery.serviceOptions.Standard],
+      ['Priority', 'Under 2 hours', servicePrices.delivery.serviceOptions.Priority],
     ],
     primaryField: 'itemType',
     primaryLabel: 'Item Type',
     primaryOptions: {
-      Groceries: 2500,
-      'Household essentials': 3000,
-      Pharmacy: 3500,
-      'Custom errand': 4500,
+      ...servicePrices.delivery.primaryOptions,
     },
     notePlaceholder: 'E.g. Shopping list, shop name, recipient phone number...',
   },
@@ -113,7 +114,40 @@ const serviceConfig = {
 
 const serviceSlugs = Object.keys(serviceConfig)
 
+const manualPaymentMethods = {
+  'MTN Mobile Money': {
+    label: 'MTN Mobile Money',
+    number: import.meta.env.VITE_PAYMENT_MTN_NUMBER || phonePlaceholder,
+    accountName: import.meta.env.VITE_PAYMENT_MTN_NAME || 'CareNest',
+  },
+  'Orange Money': {
+    label: 'Orange Money',
+    number: import.meta.env.VITE_PAYMENT_ORANGE_NUMBER || phonePlaceholder,
+    accountName: import.meta.env.VITE_PAYMENT_ORANGE_NAME || 'CareNest',
+  },
+}
+
 const formatAmount = (amount) => `${amount.toLocaleString()} FCFA`
+
+function parsePaymentMessage(message) {
+  const safeMessage = String(message || '')
+  const amountMatch = safeMessage.match(/(?:XAF|FCFA|CFA)?\s*([0-9 .,_]{3,})\s*(?:XAF|FCFA|CFA)/i)
+  const phoneMatch = safeMessage.match(/(?:\+?237)?\s*6(?:[\s.-]?\d){8}/)
+  const transactionMatch = safeMessage.match(/(?:transaction|trans|txn|reference|ref|id|code)\D{0,12}([A-Z0-9-]{5,})/i)
+  const amount = amountMatch ? Number(amountMatch[1].replace(/\D/g, '')) : 0
+  const senderDigits = phoneMatch ? phoneMatch[0].replace(/\D/g, '') : ''
+  const senderPhone = senderDigits.length > 9 ? senderDigits.slice(-9) : senderDigits
+  const transactionId = transactionMatch ? transactionMatch[1].replace(/[^A-Za-z0-9]/g, '').toUpperCase() : ''
+
+  return { amount, senderPhone, transactionId }
+}
+
+function createPaymentReference(message) {
+  const parsed = parsePaymentMessage(message)
+  if (parsed.transactionId) return parsed.transactionId
+  if (parsed.senderPhone) return parsed.senderPhone
+  return String(message || '').trim().slice(0, 80)
+}
 
 const formatPlacedAt = (order) => {
   if (order?.createdAtDate) {
@@ -168,20 +202,17 @@ const createEmptyForm = (serviceType = 'laundry') => {
     serviceType,
     serviceSpeed: config.serviceOptions[0][0],
     [config.primaryField]: Object.keys(config.primaryOptions)[0],
-    address: 'Bastos, Yaounde',
+    address: serviceAddresses[0] || defaultCustomerAddress,
     pickupDate,
     pickupTime: '10:00',
-    paymentMethod: 'Cash',
+    paymentMethod: 'MTN Mobile Money',
+    paymentReference: '',
+    paymentReceiptText: '',
     note: '',
   }
 }
 
-const addresses = [
-  'Bastos, Yaounde',
-  'Mvog-Ada, Yaounde',
-  'Odza, Yaounde',
-  'Bonamoussadi, Douala',
-]
+const addresses = serviceAddresses
 
 function CustomerAppPage() {
   const { profile, setSession, user } = useAuth()
@@ -203,7 +234,17 @@ function CustomerAppPage() {
   const [showReview, setShowReview] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [recentOrder, setRecentOrder] = useState(null)
+  const [isCustomerMenuOpen, setIsCustomerMenuOpen] = useState(false)
   const [photoStatus, setPhotoStatus] = useState({ loading: false, error: '', message: '' })
+
+  useEffect(() => {
+    function closeOnEscape(event) {
+      if (event.key === 'Escape') setIsCustomerMenuOpen(false)
+    }
+
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [])
 
   useEffect(() => {
     if (!user?.uid) return undefined
@@ -233,9 +274,10 @@ function CustomerAppPage() {
   const primaryValue = form[requestConfig.primaryField] || Object.keys(requestConfig.primaryOptions)[0]
   const selectedOption = requestConfig.serviceOptions.find(([name]) => name === form.serviceSpeed) || requestConfig.serviceOptions[0]
   const requestAmount = requestConfig.primaryOptions[primaryValue] + selectedOption[2]
+  const manualPayment = manualPaymentMethods[form.paymentMethod]
   const completedOrders = orders.filter((order) => order.status === 'Completed')
   const customerName = profile?.name || user?.displayName || 'Customer'
-  const customerAddress = profile?.address || profile?.area || 'Yaounde, Cameroon'
+  const customerAddress = profile?.address || profile?.area || defaultCustomerCity
   const customerInitials = customerName
     .split(/\s+/)
     .filter(Boolean)
@@ -288,6 +330,10 @@ function CustomerAppPage() {
       setRequestError('Please select an address, date, and time.')
       return
     }
+    if (manualPayment && form.paymentReceiptText.trim().length < 15) {
+      setRequestError('Please copy the payment confirmation SMS from MTN or Orange and paste it here.')
+      return
+    }
     setShowReview(true)
   }
 
@@ -296,6 +342,9 @@ function CustomerAppPage() {
     setIsSubmitting(true)
     setRequestError('')
     const requestId = createRequestId()
+    const paymentReceiptText = form.paymentReceiptText.trim()
+    const parsedPaymentReceipt = parsePaymentMessage(paymentReceiptText)
+    const paymentReference = manualPayment ? createPaymentReference(paymentReceiptText) : form.paymentReference.trim()
     const nextOrder = {
       id: requestId,
       customerUid: user.uid,
@@ -309,7 +358,14 @@ function CustomerAppPage() {
       itemSummary: primaryValue,
       amount: requestAmount,
       paymentMethod: form.paymentMethod,
-      paymentStatus: 'Pending',
+      paymentReference,
+      paymentReceiptText,
+      paymentReceiptAmount: parsedPaymentReceipt.amount || null,
+      paymentReceiptSenderPhone: parsedPaymentReceipt.senderPhone,
+      paymentReceiptTransactionId: parsedPaymentReceipt.transactionId,
+      paymentReceiverNumber: manualPayment?.number || '',
+      paymentReceiverName: manualPayment?.accountName || '',
+      paymentStatus: manualPayment ? 'Submitted' : 'Pending',
       status: 'Pending',
       placedAt: 'Just now',
       currentStep: 0,
@@ -333,13 +389,28 @@ function CustomerAppPage() {
 
   return (
     <main className="mobile-app-page">
-      <section className="mobile-phone">
+      <section className={`mobile-phone ${isCustomerMenuOpen ? 'customer-menu-open' : ''}`}>
         {!isServices && !isRequest && !isOrder && (
           <section className="mobile-content mobile-content-home">
             <div className="app-header">
-              <Link className="icon-button" to="/dashboard/customer" aria-label="Open customer dashboard"><FiMenu /></Link>
+              <button
+                className="icon-button"
+                type="button"
+                aria-label={isCustomerMenuOpen ? 'Close customer menu' : 'Open customer menu'}
+                aria-expanded={isCustomerMenuOpen}
+                aria-controls="customer-menu"
+                onClick={() => setIsCustomerMenuOpen((current) => !current)}
+              >
+                {isCustomerMenuOpen ? <FiX /> : <FiMenu />}
+              </button>
               <Logo to="/dashboard/customer" compact />
               <Link className="icon-button notification-button" to={activeOrder ? `/dashboard/customer/orders/${activeOrder.id}` : '/dashboard/customer/services'} aria-label={activeOrder ? 'View active order' : 'No active-order notifications'}><FiBell />{activeOrder && <span>1</span>}</Link>
+              <div className="customer-menu-popover" id="customer-menu">
+                <Link to="/dashboard/customer" onClick={() => setIsCustomerMenuOpen(false)}><FiHome />Home</Link>
+                <Link to="/dashboard/customer/orders" onClick={() => setIsCustomerMenuOpen(false)}><FiBriefcase />Orders</Link>
+                <Link to="/dashboard/customer/services" onClick={() => setIsCustomerMenuOpen(false)}><FiGift />Services</Link>
+                <a href={supportPhoneHref} onClick={() => setIsCustomerMenuOpen(false)}><FiPhone />Call CareNest</a>
+              </div>
             </div>
             <div className="home-primary">
               <div className="customer-greeting">
@@ -401,7 +472,7 @@ function CustomerAppPage() {
                 {completedOrders.length === 0 && <p className="dashboard-muted-empty">Your completed services will appear here.</p>}
               </div>
             </div>
-            <a className="floating-call" href="tel:+237612345678" aria-label="Call CareNest"><FiPhone /></a>
+            <a className="floating-call" href={supportPhoneHref} aria-label="Call CareNest"><FiPhone /></a>
           </section>
         )}
 
@@ -427,7 +498,7 @@ function CustomerAppPage() {
               <div className="service-support-strip">
                 <span><FiCheck /> Verified providers</span>
                 <span><FiClock /> Reliable pickup times</span>
-                <a href="tel:+237612345678"><FiPhone /> Call CareNest</a>
+                <a href={supportPhoneHref}><FiPhone /> Call CareNest</a>
               </div>
             </div>
           </section>
@@ -455,7 +526,33 @@ function CustomerAppPage() {
                   <label>{currentServiceType === 'delivery' ? 'Delivery Address' : 'Service Address'}<span className="request-input"><FiMapPin /><select name="address" value={form.address} onChange={updateForm}>{addresses.map((address) => <option key={address} value={address}>{address}</option>)}</select><FiChevronDown /></span></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Date' : 'Service Date'}<span className="request-input"><FiCalendar /><input name="pickupDate" type="date" min={minimumPickupDate} value={form.pickupDate} onChange={updateForm} /></span></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Time' : 'Service Time'}<span className="request-input"><FiClock /><input name="pickupTime" type="time" value={form.pickupTime} onChange={updateForm} /></span></label>
-                  <label>Payment Method<span className="request-input"><select name="paymentMethod" value={form.paymentMethod} onChange={updateForm}><option value="Cash">Cash</option><option value="Mobile Money">Mobile Money</option><option value="Orange Money">Orange Money</option></select><FiChevronDown /></span></label>
+                  <label>Payment Method<span className="request-input"><select name="paymentMethod" value={form.paymentMethod} onChange={updateForm}><option value="MTN Mobile Money">MTN Mobile Money</option><option value="Orange Money">Orange Money</option><option value="Cash">Cash</option></select><FiChevronDown /></span></label>
+                  {manualPayment && (
+                    <div className="manual-payment-panel">
+                      <div>
+                        <span>Send payment to</span>
+                        <strong>{manualPayment.number}</strong>
+                        <small>{manualPayment.accountName} - {manualPayment.label}</small>
+                      </div>
+                      <div>
+                        <span>Amount</span>
+                        <strong>{formatAmount(requestAmount)}</strong>
+                        <small>After payment, copy the confirmation SMS and paste it below.</small>
+                      </div>
+                    </div>
+                  )}
+                  {manualPayment && (
+                    <label className="request-note-field">
+                      Paste payment confirmation SMS
+                      <textarea
+                        className="payment-message-input"
+                        name="paymentReceiptText"
+                        value={form.paymentReceiptText}
+                        onChange={updateForm}
+                        placeholder="Paste the full MTN or Orange payment message here."
+                      />
+                    </label>
+                  )}
                   <label className="request-note-field">Additional Note (Optional)<textarea name="note" value={form.note} onChange={updateForm} placeholder={requestConfig.notePlaceholder} /></label>
                 </div>
                 {requestMessage && <p className="request-message">{requestMessage}</p>}
@@ -469,6 +566,8 @@ function CustomerAppPage() {
                       <div><dt>When</dt><dd>{formatPickupDate(form.pickupDate)}, {formatPickupTime(form.pickupTime)}</dd></div>
                       <div><dt>Address</dt><dd>{form.address}</dd></div>
                       <div><dt>Payment</dt><dd>{form.paymentMethod}</dd></div>
+                      {manualPayment && <div><dt>Send to</dt><dd>{manualPayment.number}</dd></div>}
+                      {manualPayment && <div><dt>Payment message</dt><dd>{form.paymentReceiptText}</dd></div>}
                       <div><dt>Total</dt><dd>{formatAmount(requestAmount)}</dd></div>
                     </dl>
                     <button className="confirm-request" type="button" onClick={submitServiceRequest} disabled={isSubmitting}>{isSubmitting ? 'Creating request…' : 'Confirm and create request'}</button>
@@ -488,7 +587,7 @@ function CustomerAppPage() {
                   <span><FiCheck /> Status tracking</span>
                   <span><FiPhone /> Fast support</span>
                 </div>
-                <a href="tel:+237612345678"><FiPhone /> Call CareNest</a>
+                <a href={supportPhoneHref}><FiPhone /> Call CareNest</a>
               </div>
             </div>
           </section>
@@ -535,9 +634,12 @@ function CustomerAppPage() {
                 <div><span>Pickup</span><strong>{formatPickupDate(viewedOrder.pickupDate)}, {formatPickupTime(viewedOrder.pickupTime)}</strong></div>
                 <div><span>Details</span><strong>{viewedOrder.note || viewedOrder.itemSummary || viewedOrder.clothesType}</strong></div>
                 <div><span>Payment</span><strong>{viewedOrder.paymentMethod || 'Cash'} - {viewedOrder.paymentStatus || 'Pending'}</strong></div>
+                {viewedOrder.paymentReceiverNumber && <div><span>Paid to</span><strong>{viewedOrder.paymentReceiverNumber}</strong></div>}
+                {viewedOrder.paymentReference && <div><span>Payment ref</span><strong>{viewedOrder.paymentReference}</strong></div>}
+                {viewedOrder.paymentReceiptText && <div><span>Payment message</span><strong>{viewedOrder.paymentReceiptText}</strong></div>}
                 <div><span>Amount</span><strong>{formatAmount(viewedOrder.amount)}</strong></div>
                 {viewedOrder.providerName && <div><span>Provider</span><strong>{viewedOrder.providerName} · Verified</strong></div>}
-                <a className="call-card" href="tel:+237612345678"><div><strong>Need help?</strong><p>Call us for any support</p></div><span><FiPhone /> Call CareNest</span></a>
+                <a className="call-card" href={supportPhoneHref}><div><strong>Need help?</strong><p>Call us for any support</p></div><span><FiPhone /> Call CareNest</span></a>
               </aside>
             </div>
           </section>

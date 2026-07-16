@@ -6,13 +6,11 @@ import Logo from '../components/Logo'
 import { getAuthErrorMessage, getDashboardPath, loginWithEmail, logout } from '../firebase/authService'
 import './AuthPages.css'
 
-const adminEmail = import.meta.env.VITE_ADMIN_EMAIL?.trim().toLowerCase() || ''
-
 function LoginPage({ adminOnly = false }) {
   const navigate = useNavigate()
   const location = useLocation()
   const { setSession } = useAuth()
-  const [form, setForm] = useState({ email: adminOnly ? adminEmail : '', password: '' })
+  const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -25,11 +23,6 @@ function LoginPage({ adminOnly = false }) {
     setError('')
     setLoading(true)
     try {
-      const normalizedEmail = form.email.trim().toLowerCase()
-      if (adminOnly && adminEmail && normalizedEmail !== adminEmail) {
-        setError('This admin entrance is only for the CareNest owner account.')
-        return
-      }
       const profile = await loginWithEmail(form.email, form.password)
       if (!profile) {
         setError('Your account profile was not found. Please contact CareNest support.')
@@ -63,7 +56,7 @@ function LoginPage({ adminOnly = false }) {
         <form className="auth-card" onSubmit={handleSubmit}>
           <h2>{adminOnly ? 'Admin login' : 'Login'}</h2>
           <p>{adminOnly ? 'Owner account only.' : 'Access your account.'}</p>
-          <label>Email<span className="auth-input"><FiMail /><input name="email" type="email" value={form.email} onChange={updateField} readOnly={adminOnly && Boolean(adminEmail)} required /></span></label>
+          <label>Email<span className="auth-input"><FiMail /><input name="email" type="email" value={form.email} onChange={updateField} required /></span></label>
           <label>Password<span className="auth-input"><FiLock /><input name="password" type="password" value={form.password} onChange={updateField} required /></span></label>
           {error && <p className="auth-status error">{error}</p>}
           <button type="submit" disabled={loading}>{loading ? 'Logging in...' : adminOnly ? 'Open admin dashboard' : 'Login'}</button>

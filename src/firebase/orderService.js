@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  deleteField,
   doc,
   getDoc,
   onSnapshot,
@@ -10,10 +11,12 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore'
+import { servicePrices } from '../config/businessConfig'
 import { db } from './firebaseConfig'
 
 const ordersRef = collection(db, 'serviceRequests')
 const usersRef = collection(db, 'users')
+const paymentSmsReceiptsRef = collection(db, 'paymentSmsReceipts')
 
 export const statusSteps = {
   Pending: 0,
@@ -26,37 +29,7 @@ export const statusSteps = {
   Cancelled: 0,
 }
 
-export const paymentStatuses = ['Pending', 'Paid', 'Failed', 'Refunded']
-
-const servicePrices = {
-  laundry: {
-    serviceOptions: { Normal: 0, Express: 1500 },
-    primaryOptions: {
-      'Mixed clothes': 3000,
-      'Shirts and trousers': 2500,
-      'Beddings and towels': 4500,
-      'Large family load': 6500,
-    },
-  },
-  cleaning: {
-    serviceOptions: { Standard: 0, 'Deep Clean': 4000 },
-    primaryOptions: {
-      Studio: 5000,
-      '1 Bedroom': 7000,
-      '2 Bedrooms': 10000,
-      '3+ Bedrooms': 14000,
-    },
-  },
-  delivery: {
-    serviceOptions: { Standard: 0, Priority: 1000 },
-    primaryOptions: {
-      Groceries: 2500,
-      'Household essentials': 3000,
-      Pharmacy: 3500,
-      'Custom errand': 4500,
-    },
-  },
-}
+export const paymentStatuses = ['Pending', 'Submitted', 'Paid', 'Failed', 'Refunded']
 
 function toDate(value) {
   if (!value) return null
@@ -81,6 +54,16 @@ function normalizeUser(docSnapshot) {
     ...data,
     createdAtDate: toDate(data.createdAt),
     updatedAtDate: toDate(data.updatedAt),
+  }
+}
+
+function normalizePaymentSmsReceipt(docSnapshot) {
+  const data = docSnapshot.data()
+  return {
+    firestoreId: docSnapshot.id,
+    ...data,
+    createdAtDate: toDate(data.createdAt),
+    receivedAtDate: toDate(data.receivedAt),
   }
 }
 
@@ -171,6 +154,14 @@ export function subscribeToUsers(onNext, onError) {
   )
 }
 
+export function subscribeToPaymentSmsReceipts(onNext, onError) {
+  return onSnapshot(
+    query(paymentSmsReceiptsRef, orderBy('createdAt', 'desc')),
+    (snapshot) => onNext(snapshot.docs.map(normalizePaymentSmsReceipt)),
+    onError,
+  )
+}
+
 export function updateServiceRequestStatus(firestoreId, status) {
   return updateDoc(doc(db, 'serviceRequests', firestoreId), {
     status,
@@ -196,12 +187,46 @@ export async function assignServiceRequestToProvider(firestoreId, provider) {
   })
 }
 
-export function updatePaymentStatus(firestoreId, paymentStatus) {
+export async function adminAssignServiceRequest(firestoreId, provider, adminUid) {
+  if (!provider?.uid) {
+    throw new Error('Choose a provider before assigning the request.')
+  }
+  return updateDoc(doc(db, 'serviceRequests', firestoreId), {
+    providerUid: provider.uid,
+    providerName: provider.name || 'Provider',
+    providerEmail: provider.email || '',
+    providerPhone: provider.phone || '',
+    status: 'Assigned',
+    currentStep: statusSteps.Assigned,
+    assignedBy: adminUid || '',
+    assignedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export function adminClearServiceRequestProvider(firestoreId, adminUid) {
+  return updateDoc(doc(db, 'serviceRequests', firestoreId), {
+    providerUid: deleteField(),
+    providerName: deleteField(),
+    providerEmail: deleteField(),
+    providerPhone: deleteField(),
+    status: 'Pending',
+    currentStep: statusSteps.Pending,
+    assignedBy: adminUid || '',
+    assignedAt: null,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export function updatePaymentStatus(firestoreId, paymentStatus, reviewerUid = '', reviewNote = '') {
   if (!paymentStatuses.includes(paymentStatus)) {
     throw new Error('Unsupported payment status.')
   }
   return updateDoc(doc(db, 'serviceRequests', firestoreId), {
     paymentStatus,
+    paymentReviewedBy: reviewerUid,
+    paymentReviewedAt: serverTimestamp(),
+    paymentReviewNote: reviewNote,
     paidAt: paymentStatus === 'Paid' ? serverTimestamp() : null,
     updatedAt: serverTimestamp(),
   })

@@ -12,6 +12,11 @@ dist
 dist-ssr
 build-check
 .vercel
+.firebase
+.gradle-local
+android-verifier/.gradle
+android-verifier/**/build
+android-verifier/local.properties
 
 # Environment variables
 .env

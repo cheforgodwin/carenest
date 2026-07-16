@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { FiLock, FiMail, FiPhone, FiUser } from 'react-icons/fi'
 import { useAuth } from '../auth/useAuth'
+import { phonePlaceholder } from '../config/businessConfig'
 import Logo from '../components/Logo'
 import { getAuthErrorMessage, getDashboardPath, signUpWithProfile } from '../firebase/authService'
 import './AuthPages.css'
@@ -56,7 +57,7 @@ function SignupPage() {
           <p>Set up your CareNest profile.</p>
           <label>Name<span className="auth-input"><FiUser /><input name="name" value={form.name} onChange={updateField} required /></span></label>
           <label>Email<span className="auth-input"><FiMail /><input name="email" type="email" value={form.email} onChange={updateField} required /></span></label>
-          <label>Telephone number<span className="auth-input"><FiPhone /><input name="phone" type="tel" value={form.phone} onChange={updateField} placeholder="+237 6XX XXX XXX" required /></span></label>
+          <label>Telephone number<span className="auth-input"><FiPhone /><input name="phone" type="tel" value={form.phone} onChange={updateField} placeholder={phonePlaceholder} required /></span></label>
           <label>Password<span className="auth-input"><FiLock /><input name="password" type="password" minLength="6" value={form.password} onChange={updateField} required /></span></label>
           {error && <p className="auth-status error">{error}</p>}
           <button type="submit" disabled={loading}>{loading ? 'Creating account...' : 'Create account'}</button>

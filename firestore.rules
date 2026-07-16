@@ -49,11 +49,11 @@ service cloud.firestore {
     }
 
     function validPaymentStatus(status) {
-      return status in ['Pending', 'Paid', 'Failed', 'Refunded'];
+      return status in ['Pending', 'Submitted', 'Paid', 'Failed', 'Refunded'];
     }
 
     function validPaymentMethod(method) {
-      return method in ['Cash', 'Mobile Money', 'Orange Money'];
+      return method in ['Cash', 'MTN Mobile Money', 'Orange Money'];
     }
 
     function validStepForStatus(status, step) {
@@ -96,9 +96,11 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow create: if ownsUserDoc(userId)
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.accountType == 'customer';
+      allow create: if (
+          ownsUserDoc(userId)
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.accountType == 'customer'
+        );
 
       allow get: if ownsUserDoc(userId) || isAdmin();
 
@@ -164,7 +166,7 @@ service cloud.firestore {
         && request.resource.data.customerUid == request.auth.uid
         && request.resource.data.status == 'Pending'
         && request.resource.data.currentStep == 0
-        && request.resource.data.paymentStatus == 'Pending'
+        && request.resource.data.paymentStatus in ['Pending', 'Submitted']
         && validPaymentMethod(request.resource.data.paymentMethod)
         && validPrice(
           request.resource.data.serviceType,
@@ -238,6 +240,11 @@ service cloud.firestore {
         );
 
       allow delete: if isAdmin();
+    }
+
+    match /paymentSmsReceipts/{receiptId} {
+      allow create, update, delete: if isAdmin();
+      allow get, list: if isAdmin();
     }
   }
 }

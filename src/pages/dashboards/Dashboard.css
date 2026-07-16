@@ -4,6 +4,11 @@
   background: #f4f8f6;
 }
 
+.dashboard-menu-toggle,
+.dashboard-menu-backdrop {
+  display: none;
+}
+
 .dashboard-sidebar {
   flex: 0 0 260px;
   display: flex;
@@ -24,21 +29,28 @@
   gap: 6px;
 }
 
-.dashboard-sidebar a {
+.dashboard-sidebar a,
+.dashboard-sidebar button {
   display: flex;
   align-items: center;
   gap: 10px;
   min-height: 44px;
   padding: 0 12px;
+  border: 0;
   border-radius: 8px;
   color: #466454;
+  background: transparent;
   text-decoration: none;
+  cursor: pointer;
   font-size: 14px;
   font-weight: 800;
+  font-family: inherit;
 }
 
 .dashboard-sidebar a.active,
-.dashboard-sidebar a:hover {
+.dashboard-sidebar a:hover,
+.dashboard-sidebar button.active,
+.dashboard-sidebar button:hover {
   color: #006a3a;
   background: #e8f6ec;
 }
@@ -221,6 +233,48 @@
   text-transform: uppercase;
 }
 
+.payment-receipt-cell {
+  max-width: 260px;
+  min-width: 220px;
+}
+
+.payment-receipt-cell summary {
+  color: #007f45;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.payment-receipt-cell p {
+  margin: 8px 0 6px;
+  color: #073b25;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.payment-receipt-cell small {
+  color: #466454;
+  font-weight: 800;
+}
+
+.admin-assignment-cell {
+  min-width: 230px;
+}
+
+.admin-assignment-cell small,
+.dashboard-table .dashboard-muted {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.table-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
 .status-chip {
   display: inline-flex;
   padding: 6px 10px;
@@ -232,11 +286,15 @@
 }
 
 .status-chip.pending,
-.status-chip.assigned {
+.status-chip.assigned,
+.status-chip.submitted,
+.status-chip.needs_review {
   background: #f59e0b;
 }
 
-.status-chip.completed {
+.status-chip.completed,
+.status-chip.matched,
+.status-chip.paid {
   background: #007f45;
 }
 
@@ -346,6 +404,11 @@
 
 .table-action.danger {
   background: #dc2626;
+}
+
+.table-action.secondary {
+  color: #073b25;
+  background: #e8f6ec;
 }
 
 .dashboard-form {
@@ -462,27 +525,75 @@
     overflow-x: hidden;
   }
 
-  .dashboard-sidebar {
-    flex: 0 0 auto;
-    width: 100%;
-    max-width: 100vw;
-    flex-direction: row;
+  .dashboard-menu-toggle {
+    display: inline-flex;
     align-items: center;
-    gap: 14px;
-    padding: 14px 16px;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scrollbar-width: thin;
-    border-right: 0;
-    border-bottom: 1px solid #dceee3;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    margin-bottom: 14px;
+    border: 1px solid #dceee3;
+    border-radius: 8px;
+    color: #073b25;
+    background: #ffffff;
+    cursor: pointer;
+  }
+
+  .dashboard-menu-toggle svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .dashboard-menu-open .dashboard-menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: block;
+    border: 0;
+    background: rgba(7, 59, 37, 0.34);
+    cursor: pointer;
+  }
+
+  .dashboard-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 30;
+    width: min(82vw, 300px);
+    max-width: 300px;
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 18px;
+    padding: 18px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    border-right: 1px solid #dceee3;
+    border-bottom: 0;
+    box-shadow: 18px 0 40px rgba(7, 59, 37, 0.18);
+    transform: translateX(-105%);
+    transition: transform 180ms ease;
+  }
+
+  .dashboard-menu-open .dashboard-sidebar {
+    transform: translateX(0);
+  }
+
+  .dashboard-sidebar .cn-logo {
+    align-self: flex-start;
   }
 
   .dashboard-sidebar nav {
     flex: 0 0 auto;
-    flex-direction: row;
+    flex-direction: column;
   }
 
-  .dashboard-sidebar a {
+  .dashboard-sidebar .cn-logo-copy,
+  .dashboard-sidebar nav span {
+    display: inline;
+  }
+
+  .dashboard-sidebar a,
+  .dashboard-sidebar button {
     flex: 0 0 auto;
     white-space: nowrap;
   }
@@ -585,7 +696,8 @@
     padding: 12px;
   }
 
-  .dashboard-sidebar a {
+  .dashboard-sidebar a,
+  .dashboard-sidebar button {
     min-height: 40px;
     padding: 0 10px;
     font-size: 13px;

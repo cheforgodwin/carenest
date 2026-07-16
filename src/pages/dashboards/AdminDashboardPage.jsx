@@ -2,8 +2,11 @@ import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { FiDownload } from 'react-icons/fi'
 import {
+  adminAssignServiceRequest,
+  adminClearServiceRequestProvider,
   paymentStatuses,
   subscribeToAllOrders,
+  subscribeToPaymentSmsReceipts,
   subscribeToUsers,
   updatePaymentStatus,
   updateServiceRequestStatus,
@@ -54,6 +57,7 @@ function AdminDashboardPage() {
   const { user } = useAuth()
   const activeView = searchParams.get('view') || 'overview'
   const [orders, setOrders] = useState([])
+  const [paymentReceipts, setPaymentReceipts] = useState([])
   const [users, setUsers] = useState([])
   const [applications, setApplications] = useState([])
   const [loading, setLoading] = useState(true)
@@ -61,6 +65,7 @@ function AdminDashboardPage() {
   const [message, setMessage] = useState('')
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [providerSelections, setProviderSelections] = useState({})
 
   useEffect(() => {
     const unsubOrders = subscribeToAllOrders(
@@ -81,10 +86,15 @@ function AdminDashboardPage() {
       setApplications,
       (nextError) => setError(nextError.message),
     )
+    const unsubPaymentReceipts = subscribeToPaymentSmsReceipts(
+      setPaymentReceipts,
+      (nextError) => setError(nextError.message),
+    )
     return () => {
       unsubOrders()
       unsubUsers()
       unsubApplications()
+      unsubPaymentReceipts()
     }
   }, [])
 
@@ -96,6 +106,7 @@ function AdminDashboardPage() {
   const openOrders = orders.filter((order) => !['Completed', 'Cancelled'].includes(order.status))
   const complaints = orders.filter((order) => order.status === 'Complaint')
   const pendingApplications = applications.filter((application) => application.status === 'Pending')
+  const reviewPaymentReceipts = paymentReceipts.filter((receipt) => receipt.matchStatus === 'needs_review')
   const revenue = completedOrders.reduce((total, order) => total + Number(order.amount || 0), 0)
   const bookingsToday = orders.filter((order) => order.createdAtDate?.toDateString() === todayKey).length
 
@@ -106,6 +117,7 @@ function AdminDashboardPage() {
     ['Revenue', formatAmount(revenue)],
     ['Open requests', String(openOrders.length)],
     ['Applications', String(pendingApplications.length)],
+    ['Payment reviews', String(reviewPaymentReceipts.length)],
   ]
 
   const filteredOrders = useMemo(() => {
@@ -116,8 +128,13 @@ function AdminDashboardPage() {
         order.id,
         order.customerName,
         order.customerEmail,
+        order.customerPhone,
         order.service,
         order.address,
+        order.paymentReference,
+        order.paymentReceiptText,
+        order.paymentReceiptSenderPhone,
+        order.paymentReceiptTransactionId,
       ].join(' ').toLowerCase()
       return matchesStatus && (!needle || haystack.includes(needle))
     })
@@ -131,7 +148,42 @@ function AdminDashboardPage() {
     })
   }, [users, query])
 
+  const filteredPaymentReceipts = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    return paymentReceipts.filter((receipt) => {
+      const haystack = [
+        receipt.provider,
+        receipt.paymentMethod,
+        receipt.amount,
+        receipt.senderPhone,
+        receipt.transactionId,
+        receipt.matchStatus,
+        receipt.matchReason,
+        receipt.matchedOrderId,
+        receipt.message,
+      ].join(' ').toLowerCase()
+      return !needle || haystack.includes(needle)
+    })
+  }, [paymentReceipts, query])
+
   function exportData() {
+    if (activeView === 'payments') {
+      downloadCsv('carenest-payment-sms-receipts.csv', [
+        ['Provider', 'Amount', 'Sender', 'Transaction ID', 'Match status', 'Matched order', 'Reason', 'Received'],
+        ...filteredPaymentReceipts.map((receipt) => [
+          receipt.paymentMethod || receipt.provider,
+          receipt.amount,
+          receipt.senderPhone,
+          receipt.transactionId,
+          receipt.matchStatus,
+          receipt.matchedOrderId,
+          receipt.matchReason,
+          formatDate(receipt.receivedAtDate || receipt.createdAtDate),
+        ]),
+      ])
+      return
+    }
+
     if (activeView === 'users') {
       downloadCsv('carenest-users.csv', [
         ['Name', 'Email', 'Phone', 'Role', 'Joined'],
@@ -141,7 +193,7 @@ function AdminDashboardPage() {
     }
 
     downloadCsv('carenest-service-requests.csv', [
-      ['Order', 'Customer', 'Email', 'Status', 'Service', 'Address', 'Amount', 'Created'],
+      ['Order', 'Customer', 'Email', 'Status', 'Service', 'Address', 'Amount', 'Payment method', 'Payment status', 'Payment reference', 'Customer payment message', 'Created'],
       ...filteredOrders.map((order) => [
         order.id,
         order.customerName,
@@ -150,6 +202,10 @@ function AdminDashboardPage() {
         order.service,
         order.address,
         order.amount,
+        order.paymentMethod,
+        order.paymentStatus,
+        order.paymentReference,
+        order.paymentReceiptText,
         formatDate(order.createdAtDate),
       ]),
     ])
@@ -163,9 +219,41 @@ function AdminDashboardPage() {
     }
   }
 
-  async function updatePayment(order, paymentStatus) {
+  async function updatePayment(order, paymentStatus, note = '') {
+    setError('')
+    setMessage('')
     try {
-      await updatePaymentStatus(order.firestoreId, paymentStatus)
+      await updatePaymentStatus(order.firestoreId, paymentStatus, user.uid, note || `Marked ${paymentStatus.toLowerCase()} by admin.`)
+      setMessage(`${order.id} payment marked as ${paymentStatus.toLowerCase()}.`)
+    } catch (nextError) {
+      setError(nextError.message)
+    }
+  }
+
+  async function assignProvider(order) {
+    setError('')
+    setMessage('')
+    const providerUid = providerSelections[order.firestoreId] || order.providerUid || ''
+    const provider = providers.find((nextProvider) => nextProvider.uid === providerUid)
+    if (!provider) {
+      setError('Choose a provider before assigning this request.')
+      return
+    }
+    try {
+      await adminAssignServiceRequest(order.firestoreId, provider, user.uid)
+      setMessage(`${order.id} assigned to ${provider.name || provider.email}.`)
+    } catch (nextError) {
+      setError(nextError.message)
+    }
+  }
+
+  async function clearProvider(order) {
+    setError('')
+    setMessage('')
+    try {
+      await adminClearServiceRequestProvider(order.firestoreId, user.uid)
+      setProviderSelections((current) => ({ ...current, [order.firestoreId]: '' }))
+      setMessage(`${order.id} is back in pending jobs.`)
     } catch (nextError) {
       setError(nextError.message)
     }
@@ -190,6 +278,7 @@ function AdminDashboardPage() {
     { label: 'Overview', to: '/dashboard/admin?view=overview', icon: 'dashboard' },
     { label: 'Users', to: '/dashboard/admin?view=users', icon: 'users' },
     { label: 'Requests', to: '/dashboard/admin?view=requests', icon: 'bookings' },
+    { label: 'Payments', to: '/dashboard/admin?view=payments', icon: 'payments' },
     { label: 'Applications', to: '/dashboard/admin?view=applications', icon: 'users' },
     { label: 'Settings', to: '/dashboard/admin?view=settings', icon: 'settings' },
   ]
@@ -279,7 +368,7 @@ function AdminDashboardPage() {
           </div>
           {filteredOrders.length > 0 ? (
             <table className="dashboard-table">
-              <thead><tr><th>Order</th><th>Customer</th><th>Service</th><th>Address</th><th>Amount</th><th>Status</th><th>Payment</th></tr></thead>
+              <thead><tr><th>Order</th><th>Customer</th><th>Service</th><th>Address</th><th>Amount</th><th>Provider</th><th>Payment ref</th><th>Customer receipt</th><th>Status</th><th>Payment</th></tr></thead>
               <tbody>
                 {filteredOrders.map((order) => (
                   <tr key={order.firestoreId}>
@@ -288,6 +377,36 @@ function AdminDashboardPage() {
                     <td>{order.service}</td>
                     <td>{order.address}</td>
                     <td>{formatAmount(order.amount)}</td>
+                    <td className="admin-assignment-cell">
+                      <select
+                        className="dashboard-select"
+                        value={providerSelections[order.firestoreId] ?? order.providerUid ?? ''}
+                        onChange={(event) => setProviderSelections((current) => ({ ...current, [order.firestoreId]: event.target.value }))}
+                      >
+                        <option value="">Choose provider</option>
+                        {providers.map((provider) => (
+                          <option key={provider.uid || provider.firestoreId} value={provider.uid}>{provider.name || provider.email}</option>
+                        ))}
+                      </select>
+                      <div className="table-action-row">
+                        <button className="table-action" type="button" onClick={() => assignProvider(order)}>Assign</button>
+                        {order.providerUid && <button className="table-action secondary" type="button" onClick={() => clearProvider(order)}>Unassign</button>}
+                      </div>
+                      {order.providerName && <small>Current: {order.providerName}</small>}
+                    </td>
+                    <td>{order.paymentReference || order.paymentReceiverNumber || 'Not submitted'}</td>
+                    <td className="payment-receipt-cell">
+                      {order.paymentReceiptText ? (
+                        <details>
+                          <summary>{order.paymentReceiptTransactionId || order.paymentReceiptSenderPhone || 'View message'}</summary>
+                          <p>{order.paymentReceiptText}</p>
+                          <small>
+                            {order.paymentReceiptAmount ? `Amount: ${formatAmount(order.paymentReceiptAmount)}` : 'Amount not read'}
+                            {order.paymentReceiptSenderPhone ? ` - Sender: ${order.paymentReceiptSenderPhone}` : ''}
+                          </small>
+                        </details>
+                      ) : 'Not pasted'}
+                    </td>
                     <td>
                       <select className="dashboard-select" value={order.status} onChange={(event) => updateStatus(order, event.target.value)}>
                         {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
@@ -297,6 +416,11 @@ function AdminDashboardPage() {
                       <select className="dashboard-select" value={order.paymentStatus || 'Pending'} onChange={(event) => updatePayment(order, event.target.value)}>
                         {paymentStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
                       </select>
+                      <div className="table-action-row">
+                        <button className="table-action" type="button" onClick={() => updatePayment(order, 'Paid', 'Customer receipt accepted by admin.')}>Accept</button>
+                        <button className="table-action danger" type="button" onClick={() => updatePayment(order, 'Failed', 'Customer receipt rejected by admin.')}>Reject</button>
+                      </div>
+                      {order.paymentReviewNote && <small className="dashboard-muted">{order.paymentReviewNote}</small>}
                     </td>
                   </tr>
                 ))}
@@ -339,6 +463,40 @@ function AdminDashboardPage() {
               </tbody>
             </table>
           ) : <p className="dashboard-empty">No provider applications yet.</p>}
+        </section>
+      )}
+
+      {activeView === 'payments' && (
+        <section className="dashboard-panel">
+          <div className="dashboard-panel-header">
+            <div>
+              <h2>SMS payment receipts</h2>
+              <p>Review payment messages from the owner phone. Ambiguous receipts stay here until you confirm the right order in Requests.</p>
+            </div>
+            <div className="dashboard-tools">
+              <input className="dashboard-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search payment SMS" />
+              <button className="dashboard-action-button" type="button" onClick={exportData}><FiDownload />Export</button>
+            </div>
+          </div>
+          {filteredPaymentReceipts.length > 0 ? (
+            <table className="dashboard-table">
+              <thead><tr><th>Provider</th><th>Amount</th><th>Sender</th><th>Transaction</th><th>Status</th><th>Order</th><th>Reason</th><th>Received</th></tr></thead>
+              <tbody>
+                {filteredPaymentReceipts.map((receipt) => (
+                  <tr key={receipt.firestoreId}>
+                    <td>{receipt.paymentMethod || receipt.provider}</td>
+                    <td>{formatAmount(receipt.amount)}</td>
+                    <td>{receipt.senderPhone || 'Not found'}</td>
+                    <td>{receipt.transactionId || 'Not found'}</td>
+                    <td><span className={`status-chip ${normalizeStatus(receipt.matchStatus)}`}>{receipt.matchStatus}</span></td>
+                    <td>{receipt.matchedOrderId || 'Needs review'}</td>
+                    <td>{receipt.matchReason || 'Verified automatically'}</td>
+                    <td>{formatDate(receipt.receivedAtDate || receipt.createdAtDate)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : <p className="dashboard-empty">No SMS payment receipts yet.</p>}
         </section>
       )}
 

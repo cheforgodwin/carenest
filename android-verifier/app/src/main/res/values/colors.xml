@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="carenest_green">#007F45</color>
+    <color name="carenest_green_dark">#005F36</color>
+    <color name="carenest_orange">#FF7A1A</color>
+    <color name="carenest_white">#FFFFFF</color>
+</resources>

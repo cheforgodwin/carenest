@@ -1,0 +1,6 @@
+firebase.projectId=YOUR_PROJECT_ID
+firebase.apiKey=YOUR_FIREBASE_WEB_API_KEY
+verifier.provider=mtn
+admin.dashboardUrl=https://YOUR_PROJECT_ID.web.app/carenest-admin
+testReceipt.amount=0
+testReceipt.senderPhone=6XXXXXXXX

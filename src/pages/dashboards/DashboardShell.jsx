@@ -1,10 +1,11 @@
+import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { FiBriefcase, FiGrid, FiLogOut, FiPlus, FiSettings, FiUsers } from 'react-icons/fi'
+import { FiBriefcase, FiCreditCard, FiGrid, FiLogOut, FiMenu, FiPlus, FiSettings, FiUsers, FiX } from 'react-icons/fi'
 import { useAuth } from '../../auth/useAuth'
 import Logo from '../../components/Logo'
 import './Dashboard.css'
 
-const icons = { bookings: FiBriefcase, dashboard: FiGrid, settings: FiSettings, users: FiUsers }
+const icons = { bookings: FiBriefcase, dashboard: FiGrid, payments: FiCreditCard, settings: FiSettings, users: FiUsers }
 
 function DashboardShell({
   title,
@@ -21,6 +22,16 @@ function DashboardShell({
   const navigate = useNavigate()
   const location = useLocation()
   const { logout, profile } = useAuth()
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+
+  useEffect(() => {
+    function closeOnEscape(event) {
+      if (event.key === 'Escape') setIsMenuOpen(false)
+    }
+
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [])
 
   async function handleLogout() {
     await logout()
@@ -28,8 +39,14 @@ function DashboardShell({
   }
 
   return (
-    <main className="dashboard-page">
-      <aside className="dashboard-sidebar">
+    <main className={`dashboard-page ${isMenuOpen ? 'dashboard-menu-open' : ''}`}>
+      <button
+        className="dashboard-menu-backdrop"
+        type="button"
+        aria-label="Close dashboard menu"
+        onClick={() => setIsMenuOpen(false)}
+      />
+      <aside className="dashboard-sidebar" id="dashboard-navigation">
         <Logo />
         <nav>
           {nav.map((item) => {
@@ -37,10 +54,27 @@ function DashboardShell({
             const target = item.to
             const current = `${location.pathname}${location.search}`
             const isQueryLink = target.includes('?')
+            const isActiveQuery = current === target
+            if (isQueryLink) {
+              return (
+                <button
+                  className={isActiveQuery ? 'active' : ''}
+                  key={item.label}
+                  type="button"
+                  onClick={() => {
+                    navigate(target)
+                    setIsMenuOpen(false)
+                  }}
+                >
+                  <Icon /><span>{item.label}</span>
+                </button>
+              )
+            }
             return (
               <NavLink
-                className={({ isActive }) => (isQueryLink ? current === target : isActive) ? 'active' : ''}
+                className={({ isActive }) => isActive ? 'active' : ''}
                 key={item.label}
+                onClick={() => setIsMenuOpen(false)}
                 to={target}
               >
                 <Icon /><span>{item.label}</span>
@@ -52,6 +86,16 @@ function DashboardShell({
       <section className="dashboard-main">
         <header className="dashboard-top">
           <div>
+            <button
+              className="dashboard-menu-toggle"
+              type="button"
+              aria-label={isMenuOpen ? 'Close dashboard menu' : 'Open dashboard menu'}
+              aria-expanded={isMenuOpen}
+              aria-controls="dashboard-navigation"
+              onClick={() => setIsMenuOpen((current) => !current)}
+            >
+              {isMenuOpen ? <FiX /> : <FiMenu />}
+            </button>
             <h1>{title}</h1>
             <p>{subtitle}</p>
           </div>
