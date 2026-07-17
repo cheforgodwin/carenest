@@ -547,7 +547,7 @@ function CustomerAppPage() {
               {providerApplications[0] && (
                 <div className={`provider-application-state status-${providerApplications[0].status.toLowerCase()}`}>
                   <span>Current application</span><strong>{providerApplications[0].status}</strong>
-                  <p>{providerApplications[0].status === 'Pending' ? 'Your application is waiting for admin review.' : providerApplications[0].status === 'Approved' ? 'You have been approved. Log out and back in to open the provider dashboard.' : 'You may update the information below and apply again.'}</p>
+                  <p>{providerApplications[0].status === 'Pending' ? 'Your application is waiting for admin review.' : providerApplications[0].status === 'Approved' ? 'You have been approved. Your provider dashboard will open automatically so you can accept available jobs.' : 'You may update the information below and apply again.'}</p>
                 </div>
               )}
               {providerApplications[0]?.status !== 'Approved' && providerApplications[0]?.status !== 'Pending' && (

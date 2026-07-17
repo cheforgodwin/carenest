@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { onAuthStateChanged } from 'firebase/auth'
+import { doc, onSnapshot } from 'firebase/firestore'
 import { auth } from '../firebase/firebaseConfig'
-import { getUserProfile, logout } from '../firebase/authService'
+import { db } from '../firebase/firebaseConfig'
+import { logout } from '../firebase/authService'
 import { AuthContext } from './authStore'
 
 export function AuthProvider({ children }) {
@@ -17,7 +19,10 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
-    return onAuthStateChanged(auth, async (firebaseUser) => {
+    let unsubscribeProfile = () => {}
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+      unsubscribeProfile()
       setUser(firebaseUser)
       if (!firebaseUser) {
         setProfile(null)
@@ -25,16 +30,22 @@ export function AuthProvider({ children }) {
         return
       }
 
-      try {
-        setProfile(await getUserProfile(firebaseUser.uid))
+      setLoading(true)
+      unsubscribeProfile = onSnapshot(doc(db, 'users', firebaseUser.uid), (snapshot) => {
+        setProfile(snapshot.exists() ? snapshot.data() : null)
         setError('')
-      } catch {
+        setLoading(false)
+      }, () => {
         setProfile(null)
         setError('We could not load your account. Check your connection and try again.')
-      } finally {
         setLoading(false)
-      }
+      })
     })
+
+    return () => {
+      unsubscribeProfile()
+      unsubscribeAuth()
+    }
   }, [])
 
   const value = useMemo(() => ({

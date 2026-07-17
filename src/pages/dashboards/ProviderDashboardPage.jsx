@@ -145,7 +145,7 @@ function ProviderDashboardPage() {
   return (
     <DashboardShell
       title="Provider Dashboard"
-      subtitle="Accept jobs, manage availability, and monitor earnings."
+      subtitle="View available customer jobs, accept work yourself, and manage availability."
       action={{ label: 'Set availability', href: '/dashboard/provider?view=settings' }}
       nav={nav}
       metrics={metrics}
@@ -158,7 +158,7 @@ function ProviderDashboardPage() {
           <div className="dashboard-panel-header">
             <div>
               <h2>{activeView === 'jobs' ? 'Jobs' : 'Recent activity'}</h2>
-              <p>{activeView === 'jobs' ? 'Accept open jobs and update assigned work.' : 'Your active work and available customer requests.'}</p>
+              <p>{activeView === 'jobs' ? 'Accept available jobs or update work already assigned to you.' : 'Available customer requests and the jobs you are currently handling.'}</p>
             </div>
             <input className="dashboard-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search jobs" />
           </div>
