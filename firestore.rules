@@ -197,11 +197,18 @@ service cloud.firestore {
           || (isProvider() && resource.data.status == 'Pending')
         );
 
-      allow update: if isAdmin()
-        && validStatus(request.resource.data.status)
-        && validStepForStatus(request.resource.data.status, request.resource.data.currentStep)
-        && validPaymentStatus(request.resource.data.paymentStatus)
-        || (
+      allow update: if (
+          isAdmin()
+          && validStatus(request.resource.data.status)
+          && validStepForStatus(request.resource.data.status, request.resource.data.currentStep)
+          && validPaymentStatus(request.resource.data.paymentStatus)
+          && request.resource.data.customerUid == resource.data.customerUid
+          && request.resource.data.customerEmail == resource.data.customerEmail
+          && request.resource.data.amount == resource.data.amount
+          && request.resource.data.serviceType == resource.data.serviceType
+          && request.resource.data.itemSummary == resource.data.itemSummary
+          && request.resource.data.serviceSpeed == resource.data.serviceSpeed
+        ) || (
           isProvider()
           && validStatus(request.resource.data.status)
           && validStepForStatus(request.resource.data.status, request.resource.data.currentStep)
@@ -209,14 +216,27 @@ service cloud.firestore {
           && request.resource.data.customerEmail == resource.data.customerEmail
           && request.resource.data.amount == resource.data.amount
           && request.resource.data.paymentStatus == resource.data.paymentStatus
+          && request.resource.data.serviceType == resource.data.serviceType
+          && request.resource.data.itemSummary == resource.data.itemSummary
+          && request.resource.data.serviceSpeed == resource.data.serviceSpeed
+          && request.resource.data.paymentMethod == resource.data.paymentMethod
           && (
-            resource.data.providerUid == request.auth.uid
+            (
+              resource.data.providerUid == request.auth.uid
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'status', 'currentStep', 'updatedAt'
+              ])
+            )
             || (
               !('providerUid' in resource.data)
               && resource.data.status == 'Pending'
               && request.resource.data.providerUid == request.auth.uid
               && request.resource.data.status == 'Assigned'
               && request.resource.data.currentStep == 1
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'providerUid', 'providerName', 'providerEmail', 'providerPhone',
+                'status', 'currentStep', 'assignedAt', 'updatedAt'
+              ])
             )
           )
         )
@@ -224,18 +244,8 @@ service cloud.firestore {
           isCustomer()
           && resource.data.customerUid == request.auth.uid
           && request.resource.data.customerUid == resource.data.customerUid
-          && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-            'status',
-            'currentStep',
-            'providerUid',
-            'providerName',
-            'providerEmail',
-            'amount',
-            'customerUid',
-            'customerEmail',
-            'paymentStatus',
-            'paidAt',
-            'createdAt'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'customerNote', 'complaintText', 'updatedAt'
           ])
         );
 

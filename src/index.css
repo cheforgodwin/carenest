@@ -51,3 +51,7 @@ a {
   background: #f4f8f6;
   font-weight: 900;
 }
+/* Shared fallback and policy surfaces intentionally work without route-specific CSS. */
+.system-message, .legal-page { max-width: 760px; margin: 5rem auto; padding: 2rem; }
+.legal-page section { margin: 2rem 0; }
+.legal-page p { line-height: 1.7; }

@@ -8,6 +8,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   function setSession(nextProfile) {
     setUser(auth.currentUser)
@@ -26,6 +27,10 @@ export function AuthProvider({ children }) {
 
       try {
         setProfile(await getUserProfile(firebaseUser.uid))
+        setError('')
+      } catch {
+        setProfile(null)
+        setError('We could not load your account. Check your connection and try again.')
       } finally {
         setLoading(false)
       }
@@ -36,9 +41,10 @@ export function AuthProvider({ children }) {
     user,
     profile,
     loading,
+    error,
     logout,
     setSession,
-  }), [user, profile, loading])
+  }), [user, profile, loading, error])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

@@ -849,7 +849,7 @@
 
 .request-shell {
   display: flex;
-  align-items: stretch;
+  align-items: flex-start;
   justify-content: center;
   gap: clamp(14px, 1.8vw, 24px);
   width: min(1360px, 100%);
@@ -879,6 +879,7 @@
   justify-content: flex-end;
   gap: 9px;
   min-width: 300px;
+  max-height: calc(100dvh - 112px);
   padding: 18px;
   overflow: hidden;
   background:
@@ -1638,7 +1639,9 @@
   }
 
   .mobile-content {
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
   }
 
   .mobile-content-order {
@@ -2332,4 +2335,68 @@
     padding-top: 8px;
     padding-bottom: calc(8px + env(safe-area-inset-bottom));
   }
+}
+.provider-application-page { padding: 2rem; background: #f4faf6; }
+.provider-application-shell { width: min(760px, 100%); margin: 0 auto 7rem; }
+.provider-application-intro { display: flex; gap: 1rem; align-items: flex-start; background: #064b33; color: white; padding: 1.5rem; border-radius: 1.25rem; margin: 1.5rem 0; }
+.provider-application-intro > svg { flex: 0 0 auto; font-size: 2rem; }
+.provider-application-intro h2, .provider-application-intro p { color: inherit; margin: 0 0 .4rem; }
+.provider-application-state, .provider-application-form { background: white; border: 1px solid #d8e8df; border-radius: 1.25rem; padding: 1.5rem; margin-top: 1rem; }
+.provider-application-state span, .provider-application-state strong { display: block; }
+.provider-application-state strong { color: #f36b12; font-size: 1.5rem; margin: .35rem 0; }
+.provider-application-form { display: grid; gap: 1rem; }
+.provider-application-form label { display: grid; gap: .45rem; font-weight: 700; color: #173e30; }
+.provider-application-form input, .provider-application-form textarea { width: 100%; box-sizing: border-box; border: 1px solid #c9dbd1; border-radius: .75rem; padding: .85rem; font: inherit; }
+.provider-application-form textarea { min-height: 8rem; resize: vertical; }
+.provider-application-form button { border: 0; border-radius: .8rem; padding: 1rem; background: #f36b12; color: white; font-weight: 800; cursor: pointer; }
+.provider-application-form button:disabled { opacity: .65; cursor: wait; }
+
+/* Compact laptop screens: keep every control reachable without oversized panels. */
+@media (min-width: 981px) and (max-height: 820px) {
+  .mobile-tabs { min-height: 58px; padding-block: 5px; }
+  .customer-nav-brand .cn-logo-mark { width: 40px; height: 40px; }
+  .customer-nav-brand .cn-logo-mark svg { width: 37px; height: 37px; }
+  .customer-nav-brand .cn-logo-copy strong { font-size: 21px; }
+  .mobile-content-request { padding-block: 10px 18px; }
+  .request-main { padding: 14px; }
+  .top-title { margin-bottom: 7px; }
+  .top-title h1 { font-size: 21px; }
+  .stepper { margin-bottom: 20px; }
+  .request-box { min-height: 62px; padding: 7px; }
+  .request-box > svg { width: 21px; height: 21px; }
+  .mobile-content label { gap: 4px; font-size: 13px; }
+  .request-input { min-height: 38px; }
+  .mobile-content textarea.payment-message-input { min-height: 82px; }
+  .request-aside { position: sticky; top: 10px; max-height: calc(100dvh - 88px); padding: 14px; }
+  .aside-visual { width: 60px; height: 60px; border-radius: 16px; }
+  .aside-visual svg { width: 30px; height: 30px; }
+  .provider-application-page { padding-block: 1rem 2rem; }
+  .provider-application-shell { margin-bottom: 2rem; }
+  .provider-application-intro { margin: .8rem 0; padding: 1rem 1.25rem; }
+  .provider-application-intro h2 { font-size: 1.65rem; }
+  .provider-application-form { gap: .7rem; padding: 1rem 1.25rem; }
+  .provider-application-form input { padding: .7rem .8rem; }
+  .provider-application-form textarea { min-height: 6rem; }
+}
+
+@media (max-width: 980px) {
+  .provider-application-page { width: 100%; padding: 1.25rem clamp(1rem, 4vw, 2rem) 7rem; }
+  .provider-application-shell { width: min(680px, 100%); margin-bottom: 0; }
+  .provider-application-intro { padding: 1.25rem; }
+  .provider-application-form { padding: 1.25rem; }
+}
+
+@media (max-width: 640px) {
+  .provider-application-page { padding: 12px 14px calc(96px + env(safe-area-inset-bottom)); }
+  .provider-application-page .top-title { margin-bottom: 14px; }
+  .provider-application-intro { gap: .75rem; margin: 0 0 12px; padding: 1rem; border-radius: 14px; }
+  .provider-application-intro > svg { font-size: 1.5rem; }
+  .provider-application-intro h2 { font-size: 1.25rem; }
+  .provider-application-intro p { font-size: .85rem; line-height: 1.4; }
+  .provider-application-state, .provider-application-form { margin-top: 10px; padding: 1rem; border-radius: 14px; }
+  .provider-application-form { gap: .8rem; }
+  .provider-application-form label { margin: 0; font-size: 13px; }
+  .provider-application-form input, .provider-application-form textarea { min-height: 46px; padding: .75rem; font-size: 14px; }
+  .provider-application-form textarea { min-height: 100px; }
+  .provider-application-form button { min-height: 48px; }
 }

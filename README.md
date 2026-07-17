@@ -8,7 +8,13 @@ React + Vite home services app for customers, providers, and operations teams.
 npm install
 npm run dev
 npm run build
+npm run test:release
+npm run test:load -- 100 20
 ```
+
+The load test uses isolated Firebase Auth and Firestore emulators to perform concurrent signup, profile creation, booking creation, and login. The numbers are total users and concurrency. Never point synthetic load at production.
+
+Review `docs/operations-runbook.md` and `docs/e2e-checklist.md` before launch.
 
 ## Environment Variables
 

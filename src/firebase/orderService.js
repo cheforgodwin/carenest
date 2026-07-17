@@ -3,10 +3,10 @@ import {
   collection,
   deleteField,
   doc,
-  getDoc,
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   updateDoc,
   where,
@@ -171,19 +171,24 @@ export function updateServiceRequestStatus(firestoreId, status) {
 }
 
 export async function assignServiceRequestToProvider(firestoreId, provider) {
-  const snapshot = await getDoc(doc(db, 'serviceRequests', firestoreId))
-  if (!snapshot.exists()) throw new Error('Service request was not found.')
-  const order = snapshot.data()
-  if (order.providerUid || order.status !== 'Pending') {
-    throw new Error('This job is no longer available.')
-  }
-  return updateDoc(doc(db, 'serviceRequests', firestoreId), {
-    providerUid: provider.uid,
-    providerName: provider.name,
-    providerEmail: provider.email,
-    status: 'Assigned',
-    currentStep: 1,
-    updatedAt: serverTimestamp(),
+  const orderRef = doc(db, 'serviceRequests', firestoreId)
+  return runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(orderRef)
+    if (!snapshot.exists()) throw new Error('Service request was not found.')
+    const order = snapshot.data()
+    if (order.providerUid || order.status !== 'Pending') {
+      throw new Error('This job is no longer available.')
+    }
+    transaction.update(orderRef, {
+      providerUid: provider.uid,
+      providerName: provider.name,
+      providerEmail: provider.email,
+      providerPhone: provider.phone || '',
+      status: 'Assigned',
+      currentStep: 1,
+      assignedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
   })
 }
 

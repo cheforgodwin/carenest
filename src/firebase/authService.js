@@ -4,6 +4,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
   setPersistence,
+  sendPasswordResetEmail,
   updateProfile,
 } from 'firebase/auth'
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore'
@@ -89,6 +90,10 @@ export async function loginWithEmail(email, password) {
 
 export function logout() {
   return signOut(auth)
+}
+
+export function requestPasswordReset(email) {
+  return sendPasswordResetEmail(auth, email.trim())
 }
 
 export function getDashboardPath(accountType) {

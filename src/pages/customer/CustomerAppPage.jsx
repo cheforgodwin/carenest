@@ -18,6 +18,7 @@ import {
   FiPhone,
   FiShoppingBag,
   FiTool,
+  FiUserPlus,
   FiX,
   FiZap,
 } from 'react-icons/fi'
@@ -34,6 +35,7 @@ import {
 import Logo from '../../components/Logo'
 import { createRequestId, createServiceRequest, subscribeToCustomerOrders } from '../../firebase/orderService'
 import { uploadCustomerProfilePhoto } from '../../firebase/profilePhotoService'
+import { createProviderApplication, subscribeToMyProviderApplications } from '../../firebase/providerApplicationService'
 import './CustomerAppPage.css'
 
 const quickActions = [
@@ -223,6 +225,7 @@ function CustomerAppPage() {
   const currentServiceType = serviceSlugs.includes(requestMatch?.[1]) ? requestMatch[1] : 'laundry'
   const isRequest = Boolean(requestMatch) || pathname.includes('/laundry-request')
   const isOrder = pathname.includes('/orders')
+  const isProviderApplication = pathname.includes('/become-provider')
   const isOrdersIndex = pathname.endsWith('/orders')
   const [orders, setOrders] = useState([])
   const [ordersLoading, setOrdersLoading] = useState(true)
@@ -236,6 +239,9 @@ function CustomerAppPage() {
   const [recentOrder, setRecentOrder] = useState(null)
   const [isCustomerMenuOpen, setIsCustomerMenuOpen] = useState(false)
   const [photoStatus, setPhotoStatus] = useState({ loading: false, error: '', message: '' })
+  const [providerApplications, setProviderApplications] = useState([])
+  const [providerForm, setProviderForm] = useState({ phone: profile?.phone || '', services: '', area: '', experience: '' })
+  const [providerStatus, setProviderStatus] = useState({ loading: false, error: '', message: '' })
 
   useEffect(() => {
     function closeOnEscape(event) {
@@ -258,6 +264,15 @@ function CustomerAppPage() {
         setRequestError(error.message)
         setOrdersLoading(false)
       },
+    )
+  }, [user?.uid])
+
+  useEffect(() => {
+    if (!user?.uid) return undefined
+    return subscribeToMyProviderApplications(
+      user.uid,
+      setProviderApplications,
+      (error) => setProviderStatus((current) => ({ ...current, error: error.message })),
     )
   }, [user?.uid])
 
@@ -298,6 +313,22 @@ function CustomerAppPage() {
       setPhotoStatus({ loading: false, error: '', message: 'Profile photo updated.' })
     } catch (error) {
       setPhotoStatus({ loading: false, error: error.message, message: '' })
+    }
+  }
+
+  function updateProviderForm(event) {
+    setProviderForm((current) => ({ ...current, [event.target.name]: event.target.value }))
+    setProviderStatus({ loading: false, error: '', message: '' })
+  }
+
+  async function submitProviderApplication(event) {
+    event.preventDefault()
+    setProviderStatus({ loading: true, error: '', message: '' })
+    try {
+      await createProviderApplication(user, profile, providerForm)
+      setProviderStatus({ loading: false, error: '', message: 'Application submitted. CareNest will review it before provider access is enabled.' })
+    } catch (error) {
+      setProviderStatus({ loading: false, error: error.message, message: '' })
     }
   }
 
@@ -390,7 +421,7 @@ function CustomerAppPage() {
   return (
     <main className="mobile-app-page">
       <section className={`mobile-phone ${isCustomerMenuOpen ? 'customer-menu-open' : ''}`}>
-        {!isServices && !isRequest && !isOrder && (
+        {!isServices && !isRequest && !isOrder && !isProviderApplication && (
           <section className="mobile-content mobile-content-home">
             <div className="app-header">
               <button
@@ -409,6 +440,7 @@ function CustomerAppPage() {
                 <Link to="/dashboard/customer" onClick={() => setIsCustomerMenuOpen(false)}><FiHome />Home</Link>
                 <Link to="/dashboard/customer/orders" onClick={() => setIsCustomerMenuOpen(false)}><FiBriefcase />Orders</Link>
                 <Link to="/dashboard/customer/services" onClick={() => setIsCustomerMenuOpen(false)}><FiGift />Services</Link>
+                <Link to="/dashboard/customer/become-provider" onClick={() => setIsCustomerMenuOpen(false)}><FiUserPlus />Apply as Provider</Link>
                 <a href={supportPhoneHref} onClick={() => setIsCustomerMenuOpen(false)}><FiPhone />Call CareNest</a>
               </div>
             </div>
@@ -500,6 +532,35 @@ function CustomerAppPage() {
                 <span><FiClock /> Reliable pickup times</span>
                 <a href={supportPhoneHref}><FiPhone /> Call CareNest</a>
               </div>
+            </div>
+          </section>
+        )}
+
+        {isProviderApplication && (
+          <section className="mobile-content provider-application-page">
+            <div className="provider-application-shell">
+              <div className="top-title"><Link to="/dashboard/customer" aria-label="Back to home"><FiArrowLeft /></Link><h1>Become a Provider</h1></div>
+              <div className="provider-application-intro">
+                <FiUserPlus />
+                <div><h2>Work with CareNest</h2><p>Tell us about your skills and service area. The CareNest team reviews every provider before approval.</p></div>
+              </div>
+              {providerApplications[0] && (
+                <div className={`provider-application-state status-${providerApplications[0].status.toLowerCase()}`}>
+                  <span>Current application</span><strong>{providerApplications[0].status}</strong>
+                  <p>{providerApplications[0].status === 'Pending' ? 'Your application is waiting for admin review.' : providerApplications[0].status === 'Approved' ? 'You have been approved. Log out and back in to open the provider dashboard.' : 'You may update the information below and apply again.'}</p>
+                </div>
+              )}
+              {providerApplications[0]?.status !== 'Approved' && providerApplications[0]?.status !== 'Pending' && (
+                <form className="provider-application-form" onSubmit={submitProviderApplication}>
+                  <label>Telephone number<input name="phone" type="tel" value={providerForm.phone} onChange={updateProviderForm} placeholder={phonePlaceholder} required /></label>
+                  <label>Services you can provide<input name="services" value={providerForm.services} onChange={updateProviderForm} placeholder="Laundry, cleaning, delivery…" required /></label>
+                  <label>Area where you can work<input name="area" value={providerForm.area} onChange={updateProviderForm} placeholder="Town, neighbourhood or service area" required /></label>
+                  <label>Your experience<textarea name="experience" value={providerForm.experience} onChange={updateProviderForm} placeholder="Describe your experience, equipment and availability." minLength="20" required /></label>
+                  {providerStatus.error && <p className="request-message request-error" role="alert">{providerStatus.error}</p>}
+                  {providerStatus.message && <p className="request-message" role="status">{providerStatus.message}</p>}
+                  <button type="submit" disabled={providerStatus.loading}>{providerStatus.loading ? 'Submitting…' : 'Submit application'}</button>
+                </form>
+              )}
             </div>
           </section>
         )}
@@ -659,9 +720,10 @@ function CustomerAppPage() {
         <nav className="mobile-tabs">
           <Logo to="/dashboard/customer" className="customer-nav-brand" />
           <div className="customer-nav-links">
-            <Link className={!isServices && !isRequest && !isOrder ? 'active' : ''} aria-current={!isServices && !isRequest && !isOrder ? 'page' : undefined} to="/dashboard/customer"><FiHome />Home</Link>
+            <Link className={!isServices && !isRequest && !isOrder && !isProviderApplication ? 'active' : ''} aria-current={!isServices && !isRequest && !isOrder && !isProviderApplication ? 'page' : undefined} to="/dashboard/customer"><FiHome />Home</Link>
             <Link className={isOrder ? 'active' : ''} aria-current={isOrder ? 'page' : undefined} to="/dashboard/customer/orders"><FiBriefcase />Orders</Link>
             <Link className={isServices || isRequest ? 'active' : ''} aria-current={isServices || isRequest ? 'page' : undefined} to="/dashboard/customer/services"><FiGift />Services</Link>
+            <Link className={isProviderApplication ? 'active' : ''} aria-current={isProviderApplication ? 'page' : undefined} to="/dashboard/customer/become-provider"><FiUserPlus />Provider</Link>
           </div>
         </nav>
       </section>

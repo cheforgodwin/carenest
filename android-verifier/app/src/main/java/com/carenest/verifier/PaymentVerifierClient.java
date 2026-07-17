@@ -75,7 +75,9 @@ final class PaymentVerifierClient {
             if (row == null || !row.has("document")) continue;
             ScoredOrder order = ScoredOrder.fromDocument(row.getJSONObject("document"));
             order.score = score(order, payment);
-            if (order.score > 0) scoredOrders.add(order);
+            // Never auto-pay on amount alone. Require an exact transaction reference,
+            // or a matching sender/customer phone plus the correct payment provider.
+            if (order.score >= 3) scoredOrders.add(order);
         }
 
         if (scoredOrders.isEmpty()) return MatchResult.needsReview("No submitted order matched this SMS.");
@@ -90,7 +92,9 @@ final class PaymentVerifierClient {
 
     private static int score(ScoredOrder order, PaymentSmsParser.ParsedPayment payment) {
         int score = 0;
-        String reference = normalizeReference(order.paymentReference);
+        String reference = normalizeReference(order.paymentTransactionId.isEmpty()
+            ? order.paymentReference
+            : order.paymentTransactionId);
         String transaction = normalizeReference(payment.transactionId);
         if (!transaction.isEmpty() && reference.equals(transaction)) score += 5;
         if (samePhone(order.paymentReference, payment.senderPhone)) score += 4;
@@ -263,6 +267,7 @@ final class PaymentVerifierClient {
         String paymentReference;
         String customerPhone;
         String paymentMethod;
+        String paymentTransactionId;
         int score;
 
         static ScoredOrder fromDocument(JSONObject document) throws Exception {
@@ -273,6 +278,7 @@ final class PaymentVerifierClient {
             order.paymentReference = stringField(fields, "paymentReference");
             order.customerPhone = stringField(fields, "customerPhone");
             order.paymentMethod = stringField(fields, "paymentMethod");
+            order.paymentTransactionId = stringField(fields, "paymentReceiptTransactionId");
             return order;
         }
 

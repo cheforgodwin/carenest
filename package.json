@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-carenest \"node --test tests/firestore.rules.test.mjs\"",
+    "test:load": "firebase emulators:exec --only auth,firestore --project demo-carenest \"node scripts/load-test.mjs\"",
+    "test:load:1000": "firebase emulators:exec --only auth,firestore --project demo-carenest \"node scripts/load-test.mjs 1000 1000\"",
+    "test:release": "npm run lint && npm run build && npm run test:rules"
   },
   "dependencies": {
     "firebase": "^12.15.0",

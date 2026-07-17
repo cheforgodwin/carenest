@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { FiLock, FiMail } from 'react-icons/fi'
 import { useAuth } from '../auth/useAuth'
 import Logo from '../components/Logo'
-import { getAuthErrorMessage, getDashboardPath, loginWithEmail, logout } from '../firebase/authService'
+import { getAuthErrorMessage, getDashboardPath, loginWithEmail, logout, requestPasswordReset } from '../firebase/authService'
 import './AuthPages.css'
 
 function LoginPage({ adminOnly = false }) {
@@ -13,9 +13,25 @@ function LoginPage({ adminOnly = false }) {
   const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState('')
 
   function updateField(event) {
     setForm({ ...form, [event.target.name]: event.target.value })
+  }
+
+  async function handlePasswordReset() {
+    setError('')
+    setMessage('')
+    if (!form.email.trim()) {
+      setError('Enter your email address first.')
+      return
+    }
+    try {
+      await requestPasswordReset(form.email)
+      setMessage('If an account uses this email, a password-reset message has been sent.')
+    } catch (err) {
+      setError(getAuthErrorMessage(err))
+    }
   }
 
   async function handleSubmit(event) {
@@ -59,7 +75,9 @@ function LoginPage({ adminOnly = false }) {
           <label>Email<span className="auth-input"><FiMail /><input name="email" type="email" value={form.email} onChange={updateField} required /></span></label>
           <label>Password<span className="auth-input"><FiLock /><input name="password" type="password" value={form.password} onChange={updateField} required /></span></label>
           {error && <p className="auth-status error">{error}</p>}
+          {message && <p className="auth-status">{message}</p>}
           <button type="submit" disabled={loading}>{loading ? 'Logging in...' : adminOnly ? 'Open admin dashboard' : 'Login'}</button>
+          {!adminOnly && <button className="auth-link-button" type="button" onClick={handlePasswordReset}>Forgot password?</button>}
           {!adminOnly && <p className="auth-switch">New to CareNest? <Link to="/signup">Create an account</Link></p>}
         </form>
       </section>

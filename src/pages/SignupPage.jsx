@@ -59,6 +59,7 @@ function SignupPage() {
           <label>Email<span className="auth-input"><FiMail /><input name="email" type="email" value={form.email} onChange={updateField} required /></span></label>
           <label>Telephone number<span className="auth-input"><FiPhone /><input name="phone" type="tel" value={form.phone} onChange={updateField} placeholder={phonePlaceholder} required /></span></label>
           <label>Password<span className="auth-input"><FiLock /><input name="password" type="password" minLength="6" value={form.password} onChange={updateField} required /></span></label>
+          <label className="auth-consent"><input type="checkbox" required /> <span>I agree to the <Link to="/terms">Terms of Service</Link> and acknowledge the <Link to="/privacy">Privacy Policy</Link>.</span></label>
           {error && <p className="auth-status error">{error}</p>}
           <button type="submit" disabled={loading}>{loading ? 'Creating account...' : 'Create account'}</button>
           <p className="auth-switch">Already have an account? <Link to="/login">Login</Link></p>
