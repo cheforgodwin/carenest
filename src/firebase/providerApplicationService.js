@@ -89,6 +89,10 @@ export async function approveProviderApplication(application, reviewerUid) {
       services: application.services,
       phone: application.phone,
     },
+    payout: {
+      method: 'MTN Mobile Money',
+      phone: application.phone,
+    },
     updatedAt: serverTimestamp(),
   })
   return batch.commit()

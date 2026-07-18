@@ -4,11 +4,13 @@ import { FiCamera } from 'react-icons/fi'
 import { useAuth } from '../../auth/useAuth'
 import { phonePlaceholder, serviceAreaPlaceholder } from '../../config/businessConfig'
 import {
+  calculateProviderEarning,
   assignServiceRequestToProvider,
+  isPayoutReady,
   subscribeToOpenProviderOrders,
   subscribeToProviderOrders,
+  updateProviderJobStatus,
   updateProviderAvailability,
-  updateServiceRequestStatus,
 } from '../../firebase/orderService'
 import { uploadProviderBusinessPhoto } from '../../firebase/profilePhotoService'
 import DashboardShell from './DashboardShell'
@@ -41,6 +43,8 @@ function ProviderDashboardPage() {
     area: profile?.availability?.area || '',
     services: profile?.availability?.services || '',
     phone: profile?.phone || '',
+    payoutMethod: profile?.payout?.method || 'MTN Mobile Money',
+    payoutPhone: profile?.payout?.phone || profile?.phone || '',
   }))
   const [photoStatus, setPhotoStatus] = useState({ loading: false, error: '', message: '' })
 
@@ -64,7 +68,8 @@ function ProviderDashboardPage() {
   const myJobs = orders.filter((order) => order.providerUid === user.uid)
   const activeJobs = myJobs.filter((order) => !['Completed', 'Cancelled'].includes(order.status))
   const completedJobs = myJobs.filter((order) => order.status === 'Completed')
-  const earnings = completedJobs.reduce((total, order) => total + Number(order.amount || 0), 0)
+  const readyPayoutJobs = completedJobs.filter(isPayoutReady)
+  const earnings = readyPayoutJobs.reduce((total, order) => total + Number(order.providerPayoutAmount ?? order.providerEarning ?? calculateProviderEarning(order.amount)), 0)
   const sourceJobs = activeView === 'jobs' ? [...openJobs, ...myJobs] : [...activeJobs, ...openJobs].slice(0, 8)
   const needle = query.trim().toLowerCase()
   const visibleJobs = sourceJobs.filter((order) => {
@@ -76,7 +81,7 @@ function ProviderDashboardPage() {
     ['Open jobs', String(openJobs.length)],
     ['Active jobs', String(activeJobs.length)],
     ['Completed', String(completedJobs.length)],
-    ['Earnings', formatAmount(earnings)],
+    ['Sunday payout', formatAmount(earnings)],
   ]
 
   async function acceptJob(order) {
@@ -87,6 +92,11 @@ function ProviderDashboardPage() {
         uid: user.uid,
         name: profile?.name || user.displayName || 'Provider',
         email: user.email,
+        phone: profile?.phone || availability.phone || '',
+        payout: profile?.payout || {
+          method: availability.payoutMethod,
+          phone: availability.payoutPhone || availability.phone,
+        },
       })
       setMessage(`${order.id} assigned to you.`)
     } catch (nextError) {
@@ -98,7 +108,11 @@ function ProviderDashboardPage() {
     setError('')
     setMessage('')
     try {
-      await updateServiceRequestStatus(order.firestoreId, status)
+      const proofText = status === 'Completed'
+        ? window.prompt('Add a short completion note before this job becomes payable on Sunday.', order.completionProofText || '')
+        : ''
+      if (status === 'Completed' && proofText === null) return
+      await updateProviderJobStatus(order.firestoreId, status, proofText || '')
       setMessage(`${order.id} moved to ${status}.`)
     } catch (nextError) {
       setError(nextError.message)
@@ -158,13 +172,13 @@ function ProviderDashboardPage() {
           <div className="dashboard-panel-header">
             <div>
               <h2>{activeView === 'jobs' ? 'Jobs' : 'Recent activity'}</h2>
-              <p>{activeView === 'jobs' ? 'Accept available jobs or update work already assigned to you.' : 'Available customer requests and the jobs you are currently handling.'}</p>
+              <p>{activeView === 'jobs' ? 'Accept available jobs or update work already assigned to you. Provider pay is released weekly on Sunday for completed and paid jobs.' : 'Available customer requests, active jobs, and Sunday payout work.'}</p>
             </div>
             <input className="dashboard-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search jobs" />
           </div>
           {visibleJobs.length > 0 ? (
             <table className="dashboard-table">
-              <thead><tr><th>Job</th><th>Customer</th><th>Type</th><th>Status</th><th>Area</th><th>Payout</th><th>Action</th></tr></thead>
+              <thead><tr><th>Job</th><th>Customer</th><th>Type</th><th>Status</th><th>Area</th><th>Provider pay</th><th>Payout</th><th>Action</th></tr></thead>
               <tbody>
                 {visibleJobs.map((order) => {
                   const assignedToMe = order.providerUid === user.uid
@@ -175,7 +189,8 @@ function ProviderDashboardPage() {
                       <td>{order.service}</td>
                       <td><span className={`status-chip ${normalizeStatus(order.status)}`}>{order.status}</span></td>
                       <td>{getArea(order.address)}</td>
-                      <td>{formatAmount(order.amount)}</td>
+                      <td>{formatAmount(order.providerPayoutAmount ?? order.providerEarning ?? calculateProviderEarning(order.amount))}</td>
+                      <td><span className={`status-chip ${normalizeStatus(order.payoutStatus)}`}>{order.payoutStatus || 'Unpaid'}</span></td>
                       <td>
                         {!order.providerUid ? (
                           <button className="table-action" type="button" onClick={() => acceptJob(order)}>Accept</button>
@@ -215,6 +230,11 @@ function ProviderDashboardPage() {
             <label>Service area<input className="dashboard-input" name="area" value={availability.area} onChange={updateAvailability} placeholder={serviceAreaPlaceholder} /></label>
             <label>Services<input className="dashboard-input" name="services" value={availability.services} onChange={updateAvailability} placeholder="Laundry, Cleaning, Delivery" /></label>
             <label>Phone<input className="dashboard-input" name="phone" value={availability.phone} onChange={updateAvailability} placeholder={phonePlaceholder} /></label>
+            <label>Payout method<select className="dashboard-select" name="payoutMethod" value={availability.payoutMethod} onChange={updateAvailability}>
+              <option>MTN Mobile Money</option>
+              <option>Orange Money</option>
+            </select></label>
+            <label>Payout phone<input className="dashboard-input" name="payoutPhone" value={availability.payoutPhone} onChange={updateAvailability} placeholder={phonePlaceholder} /></label>
             <button className="dashboard-action-button form-action" type="submit">Save availability</button>
           </form>
         </section>

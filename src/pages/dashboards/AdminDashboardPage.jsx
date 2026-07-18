@@ -4,11 +4,16 @@ import { FiDownload } from 'react-icons/fi'
 import {
   adminAssignServiceRequest,
   adminClearServiceRequestProvider,
+  calculatePlatformFee,
+  calculateProviderEarning,
+  isPayoutReady,
   paymentStatuses,
+  payoutStatuses,
   subscribeToAllOrders,
   subscribeToPaymentSmsReceipts,
   subscribeToUsers,
   updatePaymentStatus,
+  updateProviderPayoutStatus,
   updateServiceRequestStatus,
 } from '../../firebase/orderService'
 import {
@@ -105,9 +110,11 @@ function AdminDashboardPage() {
   const completedOrders = orders.filter((order) => order.status === 'Completed')
   const openOrders = orders.filter((order) => !['Completed', 'Cancelled'].includes(order.status))
   const complaints = orders.filter((order) => order.status === 'Complaint')
+  const readyPayoutOrders = orders.filter((order) => isPayoutReady(order) && order.payoutStatus !== 'Paid' && order.payoutStatus !== 'Held')
   const pendingApplications = applications.filter((application) => application.status === 'Pending')
   const reviewPaymentReceipts = paymentReceipts.filter((receipt) => receipt.matchStatus === 'needs_review')
   const revenue = completedOrders.reduce((total, order) => total + Number(order.amount || 0), 0)
+  const pendingProviderPayouts = readyPayoutOrders.reduce((total, order) => total + Number(order.providerPayoutAmount ?? order.providerEarning ?? calculateProviderEarning(order.amount)), 0)
   const bookingsToday = orders.filter((order) => order.createdAtDate?.toDateString() === todayKey).length
 
   const metrics = [
@@ -118,6 +125,7 @@ function AdminDashboardPage() {
     ['Open requests', String(openOrders.length)],
     ['Applications', String(pendingApplications.length)],
     ['Payment reviews', String(reviewPaymentReceipts.length)],
+    ['Sunday payouts', formatAmount(pendingProviderPayouts)],
   ]
 
   const filteredOrders = useMemo(() => {
@@ -166,6 +174,23 @@ function AdminDashboardPage() {
     })
   }, [paymentReceipts, query])
 
+  const filteredPayoutOrders = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    return orders.filter((order) => {
+      const shouldShow = order.providerUid && (isPayoutReady(order) || ['Paid', 'Partial', 'Held'].includes(order.payoutStatus))
+      const haystack = [
+        order.id,
+        order.providerName,
+        order.providerEmail,
+        order.providerPhone,
+        order.customerName,
+        order.service,
+        order.payoutStatus,
+      ].join(' ').toLowerCase()
+      return shouldShow && (!needle || haystack.includes(needle))
+    })
+  }, [orders, query])
+
   function exportData() {
     if (activeView === 'payments') {
       downloadCsv('carenest-payment-sms-receipts.csv', [
@@ -179,6 +204,24 @@ function AdminDashboardPage() {
           receipt.matchedOrderId,
           receipt.matchReason,
           formatDate(receipt.receivedAtDate || receipt.createdAtDate),
+        ]),
+      ])
+      return
+    }
+
+    if (activeView === 'payouts') {
+      downloadCsv('carenest-provider-sunday-payouts.csv', [
+        ['Order', 'Provider', 'Phone', 'Customer paid', 'Provider earning', 'CareNest fee', 'Payout status', 'Schedule', 'Paid at'],
+        ...filteredPayoutOrders.map((order) => [
+          order.id,
+          order.providerName,
+          order.providerPayoutPhone || order.providerPhone,
+          order.amount,
+          order.providerPayoutAmount ?? order.providerEarning ?? calculateProviderEarning(order.amount),
+          order.platformFee ?? calculatePlatformFee(order.amount),
+          order.payoutStatus,
+          order.payoutSchedule || 'Weekly Sunday',
+          formatDate(order.payoutPaidAtDate),
         ]),
       ])
       return
@@ -225,6 +268,25 @@ function AdminDashboardPage() {
     try {
       await updatePaymentStatus(order.firestoreId, paymentStatus, user.uid, note || `Marked ${paymentStatus.toLowerCase()} by admin.`)
       setMessage(`${order.id} payment marked as ${paymentStatus.toLowerCase()}.`)
+    } catch (nextError) {
+      setError(nextError.message)
+    }
+  }
+
+  async function updatePayout(order, payoutStatus, note = '') {
+    setError('')
+    setMessage('')
+    if (['Paid', 'Partial'].includes(payoutStatus) && !isPayoutReady(order)) {
+      setError('Only completed and paid jobs can be marked as provider paid.')
+      return
+    }
+    const payoutAmount = payoutStatus === 'Partial'
+      ? window.prompt('Enter the partial provider payout amount in FCFA.', String(order.providerPayoutAmount ?? order.providerEarning ?? calculateProviderEarning(order.amount)))
+      : null
+    if (payoutStatus === 'Partial' && payoutAmount === null) return
+    try {
+      await updateProviderPayoutStatus(order.firestoreId, payoutStatus, user.uid, note || `Provider payout marked ${payoutStatus.toLowerCase()} by admin.`, payoutAmount)
+      setMessage(`${order.id} provider payout marked as ${payoutStatus.toLowerCase()}.`)
     } catch (nextError) {
       setError(nextError.message)
     }
@@ -279,6 +341,7 @@ function AdminDashboardPage() {
     { label: 'Users', to: '/dashboard/admin?view=users', icon: 'users' },
     { label: 'Requests', to: '/dashboard/admin?view=requests', icon: 'bookings' },
     { label: 'Payments', to: '/dashboard/admin?view=payments', icon: 'payments' },
+    { label: 'Payouts', to: '/dashboard/admin?view=payouts', icon: 'payments' },
     { label: 'Applications', to: '/dashboard/admin?view=applications', icon: 'users' },
     { label: 'Settings', to: '/dashboard/admin?view=settings', icon: 'settings' },
   ]
@@ -368,7 +431,7 @@ function AdminDashboardPage() {
           </div>
           {filteredOrders.length > 0 ? (
             <table className="dashboard-table">
-              <thead><tr><th>Order</th><th>Customer</th><th>Service</th><th>Address</th><th>Amount</th><th>Provider</th><th>Payment ref</th><th>Customer receipt</th><th>Status</th><th>Payment</th></tr></thead>
+              <thead><tr><th>Order</th><th>Customer</th><th>Service</th><th>Address</th><th>Amount</th><th>Provider</th><th>Payment ref</th><th>Evidence</th><th>Status</th><th>Payment</th></tr></thead>
               <tbody>
                 {filteredOrders.map((order) => (
                   <tr key={order.firestoreId}>
@@ -406,6 +469,8 @@ function AdminDashboardPage() {
                           </small>
                         </details>
                       ) : 'Not pasted'}
+                      {order.completionProofText && <details><summary>Completion proof</summary><p>{order.completionProofText}</p></details>}
+                      {order.complaintText && <details><summary>Complaint</summary><p>{order.complaintText}</p></details>}
                     </td>
                     <td>
                       <select className="dashboard-select" value={order.status} onChange={(event) => updateStatus(order, event.target.value)}>
@@ -419,6 +484,7 @@ function AdminDashboardPage() {
                       <div className="table-action-row">
                         <button className="table-action" type="button" onClick={() => updatePayment(order, 'Paid', 'Customer receipt accepted by admin.')}>Accept</button>
                         <button className="table-action danger" type="button" onClick={() => updatePayment(order, 'Failed', 'Customer receipt rejected by admin.')}>Reject</button>
+                        <button className="table-action secondary" type="button" onClick={() => updatePayment(order, 'Refunded', 'Customer refund approved by admin.')}>Refund</button>
                       </div>
                       {order.paymentReviewNote && <small className="dashboard-muted">{order.paymentReviewNote}</small>}
                     </td>
@@ -497,6 +563,50 @@ function AdminDashboardPage() {
               </tbody>
             </table>
           ) : <p className="dashboard-empty">No SMS payment receipts yet.</p>}
+        </section>
+      )}
+
+      {activeView === 'payouts' && (
+        <section className="dashboard-panel">
+          <div className="dashboard-panel-header">
+            <div>
+              <h2>Sunday provider payouts</h2>
+              <p>Pay providers manually every Sunday for jobs that are completed and already paid by the customer.</p>
+            </div>
+            <div className="dashboard-tools">
+              <input className="dashboard-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search payouts" />
+              <button className="dashboard-action-button" type="button" onClick={exportData}><FiDownload />Export</button>
+            </div>
+          </div>
+          {filteredPayoutOrders.length > 0 ? (
+            <table className="dashboard-table">
+              <thead><tr><th>Order</th><th>Provider</th><th>Payout phone</th><th>Customer paid</th><th>Provider pay</th><th>CareNest fee</th><th>Status</th><th>Action</th></tr></thead>
+              <tbody>
+                {filteredPayoutOrders.map((order) => (
+                  <tr key={order.firestoreId}>
+                    <td>{order.id}</td>
+                    <td>{order.providerName || 'Provider'}</td>
+                    <td>{order.providerPayoutPhone || order.providerPhone || 'Not provided'}</td>
+                    <td>{formatAmount(order.amount)}</td>
+                    <td>{formatAmount(order.providerPayoutAmount ?? order.providerEarning ?? calculateProviderEarning(order.amount))}</td>
+                    <td>{formatAmount(order.platformFee ?? calculatePlatformFee(order.amount))}</td>
+                    <td><span className={`status-chip ${normalizeStatus(order.payoutStatus)}`}>{order.payoutStatus}</span><small className="dashboard-muted">Weekly Sunday</small></td>
+                    <td>
+                      <select className="dashboard-select" value={order.payoutStatus || 'Unpaid'} onChange={(event) => updatePayout(order, event.target.value)}>
+                        {payoutStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
+                      </select>
+                      <div className="table-action-row">
+                        <button className="table-action" type="button" onClick={() => updatePayout(order, 'Paid', 'Provider paid during Sunday payout.')}>Mark paid</button>
+                        <button className="table-action secondary" type="button" onClick={() => updatePayout(order, 'Partial', 'Partial provider payout approved after review.')}>Partial</button>
+                        <button className="table-action danger" type="button" onClick={() => updatePayout(order, 'Held', 'Provider payout held for review.')}>Hold</button>
+                      </div>
+                      {order.payoutNote && <small className="dashboard-muted">{order.payoutNote}</small>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : <p className="dashboard-empty">No provider payouts are ready yet.</p>}
         </section>
       )}
 

@@ -1,5 +1,6 @@
 import {
   addDoc,
+  arrayUnion,
   collection,
   deleteField,
   doc,
@@ -30,6 +31,29 @@ export const statusSteps = {
 }
 
 export const paymentStatuses = ['Pending', 'Submitted', 'Paid', 'Failed', 'Refunded']
+export const payoutStatuses = ['Unpaid', 'Ready', 'Paid', 'Partial', 'Held']
+export const providerPayoutRate = 0.8
+export const payoutScheduleLabel = 'Weekly Sunday'
+
+export function calculateProviderEarning(amount) {
+  return Math.round(Number(amount || 0) * providerPayoutRate)
+}
+
+export function calculatePlatformFee(amount) {
+  return Number(amount || 0) - calculateProviderEarning(amount)
+}
+
+export function isPayoutReady(order) {
+  return order?.status === 'Completed' && order?.paymentStatus === 'Paid'
+}
+
+export function getPayoutStatus(order) {
+  if (order?.payoutStatus) return order.payoutStatus
+  if (['Complaint', 'Cancelled'].includes(order?.status) || ['Failed', 'Refunded'].includes(order?.paymentStatus)) {
+    return 'Held'
+  }
+  return isPayoutReady(order) ? 'Ready' : 'Unpaid'
+}
 
 function toDate(value) {
   if (!value) return null
@@ -39,11 +63,18 @@ function toDate(value) {
 
 function normalizeOrder(docSnapshot) {
   const data = docSnapshot.data()
+  const providerEarning = data.providerEarning ?? calculateProviderEarning(data.amount)
   return {
     firestoreId: docSnapshot.id,
     ...data,
+    platformFee: data.platformFee ?? calculatePlatformFee(data.amount),
+    providerEarning,
+    providerPayoutAmount: data.providerPayoutAmount ?? providerEarning,
+    payoutStatus: getPayoutStatus(data),
+    payoutSchedule: data.payoutSchedule || payoutScheduleLabel,
     createdAtDate: toDate(data.createdAt),
     updatedAtDate: toDate(data.updatedAt),
+    payoutPaidAtDate: toDate(data.payoutPaidAt),
   }
 }
 
@@ -163,11 +194,55 @@ export function subscribeToPaymentSmsReceipts(onNext, onError) {
 }
 
 export function updateServiceRequestStatus(firestoreId, status) {
-  return updateDoc(doc(db, 'serviceRequests', firestoreId), {
+  const payload = {
     status,
     currentStep: statusSteps[status] ?? 0,
     updatedAt: serverTimestamp(),
+  }
+
+  if (status === 'Complaint' || status === 'Cancelled') {
+    payload.payoutStatus = 'Held'
+    payload.payoutNote = status === 'Complaint'
+      ? 'Provider payout held while customer complaint is reviewed.'
+      : 'Provider payout held because the request was cancelled.'
+  }
+
+  return updateDoc(doc(db, 'serviceRequests', firestoreId), payload)
+}
+
+export function submitCustomerComplaint(firestoreId, complaintText) {
+  const cleanText = complaintText.trim()
+  if (cleanText.length < 10) {
+    throw new Error('Please describe the problem before submitting a complaint.')
+  }
+  return updateDoc(doc(db, 'serviceRequests', firestoreId), {
+    status: 'Complaint',
+    currentStep: statusSteps.Complaint,
+    complaintText: cleanText,
+    complaintSubmittedAt: serverTimestamp(),
+    payoutStatus: 'Held',
+    payoutNote: 'Provider payout held while customer complaint is reviewed.',
+    updatedAt: serverTimestamp(),
   })
+}
+
+export function updateProviderJobStatus(firestoreId, status, proofText = '') {
+  const payload = {
+    status,
+    currentStep: statusSteps[status] ?? 0,
+    updatedAt: serverTimestamp(),
+  }
+
+  if (status === 'Completed') {
+    const cleanProof = proofText.trim()
+    if (cleanProof.length < 8) {
+      throw new Error('Add a short completion note before marking this job completed.')
+    }
+    payload.completionProofText = cleanProof
+    payload.completedAt = serverTimestamp()
+  }
+
+  return updateDoc(doc(db, 'serviceRequests', firestoreId), payload)
 }
 
 export async function assignServiceRequestToProvider(firestoreId, provider) {
@@ -184,6 +259,8 @@ export async function assignServiceRequestToProvider(firestoreId, provider) {
       providerName: provider.name,
       providerEmail: provider.email,
       providerPhone: provider.phone || '',
+      providerPayoutMethod: provider.payout?.method || provider.payoutMethod || 'MTN Mobile Money',
+      providerPayoutPhone: provider.payout?.phone || provider.payoutPhone || provider.phone || '',
       status: 'Assigned',
       currentStep: 1,
       assignedAt: serverTimestamp(),
@@ -201,6 +278,8 @@ export async function adminAssignServiceRequest(firestoreId, provider, adminUid)
     providerName: provider.name || 'Provider',
     providerEmail: provider.email || '',
     providerPhone: provider.phone || '',
+    providerPayoutMethod: provider.payout?.method || provider.payoutMethod || 'MTN Mobile Money',
+    providerPayoutPhone: provider.payout?.phone || provider.payoutPhone || provider.phone || '',
     status: 'Assigned',
     currentStep: statusSteps.Assigned,
     assignedBy: adminUid || '',
@@ -215,6 +294,8 @@ export function adminClearServiceRequestProvider(firestoreId, adminUid) {
     providerName: deleteField(),
     providerEmail: deleteField(),
     providerPhone: deleteField(),
+    providerPayoutMethod: deleteField(),
+    providerPayoutPhone: deleteField(),
     status: 'Pending',
     currentStep: statusSteps.Pending,
     assignedBy: adminUid || '',
@@ -232,14 +313,51 @@ export function updatePaymentStatus(firestoreId, paymentStatus, reviewerUid = ''
     paymentReviewedBy: reviewerUid,
     paymentReviewedAt: serverTimestamp(),
     paymentReviewNote: reviewNote,
+    paymentHistory: arrayUnion({
+      status: paymentStatus,
+      reviewerUid,
+      note: reviewNote,
+      recordedAt: new Date().toISOString(),
+    }),
     paidAt: paymentStatus === 'Paid' ? serverTimestamp() : null,
     updatedAt: serverTimestamp(),
   })
 }
 
+export function updateProviderPayoutStatus(firestoreId, payoutStatus, reviewerUid = '', payoutNote = '', payoutAmount = null) {
+  if (!payoutStatuses.includes(payoutStatus)) {
+    throw new Error('Unsupported provider payout status.')
+  }
+  const payload = {
+    payoutStatus,
+    payoutSchedule: payoutScheduleLabel,
+    payoutReviewedBy: reviewerUid,
+    payoutReviewedAt: serverTimestamp(),
+    payoutNote,
+    payoutHistory: arrayUnion({
+      status: payoutStatus,
+      reviewerUid,
+      note: payoutNote,
+      recordedAt: new Date().toISOString(),
+    }),
+    payoutPaidAt: payoutStatus === 'Paid' ? serverTimestamp() : null,
+    updatedAt: serverTimestamp(),
+  }
+
+  if (payoutStatus === 'Partial') {
+    payload.providerPayoutAmount = Number(payoutAmount || 0)
+  }
+
+  return updateDoc(doc(db, 'serviceRequests', firestoreId), payload)
+}
+
 export function updateProviderAvailability(uid, availability) {
   return updateDoc(doc(db, 'users', uid), {
     availability,
+    payout: {
+      method: availability.payoutMethod || 'MTN Mobile Money',
+      phone: availability.payoutPhone || availability.phone || '',
+    },
     updatedAt: serverTimestamp(),
   })
 }

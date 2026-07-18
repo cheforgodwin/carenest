@@ -224,7 +224,7 @@ service cloud.firestore {
             (
               resource.data.providerUid == request.auth.uid
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                'status', 'currentStep', 'updatedAt'
+                'status', 'currentStep', 'completionProofText', 'completedAt', 'updatedAt'
               ])
             )
             || (
@@ -235,6 +235,7 @@ service cloud.firestore {
               && request.resource.data.currentStep == 1
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
                 'providerUid', 'providerName', 'providerEmail', 'providerPhone',
+                'providerPayoutMethod', 'providerPayoutPhone',
                 'status', 'currentStep', 'assignedAt', 'updatedAt'
               ])
             )
@@ -244,9 +245,25 @@ service cloud.firestore {
           isCustomer()
           && resource.data.customerUid == request.auth.uid
           && request.resource.data.customerUid == resource.data.customerUid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'customerNote', 'complaintText', 'updatedAt'
-          ])
+          && (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'customerNote', 'updatedAt'
+            ])
+            || (
+              request.resource.data.status == 'Complaint'
+              && request.resource.data.currentStep == 2
+              && request.resource.data.payoutStatus == 'Held'
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'status',
+                'currentStep',
+                'complaintText',
+                'complaintSubmittedAt',
+                'payoutStatus',
+                'payoutNote',
+                'updatedAt'
+              ])
+            )
+          )
         );
 
       allow delete: if isAdmin();

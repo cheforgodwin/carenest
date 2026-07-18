@@ -33,7 +33,7 @@ import {
   supportPhoneHref,
 } from '../../config/businessConfig'
 import Logo from '../../components/Logo'
-import { createRequestId, createServiceRequest, subscribeToCustomerOrders } from '../../firebase/orderService'
+import { createRequestId, createServiceRequest, submitCustomerComplaint, subscribeToCustomerOrders } from '../../firebase/orderService'
 import { uploadCustomerProfilePhoto } from '../../firebase/profilePhotoService'
 import { createProviderApplication, subscribeToMyProviderApplications } from '../../firebase/providerApplicationService'
 import './CustomerAppPage.css'
@@ -234,6 +234,8 @@ function CustomerAppPage() {
   ))
   const [requestMessage, setRequestMessage] = useState('')
   const [requestError, setRequestError] = useState('')
+  const [complaintText, setComplaintText] = useState('')
+  const [complaintStatus, setComplaintStatus] = useState({ loading: false, error: '', message: '' })
   const [showReview, setShowReview] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [recentOrder, setRecentOrder] = useState(null)
@@ -415,6 +417,19 @@ function CustomerAppPage() {
       setRequestError(error.message)
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  async function submitComplaint(event) {
+    event.preventDefault()
+    if (!viewedOrder?.firestoreId) return
+    setComplaintStatus({ loading: true, error: '', message: '' })
+    try {
+      await submitCustomerComplaint(viewedOrder.firestoreId, complaintText)
+      setComplaintText('')
+      setComplaintStatus({ loading: false, error: '', message: 'Complaint submitted. CareNest will review it before provider payout.' })
+    } catch (error) {
+      setComplaintStatus({ loading: false, error: error.message, message: '' })
     }
   }
 
@@ -700,6 +715,16 @@ function CustomerAppPage() {
                 {viewedOrder.paymentReceiptText && <div><span>Payment message</span><strong>{viewedOrder.paymentReceiptText}</strong></div>}
                 <div><span>Amount</span><strong>{formatAmount(viewedOrder.amount)}</strong></div>
                 {viewedOrder.providerName && <div><span>Provider</span><strong>{viewedOrder.providerName} · Verified</strong></div>}
+                {viewedOrder.completionProofText && <div><span>Completion note</span><strong>{viewedOrder.completionProofText}</strong></div>}
+                {viewedOrder.status !== 'Complaint' && !['Cancelled'].includes(viewedOrder.status) && (
+                  <form className="customer-complaint-form" onSubmit={submitComplaint}>
+                    <label>Report a problem<textarea value={complaintText} onChange={(event) => setComplaintText(event.target.value)} placeholder="Describe what went wrong with this service." /></label>
+                    {complaintStatus.error && <small className="error" role="alert">{complaintStatus.error}</small>}
+                    {complaintStatus.message && <small role="status">{complaintStatus.message}</small>}
+                    <button type="submit" disabled={complaintStatus.loading}>{complaintStatus.loading ? 'Submitting…' : 'Submit complaint'}</button>
+                  </form>
+                )}
+                {viewedOrder.status === 'Complaint' && <div><span>Complaint</span><strong>{viewedOrder.complaintText || 'Under review by CareNest.'}</strong></div>}
                 <a className="call-card" href={supportPhoneHref}><div><strong>Need help?</strong><p>Call us for any support</p></div><span><FiPhone /> Call CareNest</span></a>
               </aside>
             </div>
