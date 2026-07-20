@@ -24,11 +24,11 @@ service cloud.firestore {
     }
 
     function isProvider() {
-      return role() == 'provider';
+      return role() == 'provider' && request.auth.token.email_verified == true;
     }
 
     function isCustomer() {
-      return role() == 'customer';
+      return role() == 'customer' && request.auth.token.email_verified == true;
     }
 
     function ownsUserDoc(userId) {
@@ -50,6 +50,10 @@ service cloud.firestore {
 
     function validPaymentStatus(status) {
       return status in ['Pending', 'Submitted', 'Paid', 'Failed', 'Refunded'];
+    }
+
+    function validPayoutStatus(status) {
+      return status in ['Unpaid', 'Ready', 'Paid', 'Partial', 'Held'];
     }
 
     function validPaymentMethod(method) {
@@ -113,7 +117,22 @@ service cloud.firestore {
             'accountType',
             'uid',
             'email',
-            'createdAt'
+            'createdAt',
+            'emailVerified',
+            'emailVerifiedAt',
+            'providerVerified',
+            'providerVerifiedAt',
+            'payoutPhoneVerified'
+          ])
+        )
+        || (
+          ownsUserDoc(userId)
+          && request.auth.token.email_verified == true
+          && request.resource.data.emailVerified == true
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'emailVerified',
+            'emailVerifiedAt',
+            'updatedAt'
           ])
         );
 
@@ -121,9 +140,12 @@ service cloud.firestore {
     }
 
     match /providerApplications/{applicationId} {
-      allow create: if signedIn()
+      allow create: if isCustomer()
         && applicationId == request.auth.uid
         && request.resource.data.userUid == request.auth.uid
+        && request.resource.data.phone.matches('^\\+2376[0-9]{8}$')
+        && request.resource.data.identityVerified == false
+        && request.resource.data.payoutPhoneVerified == false
         && request.resource.data.status == 'Pending';
 
       allow get: if signedIn()
@@ -141,7 +163,11 @@ service cloud.firestore {
           && request.resource.data.status == 'Pending'
           && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
             'reviewerUid',
-            'reviewedAt'
+            'reviewedAt',
+            'identityVerified',
+            'payoutPhoneVerified',
+            'verificationReviewedBy',
+            'verificationReviewedAt'
           ])
         );
 
@@ -202,6 +228,19 @@ service cloud.firestore {
           && validStatus(request.resource.data.status)
           && validStepForStatus(request.resource.data.status, request.resource.data.currentStep)
           && validPaymentStatus(request.resource.data.paymentStatus)
+          && (
+            !('payoutStatus' in request.resource.data)
+            || (
+              validPayoutStatus(request.resource.data.payoutStatus)
+              && (
+                !(request.resource.data.payoutStatus in ['Paid', 'Partial'])
+                || (
+                  request.resource.data.status == 'Completed'
+                  && request.resource.data.paymentStatus == 'Paid'
+                )
+              )
+            )
+          )
           && request.resource.data.customerUid == resource.data.customerUid
           && request.resource.data.customerEmail == resource.data.customerEmail
           && request.resource.data.amount == resource.data.amount
@@ -223,6 +262,13 @@ service cloud.firestore {
           && (
             (
               resource.data.providerUid == request.auth.uid
+              && (
+                request.resource.data.status != 'Completed'
+                || (
+                  request.resource.data.completionProofText is string
+                  && request.resource.data.completionProofText.size() >= 8
+                )
+              )
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
                 'status', 'currentStep', 'completionProofText', 'completedAt', 'updatedAt'
               ])
@@ -253,6 +299,8 @@ service cloud.firestore {
               request.resource.data.status == 'Complaint'
               && request.resource.data.currentStep == 2
               && request.resource.data.payoutStatus == 'Held'
+              && request.resource.data.complaintText is string
+              && request.resource.data.complaintText.size() >= 10
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
                 'status',
                 'currentStep',

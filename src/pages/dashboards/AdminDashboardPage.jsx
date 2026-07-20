@@ -20,6 +20,7 @@ import {
   approveProviderApplication,
   rejectProviderApplication,
   subscribeToProviderApplications,
+  updateProviderVerification,
 } from '../../firebase/providerApplicationService'
 import { useAuth } from '../../auth/useAuth'
 import DashboardShell from './DashboardShell'
@@ -336,6 +337,17 @@ function AdminDashboardPage() {
     }
   }
 
+  async function setProviderCheck(application, field, value) {
+    setError('')
+    setMessage('')
+    try {
+      await updateProviderVerification(application, field, value, user.uid)
+      setMessage('Provider verification check updated.')
+    } catch (nextError) {
+      setError(nextError.message)
+    }
+  }
+
   const nav = [
     { label: 'Overview', to: '/dashboard/admin?view=overview', icon: 'dashboard' },
     { label: 'Users', to: '/dashboard/admin?view=users', icon: 'users' },
@@ -397,13 +409,14 @@ function AdminDashboardPage() {
           </div>
           {filteredUsers.length > 0 ? (
             <table className="dashboard-table">
-              <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Joined</th></tr></thead>
+              <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Verification</th><th>Role</th><th>Joined</th></tr></thead>
               <tbody>
                 {filteredUsers.map((user) => (
                   <tr key={user.uid || user.firestoreId}>
                     <td>{user.name || 'Unnamed user'}</td>
                     <td>{user.email}</td>
                     <td>{user.phone || 'Not provided'}</td>
+                    <td>{user.emailVerified ? 'Email verified' : 'Email pending'}{user.providerVerified ? ' · Provider verified' : ''}</td>
                     <td><span className="status-chip completed">{user.accountType}</span></td>
                     <td>{formatDate(user.createdAtDate)}</td>
                   </tr>
@@ -506,7 +519,7 @@ function AdminDashboardPage() {
           </div>
           {applications.length > 0 ? (
             <table className="dashboard-table">
-              <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Services</th><th>Area</th><th>Status</th><th>Action</th></tr></thead>
+              <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Services</th><th>Area</th><th>Verification</th><th>Status</th><th>Action</th></tr></thead>
               <tbody>
                 {applications.map((application) => (
                   <tr key={application.firestoreId}>
@@ -515,11 +528,15 @@ function AdminDashboardPage() {
                     <td>{application.phone}</td>
                     <td>{application.services}</td>
                     <td>{application.area}</td>
+                    <td>
+                      <label><input type="checkbox" checked={Boolean(application.identityVerified)} onChange={(event) => setProviderCheck(application, 'identityVerified', event.target.checked)} /> Identity reviewed</label>
+                      <label><input type="checkbox" checked={Boolean(application.payoutPhoneVerified)} onChange={(event) => setProviderCheck(application, 'payoutPhoneVerified', event.target.checked)} /> Payout phone confirmed</label>
+                    </td>
                     <td><span className={`status-chip ${normalizeStatus(application.status)}`}>{application.status}</span></td>
                     <td>
                       {application.status === 'Pending' ? (
                         <div className="dashboard-tools">
-                          <button className="table-action" type="button" onClick={() => reviewApplication(application, 'Approved')}>Approve</button>
+                          <button className="table-action" type="button" disabled={!application.identityVerified || !application.payoutPhoneVerified} onClick={() => reviewApplication(application, 'Approved')}>Approve</button>
                           <button className="table-action danger" type="button" onClick={() => reviewApplication(application, 'Rejected')}>Reject</button>
                         </div>
                       ) : <span className="dashboard-muted">Reviewed</span>}

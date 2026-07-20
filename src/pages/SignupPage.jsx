@@ -4,7 +4,7 @@ import { FiLock, FiMail, FiPhone, FiUser } from 'react-icons/fi'
 import { useAuth } from '../auth/useAuth'
 import { phonePlaceholder } from '../config/businessConfig'
 import Logo from '../components/Logo'
-import { getAuthErrorMessage, getDashboardPath, signUpWithProfile } from '../firebase/authService'
+import { getAuthErrorMessage, signUpWithProfile } from '../firebase/authService'
 import './AuthPages.css'
 
 function SignupPage() {
@@ -29,13 +29,9 @@ function SignupPage() {
     setError('')
     setLoading(true)
     try {
-      if (form.password.length < 6) {
-        setError('Password must be at least 6 characters.')
-        return
-      }
       const profile = await signUpWithProfile(form)
       setSession(profile)
-      navigate(getDashboardPath(profile.accountType))
+      navigate('/verify-email', { replace: true })
     } catch (err) {
       setError(getAuthErrorMessage(err))
     } finally {
@@ -58,7 +54,7 @@ function SignupPage() {
           <label>Name<span className="auth-input"><FiUser /><input name="name" value={form.name} onChange={updateField} required /></span></label>
           <label>Email<span className="auth-input"><FiMail /><input name="email" type="email" value={form.email} onChange={updateField} required /></span></label>
           <label>Telephone number<span className="auth-input"><FiPhone /><input name="phone" type="tel" value={form.phone} onChange={updateField} placeholder={phonePlaceholder} required /></span></label>
-          <label>Password<span className="auth-input"><FiLock /><input name="password" type="password" minLength="6" value={form.password} onChange={updateField} required /></span></label>
+          <label>Password<span className="auth-input"><FiLock /><input name="password" type="password" minLength="8" value={form.password} onChange={updateField} required /></span><small>At least 8 characters with letters and numbers.</small></label>
           <label className="auth-consent"><input type="checkbox" required /> <span>I agree to the <Link to="/terms">Terms of Service</Link> and acknowledge the <Link to="/privacy">Privacy Policy</Link>.</span></label>
           {error && <p className="auth-status error">{error}</p>}
           <button type="submit" disabled={loading}>{loading ? 'Creating account...' : 'Create account'}</button>

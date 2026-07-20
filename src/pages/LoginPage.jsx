@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { FiLock, FiMail } from 'react-icons/fi'
 import { useAuth } from '../auth/useAuth'
 import Logo from '../components/Logo'
-import { getAuthErrorMessage, getDashboardPath, loginWithEmail, logout, requestPasswordReset } from '../firebase/authService'
+import { getAuthErrorMessage, getDashboardPath, isCurrentEmailVerified, loginWithEmail, logout, requestPasswordReset } from '../firebase/authService'
 import './AuthPages.css'
 
 function LoginPage({ adminOnly = false }) {
@@ -42,6 +42,11 @@ function LoginPage({ adminOnly = false }) {
       const profile = await loginWithEmail(form.email, form.password)
       if (!profile) {
         setError('Your account profile was not found. Please contact CareNest support.')
+        return
+      }
+      if (!isCurrentEmailVerified() && profile.accountType !== 'admin') {
+        setSession(profile)
+        navigate('/verify-email', { replace: true })
         return
       }
       if (adminOnly && profile.accountType !== 'admin') {

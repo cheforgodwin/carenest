@@ -6,6 +6,7 @@ import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 
 let env
 const projectId = 'demo-carenest'
+const verified = { email_verified: true }
 const baseOrder = {
   id: 'CN-TEST', customerUid: 'customer-a', customerEmail: 'a@example.com', customerPhone: '+237670000001',
   serviceType: 'laundry', serviceSpeed: 'Normal', itemSummary: 'Mixed clothes', amount: 3000,
@@ -45,23 +46,47 @@ test('a customer can read only their own order', async () => {
 
 test('a customer cannot create a changed price', async () => {
   await seed()
-  const db = env.authenticatedContext('customer-a').firestore()
+  const db = env.authenticatedContext('customer-a', verified).firestore()
   await assertFails(setDoc(doc(db, 'serviceRequests/bad-price'), { ...baseOrder, amount: 1 }))
   await assertSucceeds(setDoc(doc(db, 'serviceRequests/good-price'), baseOrder))
 })
 
 test('a customer cannot change role or payment state', async () => {
   await seed()
-  const db = env.authenticatedContext('customer-a').firestore()
+  const db = env.authenticatedContext('customer-a', verified).firestore()
   await assertFails(updateDoc(doc(db, 'users/customer-a'), { accountType: 'admin' }))
   await assertFails(updateDoc(doc(db, 'serviceRequests/order-a'), { paymentStatus: 'Paid' }))
 })
 
+test('unverified customers cannot create bookings or provider applications', async () => {
+  await seed()
+  const db = env.authenticatedContext('customer-a', { email_verified: false }).firestore()
+  await assertFails(setDoc(doc(db, 'serviceRequests/unverified-order'), baseOrder))
+  await assertFails(setDoc(doc(db, 'providerApplications/customer-a'), {
+    userUid: 'customer-a', name: 'Customer A', email: 'a@example.com', phone: '+237670000001',
+    services: 'Cleaning', area: 'Douala', experience: 'Two years', status: 'Pending',
+    identityVerified: false, payoutPhoneVerified: false,
+  }))
+  await assertFails(updateDoc(doc(db, 'users/customer-a'), { emailVerified: true }))
+})
+
+test('a verified customer cannot self-approve provider checks', async () => {
+  await seed()
+  const db = env.authenticatedContext('customer-a', verified).firestore()
+  const application = doc(db, 'providerApplications/customer-a')
+  await assertSucceeds(setDoc(application, {
+    userUid: 'customer-a', name: 'Customer A', email: 'a@example.com', phone: '+237670000001',
+    services: 'Cleaning', area: 'Douala', experience: 'Two years', status: 'Pending',
+    identityVerified: false, payoutPhoneVerified: false,
+  }))
+  await assertFails(updateDoc(application, { identityVerified: true, payoutPhoneVerified: true }))
+})
+
 test('only one provider wins concurrent acceptance', async () => {
   await seed()
-  const first = env.authenticatedContext('provider-a').firestore()
+  const first = env.authenticatedContext('provider-a', verified).firestore()
   await env.withSecurityRulesDisabled(async (context) => setDoc(doc(context.firestore(), 'users/provider-b'), { uid: 'provider-b', accountType: 'provider' }))
-  const second = env.authenticatedContext('provider-b').firestore()
+  const second = env.authenticatedContext('provider-b', verified).firestore()
   const accept = (db, uid) => updateDoc(doc(db, 'serviceRequests/order-a'), {
     providerUid: uid, providerName: uid, providerEmail: `${uid}@example.com`, providerPhone: '',
     status: 'Assigned', currentStep: 1, assignedAt: new Date(), updatedAt: new Date(),
@@ -72,8 +97,45 @@ test('only one provider wins concurrent acceptance', async () => {
 
 test('a provider cannot edit price or another provider job', async () => {
   await seed()
-  const db = env.authenticatedContext('provider-a').firestore()
+  const db = env.authenticatedContext('provider-a', verified).firestore()
   await assertFails(updateDoc(doc(db, 'serviceRequests/order-a'), { amount: 9000 }))
   await env.withSecurityRulesDisabled(async (context) => updateDoc(doc(context.firestore(), 'serviceRequests/order-a'), { providerUid: 'provider-b', status: 'Assigned', currentStep: 1 }))
   await assertFails(updateDoc(doc(db, 'serviceRequests/order-a'), { status: 'In Progress', currentStep: 2, updatedAt: new Date() }))
+})
+
+test('a provider needs completion proof and cannot change payout state', async () => {
+  await seed()
+  await env.withSecurityRulesDisabled(async (context) => updateDoc(doc(context.firestore(), 'serviceRequests/order-a'), {
+    providerUid: 'provider-a', status: 'Out for Delivery', currentStep: 4,
+  }))
+  const order = doc(env.authenticatedContext('provider-a', verified).firestore(), 'serviceRequests/order-a')
+  await assertFails(updateDoc(order, {
+    status: 'Completed', currentStep: 5, completionProofText: 'short', completedAt: new Date(), updatedAt: new Date(),
+  }))
+  await assertSucceeds(updateDoc(order, {
+    status: 'Completed', currentStep: 5, completionProofText: 'Delivered to the customer.', completedAt: new Date(), updatedAt: new Date(),
+  }))
+  await assertFails(updateDoc(order, { payoutStatus: 'Paid' }))
+})
+
+test('a customer can submit a valid complaint but cannot forge its payout outcome', async () => {
+  await seed()
+  const order = doc(env.authenticatedContext('customer-a', verified).firestore(), 'serviceRequests/order-a')
+  await assertFails(updateDoc(order, {
+    status: 'Complaint', currentStep: 2, complaintText: 'Too short', complaintSubmittedAt: new Date(),
+    payoutStatus: 'Held', payoutNote: 'Provider payout held while customer complaint is reviewed.', updatedAt: new Date(),
+  }))
+  await assertSucceeds(updateDoc(order, {
+    status: 'Complaint', currentStep: 2, complaintText: 'The service was not completed as requested.', complaintSubmittedAt: new Date(),
+    payoutStatus: 'Held', payoutNote: 'Provider payout held while customer complaint is reviewed.', updatedAt: new Date(),
+  }))
+  await assertFails(updateDoc(order, { payoutStatus: 'Paid' }))
+})
+
+test('an admin can pay only eligible provider payouts', async () => {
+  await seed()
+  const order = doc(env.authenticatedContext('admin-a').firestore(), 'serviceRequests/order-a')
+  await assertFails(updateDoc(order, { payoutStatus: 'Unknown' }))
+  await assertFails(updateDoc(order, { payoutStatus: 'Paid' }))
+  await assertSucceeds(updateDoc(order, { status: 'Completed', currentStep: 5, paymentStatus: 'Paid', payoutStatus: 'Paid' }))
 })
