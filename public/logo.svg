@@ -1,0 +1,52 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#ffffff"/>
+  
+  <!-- Subtle gradient background -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f8f9fa;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#e9ecef;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bgGradient)"/>
+  
+  <!-- Logo Mark (scaled up) -->
+  <g transform="translate(150, 100) scale(3)">
+    <svg viewBox="0 0 96 96" width="96" height="96">
+      <path fill="#2563eb" d="M13 62c10 19 32 28 55 21 9-3 16-8 21-15-9 29-47 36-70 14-5-5-8-12-6-20Z" />
+      <path fill="#1e40af" d="M16 32c18-21 48-25 70-7" />
+      <path fill="#10b981" d="M74 22c10-9 17-9 20-9-1 8-4 16-13 20-4-3-6-7-7-11Z" />
+      <path fill="#3b82f6" d="M18 48 48 25l31 23" />
+      <path fill="#1f2937" d="M27 39V25h8v8" />
+      <rect fill="#60a5fa" x="45" y="38" width="5" height="5" />
+      <rect fill="#60a5fa" x="53" y="38" width="5" height="5" />
+      <rect fill="#60a5fa" x="45" y="46" width="5" height="5" />
+      <rect fill="#60a5fa" x="53" y="46" width="5" height="5" />
+      <rect fill="#f3f4f6" stroke="#1f2937" stroke-width="1" x="24" y="52" width="20" height="26" rx="3" />
+      <circle fill="#ef4444" cx="34" cy="66" r="7" />
+      <path fill="#1f2937" d="M69 48 66 70M59 72h15l-5 11H55l4-11Z" />
+      <rect fill="#fb923c" x="47" y="59" width="20" height="6" rx="3" />
+      <rect fill="#10b981" x="47" y="68" width="24" height="6" rx="3" />
+      <rect fill="#10b981" x="47" y="77" width="21" height="6" rx="3" />
+    </svg>
+  </g>
+  
+  <!-- Text Section -->
+  <g transform="translate(550, 200)">
+    <!-- Brand Name -->
+    <text x="0" y="0" font-family="system-ui, -apple-system, sans-serif" font-size="96" font-weight="700" fill="#1f2937">
+      Care<tspan fill="#2563eb">Nest</tspan>
+    </text>
+    
+    <!-- Tagline -->
+    <text x="0" y="80" font-family="system-ui, -apple-system, sans-serif" font-size="48" font-weight="400" fill="#6b7280">
+      Your home, cared for.
+    </text>
+    
+    <!-- Description -->
+    <text x="0" y="160" font-family="system-ui, -apple-system, sans-serif" font-size="32" fill="#4b5563">
+      Home services in one trusted app
+    </text>
+  </g>
+</svg>
