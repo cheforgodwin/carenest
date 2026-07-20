@@ -1,17 +1,17 @@
 <svg viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <style>
-      .cn-logo-swoosh { fill: #2563eb; }
-      .cn-logo-arc { fill: #1e40af; }
-      .cn-logo-leaf { fill: #10b981; }
-      .cn-logo-roof { fill: #3b82f6; }
-      .cn-logo-chimney { fill: #1f2937; }
-      .cn-logo-window { fill: #60a5fa; }
-      .cn-logo-washer { fill: #f3f4f6; stroke: #1f2937; stroke-width: 1; }
-      .cn-logo-washer-door { fill: #ef4444; }
-      .cn-logo-broom { fill: #1f2937; }
-      .cn-logo-towel-orange { fill: #fb923c; }
-      .cn-logo-towel-green { fill: #10b981; }
+      .cn-logo-swoosh { fill: #006a3a; }
+      .cn-logo-arc { fill: #61a83a; }
+      .cn-logo-leaf { fill: #61a83a; }
+      .cn-logo-roof { fill: #006a3a; }
+      .cn-logo-chimney { fill: #006a3a; }
+      .cn-logo-window { fill: #006a3a; }
+      .cn-logo-washer { fill: #f3f4f6; stroke: #006a3a; stroke-width: 1; }
+      .cn-logo-washer-door { fill: #f39a18; }
+      .cn-logo-broom { fill: #006a3a; }
+      .cn-logo-towel-orange { fill: #f39a18; }
+      .cn-logo-towel-green { fill: #61a83a; }
     </style>
   </defs>
   <path class="cn-logo-swoosh" d="M13 62c10 19 32 28 55 21 9-3 16-8 21-15-9 29-47 36-70 14-5-5-8-12-6-20Z" />
