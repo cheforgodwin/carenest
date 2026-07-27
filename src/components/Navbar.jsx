@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { FiMenu, FiX } from 'react-icons/fi'
 import Logo from './Logo'
+import { appVersion } from '../config/appVersion'
 import './Navbar.css'
 
 function Navbar() {
@@ -35,6 +36,7 @@ function Navbar() {
             <a href="#services" onClick={() => setIsMenuOpen(false)}>Services</a>
             <a href="#how" onClick={() => setIsMenuOpen(false)}>How it works</a>
           </div>
+          <div className="nav-version">v{appVersion}</div>
           <div className="nav-auth">
             <NavLink to="/login" onClick={() => setIsMenuOpen(false)}>Login</NavLink>
             <Link className="nav-cta" to="/signup" onClick={() => setIsMenuOpen(false)}>Sign up</Link>

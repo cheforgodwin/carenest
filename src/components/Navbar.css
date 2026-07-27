@@ -48,10 +48,23 @@
 }
 
 .nav-links,
+.nav-version,
 .nav-auth {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.nav-version {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #e8f6ec;
+  color: #006a3a;
+  font-size: 13px;
+  font-weight: 900;
 }
 
 .nav-links a,
@@ -132,6 +145,7 @@
   }
 
   .nav-links,
+  .nav-version,
   .nav-auth {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -139,7 +153,8 @@
   }
 
   .nav-links a,
-  .nav-auth a {
+  .nav-auth a,
+  .nav-version {
     justify-content: center;
   }
 }

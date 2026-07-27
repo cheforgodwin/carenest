@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { FiBriefcase, FiCreditCard, FiGrid, FiLogOut, FiMenu, FiPlus, FiSettings, FiUsers, FiX } from 'react-icons/fi'
 import { useAuth } from '../../auth/useAuth'
 import Logo from '../../components/Logo'
+import { appVersion } from '../../config/appVersion'
 import './Dashboard.css'
 
 const icons = { bookings: FiBriefcase, dashboard: FiGrid, payments: FiCreditCard, settings: FiSettings, users: FiUsers }
@@ -99,6 +100,7 @@ function DashboardShell({
             <h1>{title}</h1>
             <p>{subtitle}</p>
           </div>
+          <div className="dashboard-version">v{appVersion}</div>
           <div className="dashboard-actions">
             <div className="dashboard-user">
               <strong>{profile?.name || 'CareNest user'}</strong>
