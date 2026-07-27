@@ -5,7 +5,6 @@ import {
   signOut,
   setPersistence,
   sendPasswordResetEmail,
-  sendEmailVerification,
   updateProfile,
 } from 'firebase/auth'
 import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore'
@@ -56,6 +55,8 @@ export function getAuthErrorMessage(error) {
     'auth/operation-not-allowed': 'Email/password login is not enabled in Firebase.',
     'auth/too-many-requests': 'Too many attempts. Please wait a moment and try again.',
     'auth/user-not-found': 'No account exists for this email. Please sign up first.',
+    'auth/user-token-expired': 'Your session expired. Please sign in again.',
+    'auth/network-request-failed': 'Network error. Check your connection and try again.',
     'auth/weak-password': 'Use at least 8 characters with both letters and numbers.',
     'auth/wrong-password': 'The password is incorrect.',
   }[error?.code] || error?.message || 'Something went wrong. Please try again.'
@@ -94,21 +95,12 @@ export async function signUpWithProfile(profile) {
   )
   await updateProfile(credential.user, { displayName: profile.name.trim() })
   const createdProfile = await createUserProfile(credential.user, profile)
-  await sendEmailVerification(credential.user)
   return createdProfile
 }
 
 export async function loginWithEmail(email, password) {
   await setPersistence(auth, browserSessionPersistence)
   const credential = await signInWithEmailAndPassword(auth, email.trim(), password)
-  if (credential.user.emailVerified) {
-    await credential.user.getIdToken(true)
-    await updateDoc(doc(db, 'users', credential.user.uid), {
-      emailVerified: true,
-      emailVerifiedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    })
-  }
   return getUserProfile(credential.user.uid)
 }
 
@@ -118,28 +110,6 @@ export function logout() {
 
 export function requestPasswordReset(email) {
   return sendPasswordResetEmail(auth, email.trim())
-}
-
-export function resendVerificationEmail() {
-  if (!auth.currentUser) throw new Error('Please login again.')
-  return sendEmailVerification(auth.currentUser)
-}
-
-export function isCurrentEmailVerified() {
-  return Boolean(auth.currentUser?.emailVerified)
-}
-
-export async function refreshEmailVerification() {
-  if (!auth.currentUser) throw new Error('Please login again.')
-  await auth.currentUser.reload()
-  if (!auth.currentUser.emailVerified) return false
-  await auth.currentUser.getIdToken(true)
-  await updateDoc(doc(db, 'users', auth.currentUser.uid), {
-    emailVerified: true,
-    emailVerifiedAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  })
-  return true
 }
 
 export function getDashboardPath(accountType) {

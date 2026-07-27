@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { FiCamera } from 'react-icons/fi'
 import { useAuth } from '../../auth/useAuth'
 import { phonePlaceholder, serviceAreaPlaceholder } from '../../config/businessConfig'
 import {
@@ -12,7 +11,7 @@ import {
   updateProviderJobStatus,
   updateProviderAvailability,
 } from '../../firebase/orderService'
-import { uploadProviderBusinessPhoto } from '../../firebase/profilePhotoService'
+
 import DashboardShell from './DashboardShell'
 
 const providerStatuses = ['Assigned', 'In Progress', 'Quality Check', 'Out for Delivery', 'Completed']
@@ -46,7 +45,6 @@ function ProviderDashboardPage() {
     payoutMethod: profile?.payout?.method || 'MTN Mobile Money',
     payoutPhone: profile?.payout?.phone || profile?.phone || '',
   }))
-  const [photoStatus, setPhotoStatus] = useState({ loading: false, error: '', message: '' })
 
   useEffect(() => {
     const unsubOpen = subscribeToOpenProviderOrders(
@@ -136,20 +134,6 @@ function ProviderDashboardPage() {
     setAvailability((current) => ({ ...current, [name]: value }))
   }
 
-  async function uploadBusinessPhoto(event) {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (!file) return
-    setPhotoStatus({ loading: true, error: '', message: '' })
-    try {
-      const uploaded = await uploadProviderBusinessPhoto(user, file)
-      setSession({ ...profile, ...uploaded })
-      setPhotoStatus({ loading: false, error: '', message: 'Professional photo updated.' })
-    } catch (nextError) {
-      setPhotoStatus({ loading: false, error: nextError.message, message: '' })
-    }
-  }
-
   const nav = [
     { label: 'Overview', to: '/dashboard/provider?view=overview', icon: 'dashboard' },
     { label: 'Jobs', to: '/dashboard/provider?view=jobs', icon: 'bookings' },
@@ -218,8 +202,8 @@ function ProviderDashboardPage() {
             </div>
           </div>
           <div className="provider-profile-upload">
-            <div className="provider-profile-preview">{profile?.businessPhotoURL ? <img src={profile.businessPhotoURL} alt="Provider professional or service location" /> : <FiCamera />}</div>
-            <div><h3>Professional or business photo</h3><p>Upload a clear portrait, laundry point, workshop, or service location so customers can recognize your business.</p><label className="dashboard-action-button">{photoStatus.loading ? 'Uploading…' : 'Choose photo'}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={uploadBusinessPhoto} disabled={photoStatus.loading} /></label>{(photoStatus.error || photoStatus.message) && <small className={photoStatus.error ? 'error' : ''} role="status">{photoStatus.error || photoStatus.message}</small>}</div>
+            <div className="provider-profile-preview"><span className="avatar">{profile?.name?.split(/\s+/).map((part) => part[0]?.toUpperCase()).slice(0, 2).join('') || 'PR'}</span></div>
+            <div><h3>Professional initials</h3><p>Provider avatar is generated from your name initials.</p></div>
           </div>
           <form className="dashboard-form" onSubmit={saveAvailability}>
             <label>Status<select className="dashboard-select" name="status" value={availability.status} onChange={updateAvailability}>

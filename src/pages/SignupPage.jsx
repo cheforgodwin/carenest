@@ -4,7 +4,7 @@ import { FiLock, FiMail, FiPhone, FiUser } from 'react-icons/fi'
 import { useAuth } from '../auth/useAuth'
 import { phonePlaceholder } from '../config/businessConfig'
 import Logo from '../components/Logo'
-import { getAuthErrorMessage, signUpWithProfile } from '../firebase/authService'
+import { getAuthErrorMessage, getDashboardPath, signUpWithProfile } from '../firebase/authService'
 import './AuthPages.css'
 
 function SignupPage() {
@@ -31,7 +31,7 @@ function SignupPage() {
     try {
       const profile = await signUpWithProfile(form)
       setSession(profile)
-      navigate('/verify-email', { replace: true })
+      navigate(getDashboardPath(profile.accountType), { replace: true })
     } catch (err) {
       setError(getAuthErrorMessage(err))
     } finally {

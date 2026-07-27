@@ -14,10 +14,6 @@ function ProtectedRoute({ children, role }) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />
   }
 
-  if (!user.emailVerified && profile.accountType !== 'admin') {
-    return <Navigate to="/verify-email" replace />
-  }
-
   if (role && profile.accountType !== role) {
     return <Navigate to={getDashboardPath(profile.accountType)} replace />
   }

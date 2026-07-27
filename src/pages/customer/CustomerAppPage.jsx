@@ -34,7 +34,6 @@ import {
 } from '../../config/businessConfig'
 import Logo from '../../components/Logo'
 import { createRequestId, createServiceRequest, submitCustomerComplaint, subscribeToCustomerOrders } from '../../firebase/orderService'
-import { uploadCustomerProfilePhoto } from '../../firebase/profilePhotoService'
 import { createProviderApplication, subscribeToMyProviderApplications } from '../../firebase/providerApplicationService'
 import './CustomerAppPage.css'
 
@@ -240,7 +239,6 @@ function CustomerAppPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [recentOrder, setRecentOrder] = useState(null)
   const [isCustomerMenuOpen, setIsCustomerMenuOpen] = useState(false)
-  const [photoStatus, setPhotoStatus] = useState({ loading: false, error: '', message: '' })
   const [providerApplications, setProviderApplications] = useState([])
   const [providerForm, setProviderForm] = useState({ phone: profile?.phone || '', services: '', area: '', experience: '' })
   const [providerStatus, setProviderStatus] = useState({ loading: false, error: '', message: '' })
@@ -303,20 +301,6 @@ function CustomerAppPage() {
     .join('') || 'CU'
   const greeting = new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening'
   const minimumPickupDate = new Date().toISOString().slice(0, 10)
-
-  async function uploadProfilePhoto(event) {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (!file) return
-    setPhotoStatus({ loading: true, error: '', message: '' })
-    try {
-      const uploaded = await uploadCustomerProfilePhoto(user, file)
-      setSession({ ...profile, ...uploaded })
-      setPhotoStatus({ loading: false, error: '', message: 'Profile photo updated.' })
-    } catch (error) {
-      setPhotoStatus({ loading: false, error: error.message, message: '' })
-    }
-  }
 
   function updateProviderForm(event) {
     setProviderForm((current) => ({ ...current, [event.target.name]: event.target.value }))
@@ -466,13 +450,10 @@ function CustomerAppPage() {
                   <h1>{customerName}</h1>
                   <small><FiMapPin /> {customerAddress}</small>
                 </div>
-                <label className={`avatar-upload ${photoStatus.loading ? 'uploading' : ''}`} aria-label="Upload profile photo">
-                  <span className="avatar">{profile?.photoURL ? <img src={profile.photoURL} alt={`${customerName}'s profile`} /> : customerInitials}</span>
-                  <span className="avatar-upload-action"><FiCamera />{photoStatus.loading ? 'Uploading' : 'Photo'}</span>
-                  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={uploadProfilePhoto} disabled={photoStatus.loading} />
-                </label>
+                <div className="avatar-display" aria-label="Profile initials">
+                  <span className="avatar">{customerInitials}</span>
+                </div>
               </div>
-              {(photoStatus.error || photoStatus.message) && <p className={`photo-status ${photoStatus.error ? 'error' : ''}`} role="status">{photoStatus.error || photoStatus.message}</p>}
               <div className="mobile-hero">
                 <div>
                   <h2>We take care of what matters at home.</h2>

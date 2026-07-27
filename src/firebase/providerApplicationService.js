@@ -33,7 +33,6 @@ function normalizeApplication(docSnapshot) {
 
 export function createProviderApplication(user, profile, application) {
   if (!user?.uid) throw new Error('Please login before applying.')
-  if (!user.emailVerified) throw new Error('Verify your email before applying to become a provider.')
   const phone = formatPhoneNumber(application.phone || profile?.phone || '')
   if (!isValidCameroonPhone(phone)) throw new Error('Enter a valid Cameroon phone number before applying.')
   const payload = {

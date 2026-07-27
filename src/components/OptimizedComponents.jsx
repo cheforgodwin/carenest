@@ -1,12 +1,12 @@
 import { memo } from 'react'
 import { Link } from 'react-router-dom'
-import { FiBriefcase, FiShoppingBag, FiTool } from 'react-icons/fi'
+import { FiShoppingBag, FiTool } from 'react-icons/fi'
 
 /**
  * Memoized order card to prevent re-renders
  * Only re-renders if order data changes
  */
-export const OrderCard = memo(function OrderCard({ order, formatPickupDate, formatPickupTime, formatAmount, formatPlacedAt }) {
+export const OrderCard = memo(function OrderCard({ order, formatPickupDate, formatPickupTime }) {
   return (
     <Link className="order-card" to={`/dashboard/customer/orders/${order.id}`}>
       <div className="order-icon">{order.service === 'Laundry' ? <FiShoppingBag /> : <FiTool />}</div>
