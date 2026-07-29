@@ -106,6 +106,7 @@ function AdminDashboardPage() {
 
   const todayKey = new Date().toDateString()
   const providers = users.filter((user) => user.accountType === 'provider')
+  const riders = users.filter((user) => user.accountType === 'rider')
   const customers = users.filter((user) => user.accountType === 'customer')
   const admins = users.filter((user) => user.accountType === 'admin')
   const completedOrders = orders.filter((order) => order.status === 'Completed')
@@ -121,7 +122,9 @@ function AdminDashboardPage() {
   const metrics = [
     ['Bookings today', loading ? '...' : String(bookingsToday)],
     ['Users', String(users.length)],
+    ['Customers', String(customers.length)],
     ['Providers', String(providers.length)],
+    ['Riders', String(riders.length)],
     ['Revenue', formatAmount(revenue)],
     ['Open requests', String(openOrders.length)],
     ['Applications', String(pendingApplications.length)],

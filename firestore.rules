@@ -103,7 +103,7 @@ service cloud.firestore {
       allow create: if (
           ownsUserDoc(userId)
           && request.resource.data.uid == request.auth.uid
-          && request.resource.data.accountType == 'customer'
+          && request.resource.data.accountType in ['customer', 'provider', 'rider']
         );
 
       allow get: if ownsUserDoc(userId) || isAdmin();

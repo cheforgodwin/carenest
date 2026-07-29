@@ -10,20 +10,16 @@ import {
 import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore'
 import { phoneCountryCode } from '../config/businessConfig'
 import { auth, db } from './firebaseConfig'
+import { isValidCameroonPhone as isValidCameroonPhoneUtil, normalizePhoneNumber } from './phoneUtils'
 
-const allowedRoles = ['admin', 'customer', 'provider']
+const allowedRoles = ['admin', 'customer', 'provider', 'rider']
 
 export function formatPhoneNumber(phone) {
-  const trimmed = phone.trim()
-  if (!trimmed) return ''
-  if (trimmed.startsWith('+')) return trimmed.replace(/\s+/g, '')
-  const digits = trimmed.replace(/\D/g, '')
-  if (!phoneCountryCode || digits.startsWith(phoneCountryCode)) return `+${digits}`
-  return `+${phoneCountryCode}${digits}`
+  return normalizePhoneNumber(phone, phoneCountryCode || '237')
 }
 
 export function isValidCameroonPhone(phone) {
-  return /^\+2376\d{8}$/.test(formatPhoneNumber(phone))
+  return isValidCameroonPhoneUtil(phone, phoneCountryCode || '237')
 }
 
 export function validateSignupProfile(profile) {
@@ -117,5 +113,6 @@ export function getDashboardPath(accountType) {
     admin: '/dashboard/admin',
     customer: '/dashboard/customer',
     provider: '/dashboard/provider',
+    rider: '/dashboard/rider',
   }[accountType] || '/dashboard/customer'
 }

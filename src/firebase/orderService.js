@@ -32,6 +32,7 @@ export const statusSteps = {
 
 export const paymentStatuses = ['Pending', 'Submitted', 'Paid', 'Failed', 'Refunded']
 export const payoutStatuses = ['Unpaid', 'Ready', 'Paid', 'Partial', 'Held']
+export const riderStatuses = ['Accepted', 'Picked up', 'Delivered']
 export const providerPayoutRate = 0.8
 export const payoutScheduleLabel = 'Weekly Sunday'
 
@@ -175,6 +176,61 @@ export function subscribeToProviderOrders(providerUid, onNext, onError) {
     (snapshot) => onNext(snapshot.docs.map(normalizeOrder)),
     onError,
   )
+}
+
+export function subscribeToOpenRiderDeliveries(onNext, onError) {
+  return onSnapshot(
+    query(
+      ordersRef,
+      where('serviceType', '==', 'delivery'),
+      where('status', '==', 'Out for Delivery'),
+      orderBy('createdAt', 'desc'),
+    ),
+    (snapshot) => onNext(snapshot.docs.map(normalizeOrder)),
+    onError,
+  )
+}
+
+export function subscribeToRiderOrders(riderUid, onNext, onError) {
+  if (!riderUid) return () => {}
+  return onSnapshot(
+    query(ordersRef, where('riderUid', '==', riderUid)),
+    (snapshot) => onNext(snapshot.docs.map(normalizeOrder)),
+    onError,
+  )
+}
+
+export async function assignServiceRequestToRider(firestoreId, rider) {
+  const orderRef = doc(db, 'serviceRequests', firestoreId)
+  return runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(orderRef)
+    if (!snapshot.exists()) throw new Error('Service request was not found.')
+    const order = snapshot.data()
+    if (order.riderUid || order.status !== 'Out for Delivery') {
+      throw new Error('This delivery is not available for rider assignment.')
+    }
+    transaction.update(orderRef, {
+      riderUid: rider.uid,
+      riderName: rider.name,
+      riderPhone: rider.phone || '',
+      riderStatus: 'Accepted',
+      riderAssignedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+  })
+}
+
+export function updateRiderDeliveryStatus(firestoreId, riderStatus) {
+  const payload = {
+    riderStatus,
+    updatedAt: serverTimestamp(),
+  }
+  if (riderStatus === 'Delivered') {
+    payload.status = 'Completed'
+    payload.currentStep = statusSteps.Completed
+    payload.deliveredAt = serverTimestamp()
+  }
+  return updateDoc(doc(db, 'serviceRequests', firestoreId), payload)
 }
 
 export function subscribeToUsers(onNext, onError) {

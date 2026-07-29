@@ -25,6 +25,7 @@ function normalizeApplication(docSnapshot) {
   return {
     firestoreId: docSnapshot.id,
     ...data,
+    role: data.role || 'provider',
     createdAtDate: toDate(data.createdAt),
     updatedAtDate: toDate(data.updatedAt),
     reviewedAtDate: toDate(data.reviewedAt),
@@ -40,9 +41,13 @@ export function createProviderApplication(user, profile, application) {
     name: profile?.name || user.displayName || application.name,
     email: user.email,
     phone,
-    services: application.services.trim(),
-    area: application.area.trim(),
-    experience: application.experience.trim(),
+    role: application.role || 'provider',
+    services: application.services?.trim() || '',
+    area: application.area?.trim() || '',
+    experience: application.experience?.trim() || '',
+    transportType: application.transportType?.trim() || '',
+    dispatchRegion: application.dispatchRegion?.trim() || '',
+    shiftAvailability: application.shiftAvailability?.trim() || '',
     status: 'Pending',
     identityVerified: false,
     payoutPhoneVerified: false,
@@ -92,31 +97,48 @@ export function updateProviderVerification(application, field, value, reviewerUi
 
 export async function approveProviderApplication(application, reviewerUid) {
   if (!application.identityVerified || !application.payoutPhoneVerified) {
-    throw new Error('Confirm the provider identity and payout phone before approval.')
+    throw new Error('Confirm the applicant identity and payout phone before approval.')
   }
+  const role = application.role || 'provider'
   const batch = writeBatch(db)
   batch.update(doc(db, 'providerApplications', application.firestoreId), {
     status: 'Approved',
+    role,
     reviewerUid,
     reviewedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
-  batch.update(doc(db, 'users', application.userUid), {
-    accountType: 'provider',
-    availability: {
+
+  const userUpdate = {
+    accountType: role,
+    updatedAt: serverTimestamp(),
+  }
+
+  if (role === 'provider') {
+    userUpdate.availability = {
       status: 'Available',
       area: application.area,
       services: application.services,
       phone: application.phone,
-    },
-    payout: {
+    }
+    userUpdate.payout = {
       method: 'MTN Mobile Money',
       phone: application.phone,
-    },
-    providerVerified: true,
-    payoutPhoneVerified: true,
-    providerVerifiedAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  })
+    }
+    userUpdate.providerVerified = true
+    userUpdate.payoutPhoneVerified = true
+    userUpdate.providerVerifiedAt = serverTimestamp()
+  } else if (role === 'rider') {
+    userUpdate.riderVerified = true
+    userUpdate.riderProfile = {
+      status: 'Available',
+      area: application.area,
+      transportType: application.transportType,
+      phone: application.phone,
+      experience: application.experience,
+    }
+  }
+
+  batch.update(doc(db, 'users', application.userUid), userUpdate)
   return batch.commit()
 }

@@ -15,7 +15,6 @@ function SignupPage() {
     email: '',
     phone: '',
     password: '',
-    accountType: 'customer',
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)

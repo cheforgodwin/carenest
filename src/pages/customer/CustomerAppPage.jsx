@@ -224,7 +224,9 @@ function CustomerAppPage() {
   const currentServiceType = serviceSlugs.includes(requestMatch?.[1]) ? requestMatch[1] : 'laundry'
   const isRequest = Boolean(requestMatch) || pathname.includes('/laundry-request')
   const isOrder = pathname.includes('/orders')
-  const isProviderApplication = pathname.includes('/become-provider')
+  const applicationMatch = pathname.match(/\/apply(?:\/([^/]+))?$/)
+  const applicationRole = applicationMatch?.[1]
+  const isApplication = pathname.includes('/apply')
   const isOrdersIndex = pathname.endsWith('/orders')
   const [orders, setOrders] = useState([])
   const [ordersLoading, setOrdersLoading] = useState(true)
@@ -240,8 +242,17 @@ function CustomerAppPage() {
   const [recentOrder, setRecentOrder] = useState(null)
   const [isCustomerMenuOpen, setIsCustomerMenuOpen] = useState(false)
   const [providerApplications, setProviderApplications] = useState([])
-  const [providerForm, setProviderForm] = useState({ phone: profile?.phone || '', services: '', area: '', experience: '' })
-  const [providerStatus, setProviderStatus] = useState({ loading: false, error: '', message: '' })
+  const [applicationForm, setApplicationForm] = useState({
+    role: 'provider',
+    phone: profile?.phone || '',
+    services: '',
+    area: '',
+    experience: '',
+    transportType: '',
+    dispatchRegion: '',
+    shiftAvailability: '',
+  })
+  const [applicationStatus, setApplicationStatus] = useState({ loading: false, error: '', message: '' })
 
   useEffect(() => {
     function closeOnEscape(event) {
@@ -272,7 +283,7 @@ function CustomerAppPage() {
     return subscribeToMyProviderApplications(
       user.uid,
       setProviderApplications,
-      (error) => setProviderStatus((current) => ({ ...current, error: error.message })),
+      (error) => setApplicationStatus((current) => ({ ...current, error: error.message })),
     )
   }, [user?.uid])
 
@@ -290,6 +301,12 @@ function CustomerAppPage() {
   const selectedOption = requestConfig.serviceOptions.find(([name]) => name === form.serviceSpeed) || requestConfig.serviceOptions[0]
   const requestAmount = requestConfig.primaryOptions[primaryValue] + selectedOption[2]
   const manualPayment = manualPaymentMethods[form.paymentMethod]
+  const selectedApplicationRole = ['provider', 'rider'].includes(applicationRole) ? applicationRole : null
+  const applicationHeading = selectedApplicationRole
+    ? selectedApplicationRole === 'provider'
+      ? 'Become a Provider'
+      : 'Join as a Rider'
+    : 'Apply to work with CareNest'
   const completedOrders = orders.filter((order) => order.status === 'Completed')
   const customerName = profile?.name || user?.displayName || 'Customer'
   const customerAddress = profile?.address || profile?.area || defaultCustomerCity
@@ -302,19 +319,26 @@ function CustomerAppPage() {
   const greeting = new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening'
   const minimumPickupDate = new Date().toISOString().slice(0, 10)
 
-  function updateProviderForm(event) {
-    setProviderForm((current) => ({ ...current, [event.target.name]: event.target.value }))
-    setProviderStatus({ loading: false, error: '', message: '' })
+  function updateApplicationForm(event) {
+    const { name, value } = event.target
+    setApplicationForm((current) => ({ ...current, [name]: value }))
+    setApplicationStatus({ loading: false, error: '', message: '' })
   }
 
-  async function submitProviderApplication(event) {
+  useEffect(() => {
+    if (selectedApplicationRole) {
+      setApplicationForm((current) => ({ ...current, role: selectedApplicationRole }))
+    }
+  }, [selectedApplicationRole])
+
+  async function submitApplication(event) {
     event.preventDefault()
-    setProviderStatus({ loading: true, error: '', message: '' })
+    setApplicationStatus({ loading: true, error: '', message: '' })
     try {
-      await createProviderApplication(user, profile, providerForm)
-      setProviderStatus({ loading: false, error: '', message: 'Application submitted. CareNest will review it before provider access is enabled.' })
+      await createProviderApplication(user, profile, applicationForm)
+      setApplicationStatus({ loading: false, error: '', message: `Application submitted. CareNest will review it before ${applicationForm.role} access is enabled.` })
     } catch (error) {
-      setProviderStatus({ loading: false, error: error.message, message: '' })
+      setApplicationStatus({ loading: false, error: error.message, message: '' })
     }
   }
 
@@ -420,7 +444,7 @@ function CustomerAppPage() {
   return (
     <main className="mobile-app-page">
       <section className={`mobile-phone ${isCustomerMenuOpen ? 'customer-menu-open' : ''}`}>
-        {!isServices && !isRequest && !isOrder && !isProviderApplication && (
+        {!isServices && !isRequest && !isOrder && !isApplication && (
           <section className="mobile-content mobile-content-home">
             <div className="app-header">
               <button
@@ -439,7 +463,7 @@ function CustomerAppPage() {
                 <Link to="/dashboard/customer" onClick={() => setIsCustomerMenuOpen(false)}><FiHome />Home</Link>
                 <Link to="/dashboard/customer/orders" onClick={() => setIsCustomerMenuOpen(false)}><FiBriefcase />Orders</Link>
                 <Link to="/dashboard/customer/services" onClick={() => setIsCustomerMenuOpen(false)}><FiGift />Services</Link>
-                <Link to="/dashboard/customer/become-provider" onClick={() => setIsCustomerMenuOpen(false)}><FiUserPlus />Apply as Provider</Link>
+                <Link to="/dashboard/customer/apply" onClick={() => setIsCustomerMenuOpen(false)}><FiUserPlus />Apply to work</Link>
                 <a href={supportPhoneHref} onClick={() => setIsCustomerMenuOpen(false)}><FiPhone />Call CareNest</a>
               </div>
             </div>
@@ -532,30 +556,59 @@ function CustomerAppPage() {
           </section>
         )}
 
-        {isProviderApplication && (
+        {isApplication && (
           <section className="mobile-content provider-application-page">
             <div className="provider-application-shell">
-              <div className="top-title"><Link to="/dashboard/customer" aria-label="Back to home"><FiArrowLeft /></Link><h1>Become a Provider</h1></div>
+              <div className="top-title"><Link to="/dashboard/customer" aria-label="Back to home"><FiArrowLeft /></Link><h1>{applicationHeading}</h1></div>
               <div className="provider-application-intro">
                 <FiUserPlus />
-                <div><h2>Work with CareNest</h2><p>Tell us about your skills and service area. The CareNest team reviews every provider before approval.</p></div>
-              </div>
-              {providerApplications[0] && (
-                <div className={`provider-application-state status-${providerApplications[0].status.toLowerCase()}`}>
-                  <span>Current application</span><strong>{providerApplications[0].status}</strong>
-                  <p>{providerApplications[0].status === 'Pending' ? 'Your application is waiting for admin review.' : providerApplications[0].status === 'Approved' ? 'You have been approved. Your provider dashboard will open automatically so you can accept available jobs.' : 'You may update the information below and apply again.'}</p>
+                <div>
+                  <h2>{selectedApplicationRole ? (selectedApplicationRole === 'provider' ? 'Work with customers as a verified provider.' : 'Deliver orders and handle pickups.') : 'Choose how you want to work with CareNest.'}</h2>
+                  <p>{selectedApplicationRole ? (selectedApplicationRole === 'provider' ? 'Tell us about your services, location, and experience. The CareNest team reviews every application before approval.' : 'Tell us about your delivery experience, transport, and availability.') : 'Select a role below to begin your application.'}</p>
                 </div>
-              )}
-              {providerApplications[0]?.status !== 'Approved' && providerApplications[0]?.status !== 'Pending' && (
-                <form className="provider-application-form" onSubmit={submitProviderApplication}>
-                  <label>Telephone number<input name="phone" type="tel" value={providerForm.phone} onChange={updateProviderForm} placeholder={phonePlaceholder} required /></label>
-                  <label>Services you can provide<input name="services" value={providerForm.services} onChange={updateProviderForm} placeholder="Laundry, cleaning, delivery…" required /></label>
-                  <label>Area where you can work<input name="area" value={providerForm.area} onChange={updateProviderForm} placeholder="Town, neighbourhood or service area" required /></label>
-                  <label>Your experience<textarea name="experience" value={providerForm.experience} onChange={updateProviderForm} placeholder="Describe your experience, equipment and availability." minLength="20" required /></label>
-                  {providerStatus.error && <p className="request-message request-error" role="alert">{providerStatus.error}</p>}
-                  {providerStatus.message && <p className="request-message" role="status">{providerStatus.message}</p>}
-                  <button type="submit" disabled={providerStatus.loading}>{providerStatus.loading ? 'Submitting…' : 'Submit application'}</button>
-                </form>
+              </div>
+
+              {!selectedApplicationRole ? (
+                <div className="application-role-selector">
+                  <button type="button" className="application-role-card" onClick={() => navigate('/dashboard/customer/apply/provider')}>
+                    <FiUserPlus /><strong>Provider</strong><span>Serve customers directly with home services.</span>
+                  </button>
+                  <button type="button" className="application-role-card" onClick={() => navigate('/dashboard/customer/apply/rider')}>
+                    <FiPackage /><strong>Rider</strong><span>Pick up and deliver orders between customers and providers.</span>
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {providerApplications[0] && (
+                    <div className={`provider-application-state status-${providerApplications[0].status.toLowerCase()}`}>
+                      <span>Current application</span><strong>{providerApplications[0].status}</strong>
+                      <p>{providerApplications[0].status === 'Pending' ? 'Your application is waiting for admin review.' : providerApplications[0].status === 'Approved' ? 'You have been approved. Your dashboard will open automatically once account access is enabled.' : 'You may update the information below and apply again.'}</p>
+                    </div>
+                  )}
+                  {providerApplications[0]?.status !== 'Approved' && providerApplications[0]?.status !== 'Pending' && (
+                    <form className="provider-application-form" onSubmit={submitApplication}>
+                      <input type="hidden" name="role" value={applicationForm.role} />
+                      <label>Telephone number<input name="phone" type="tel" value={applicationForm.phone} onChange={updateApplicationForm} placeholder={phonePlaceholder} required /></label>
+                      {selectedApplicationRole === 'provider' && (
+                        <>
+                          <label>Services you can provide<input name="services" value={applicationForm.services} onChange={updateApplicationForm} placeholder="Laundry, cleaning, delivery…" required /></label>
+                          <label>Area where you can work<input name="area" value={applicationForm.area} onChange={updateApplicationForm} placeholder="Town, neighbourhood or service area" required /></label>
+                          <label>Your experience<textarea name="experience" value={applicationForm.experience} onChange={updateApplicationForm} placeholder="Describe your experience, equipment and availability." minLength="20" required /></label>
+                        </>
+                      )}
+                      {selectedApplicationRole === 'rider' && (
+                        <>
+                          <label>Transport type<input name="transportType" value={applicationForm.transportType} onChange={updateApplicationForm} placeholder="Motorbike, bicycle, car…" required /></label>
+                          <label>Service area<input name="area" value={applicationForm.area} onChange={updateApplicationForm} placeholder="Town, neighbourhood or route" required /></label>
+                          <label>Experience<textarea name="experience" value={applicationForm.experience} onChange={updateApplicationForm} placeholder="Describe your delivery experience, routes, and schedule." minLength="20" required /></label>
+                        </>
+                      )}
+                      {applicationStatus.error && <p className="request-message request-error" role="alert">{applicationStatus.error}</p>}
+                      {applicationStatus.message && <p className="request-message" role="status">{applicationStatus.message}</p>}
+                      <button type="submit" disabled={applicationStatus.loading}>{applicationStatus.loading ? 'Submitting…' : 'Submit application'}</button>
+                    </form>
+                  )}
+                </>
               )}
             </div>
           </section>
@@ -726,10 +779,10 @@ function CustomerAppPage() {
         <nav className="mobile-tabs">
           <Logo to="/dashboard/customer" className="customer-nav-brand" />
           <div className="customer-nav-links">
-            <Link className={!isServices && !isRequest && !isOrder && !isProviderApplication ? 'active' : ''} aria-current={!isServices && !isRequest && !isOrder && !isProviderApplication ? 'page' : undefined} to="/dashboard/customer"><FiHome />Home</Link>
+            <Link className={!isServices && !isRequest && !isOrder && !isApplication ? 'active' : ''} aria-current={!isServices && !isRequest && !isOrder && !isApplication ? 'page' : undefined} to="/dashboard/customer"><FiHome />Home</Link>
             <Link className={isOrder ? 'active' : ''} aria-current={isOrder ? 'page' : undefined} to="/dashboard/customer/orders"><FiBriefcase />Orders</Link>
             <Link className={isServices || isRequest ? 'active' : ''} aria-current={isServices || isRequest ? 'page' : undefined} to="/dashboard/customer/services"><FiGift />Services</Link>
-            <Link className={isProviderApplication ? 'active' : ''} aria-current={isProviderApplication ? 'page' : undefined} to="/dashboard/customer/become-provider"><FiUserPlus />Provider</Link>
+            <Link className={isApplication ? 'active' : ''} aria-current={isApplication ? 'page' : undefined} to="/dashboard/customer/apply"><FiUserPlus />Apply</Link>
           </div>
         </nav>
       </section>

@@ -2386,20 +2386,170 @@
     padding-bottom: calc(8px + env(safe-area-inset-bottom));
   }
 }
-.provider-application-page { padding: 2rem; background: #f4faf6; }
-.provider-application-shell { width: min(760px, 100%); margin: 0 auto 7rem; }
-.provider-application-intro { display: flex; gap: 1rem; align-items: flex-start; background: #064b33; color: white; padding: 1.5rem; border-radius: 1.25rem; margin: 1.5rem 0; }
-.provider-application-intro > svg { flex: 0 0 auto; font-size: 2rem; }
-.provider-application-intro h2, .provider-application-intro p { color: inherit; margin: 0 0 .4rem; }
-.provider-application-state, .provider-application-form { background: white; border: 1px solid #d8e8df; border-radius: 1.25rem; padding: 1.5rem; margin-top: 1rem; }
-.provider-application-state span, .provider-application-state strong { display: block; }
-.provider-application-state strong { color: #f36b12; font-size: 1.5rem; margin: .35rem 0; }
-.provider-application-form { display: grid; gap: 1rem; }
-.provider-application-form label { display: grid; gap: .45rem; font-weight: 700; color: #173e30; }
-.provider-application-form input, .provider-application-form textarea { width: 100%; box-sizing: border-box; border: 1px solid #c9dbd1; border-radius: .75rem; padding: .85rem; font: inherit; }
-.provider-application-form textarea { min-height: 8rem; resize: vertical; }
-.provider-application-form button { border: 0; border-radius: .8rem; padding: 1rem; background: #f36b12; color: white; font-weight: 800; cursor: pointer; }
-.provider-application-form button:disabled { opacity: .65; cursor: wait; }
+.provider-application-page {
+  padding: 2rem 1.25rem 8rem;
+  background: radial-gradient(circle at top, rgba(15, 103, 70, 0.08), transparent 35%), #f6fbf8;
+  min-height: 100vh;
+}
+.provider-application-shell {
+  width: min(840px, 100%);
+  margin: 0 auto 5rem;
+  background: white;
+  border-radius: 28px;
+  box-shadow: 0 24px 60px rgba(20, 68, 40, 0.12);
+  overflow: hidden;
+}
+.provider-application-shell > .top-title {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.35rem 1.5rem 0.75rem;
+}
+.provider-application-shell > .top-title a {
+  width: 46px;
+  height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  border: 1px solid rgba(13, 78, 46, 0.12);
+  background: #ffffff;
+  color: #0d5f3d;
+}
+.provider-application-intro {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+  background: linear-gradient(135deg, #0c6c42 0%, #163d27 100%);
+  color: white;
+  padding: 1.75rem 1.5rem;
+  border-radius: 0 0 1.75rem 1.75rem;
+  margin: 0;
+}
+.provider-application-intro > svg {
+  flex: 0 0 auto;
+  font-size: 2.15rem;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 0.9rem;
+  border-radius: 16px;
+}
+.provider-application-intro h2,
+.provider-application-intro p {
+  color: inherit;
+  margin: 0 0 0.45rem;
+}
+.provider-application-intro h2 {
+  font-size: clamp(1.35rem, 2vw, 1.75rem);
+  line-height: 1.25;
+}
+.provider-application-state,
+.provider-application-form {
+  background: white;
+  border: 1px solid #e7f0ea;
+  border-radius: 1.5rem;
+  padding: 1.6rem;
+  margin: 1.35rem 1.5rem 1.5rem;
+}
+.provider-application-state {
+  box-shadow: inset 0 0 0 1px rgba(16, 79, 34, 0.04);
+}
+.provider-application-state span,
+.provider-application-state strong {
+  display: block;
+}
+.provider-application-state strong {
+  color: #19602f;
+  font-size: 1.5rem;
+  margin: 0.35rem 0;
+}
+.provider-application-state p {
+  margin: 0;
+  color: #4f6959;
+  line-height: 1.6;
+}
+.provider-application-form {
+  display: grid;
+  gap: 1.15rem;
+}
+.application-role-selector {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin-top: 1rem;
+}
+.application-role-card {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border-radius: 1.4rem;
+  border: 1px solid #dce8df;
+  background: #ffffff;
+  color: #163f2d;
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+  text-align: left;
+}
+.application-role-card:hover,
+.application-role-card:focus-visible {
+  transform: translateY(-1px);
+  border-color: #0b7540;
+  box-shadow: 0 18px 40px rgba(14, 83, 47, 0.08);
+}
+.application-role-card svg {
+  width: 1.45rem;
+  height: 1.45rem;
+  color: #0f5f3c;
+}
+.application-role-card strong {
+  font-size: 1rem;
+}
+.application-role-card span {
+  color: #546b5d;
+  line-height: 1.5;
+}
+.provider-application-form label {
+  display: grid;
+  gap: 0.45rem;
+  font-weight: 700;
+  color: #1e3f2f;
+}
+.provider-application-form input,
+.provider-application-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #c9dbd1;
+  border-radius: 1rem;
+  padding: 1rem;
+  background: #f8fbf8;
+  font: inherit;
+  color: #1b3c2d;
+}
+.provider-application-form textarea {
+  min-height: 10rem;
+  resize: vertical;
+}
+.provider-application-form button {
+  border: 0;
+  border-radius: 1rem;
+  padding: 1rem 1.2rem;
+  background: linear-gradient(135deg, #107847 0%, #0c5e34 100%);
+  color: white;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+.provider-application-form button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(9, 72, 38, 0.18);
+}
+.provider-application-form button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+.provider-application-form .request-message,
+.provider-application-state + .request-message {
+  margin: 0;
+}
 
 /* Compact laptop screens: keep every control reachable without oversized panels. */
 @media (min-width: 981px) and (max-height: 820px) {
