@@ -3,9 +3,21 @@ import { translationCacheKey, supportedLocales } from './translationData.js'
 const GOOGLE_TRANSLATE_ENDPOINT = 'https://translation.googleapis.com/language/translate/v2'
 const localePattern = /^([a-z]{2})(?:-[A-Z]{2})?$/
 
+function getStorage() {
+  if (typeof window !== 'undefined' && window.localStorage) return window.localStorage
+  if (globalThis.localStorage) return globalThis.localStorage
+  throw new Error('localStorage is not available')
+}
+
+function getNavigator() {
+  if (typeof window !== 'undefined' && window.navigator) return window.navigator
+  if (globalThis.navigator) return globalThis.navigator
+  throw new Error('Navigator is not available')
+}
+
 function getStoredCache() {
   try {
-    const raw = window.localStorage.getItem(translationCacheKey)
+    const raw = getStorage().getItem(translationCacheKey)
     return raw ? JSON.parse(raw) : {}
   } catch {
     return {}
@@ -14,7 +26,7 @@ function getStoredCache() {
 
 function setStoredCache(cache) {
   try {
-    window.localStorage.setItem(translationCacheKey, JSON.stringify(cache))
+    getStorage().setItem(translationCacheKey, JSON.stringify(cache))
   } catch {
     // ignore storage errors
   }
@@ -33,7 +45,7 @@ export async function translateText(text, targetLocale) {
   const cacheKey = `${locale}::${text}`
   if (cache[cacheKey]) return cache[cacheKey]
 
-  const apiKey = import.meta.env.VITE_GOOGLE_CLOUD_TRANSLATION_API_KEY
+  const apiKey = import.meta?.env?.VITE_GOOGLE_CLOUD_TRANSLATION_API_KEY || (typeof process !== 'undefined' && process?.env?.VITE_GOOGLE_CLOUD_TRANSLATION_API_KEY)
   if (!apiKey) {
     throw new Error('Missing VITE_GOOGLE_CLOUD_TRANSLATION_API_KEY')
   }
@@ -66,7 +78,7 @@ export async function translateText(text, targetLocale) {
 }
 
 export function getBrowserLocale() {
-  const nav = window.navigator
+  const nav = getNavigator()
   const locale = nav.languages?.[0] || nav.language || nav.userLanguage || 'en'
   return getTargetLocale(locale)
 }

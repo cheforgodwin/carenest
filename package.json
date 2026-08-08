@@ -8,6 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/translationService.test.js",
     "test:rules": "firebase emulators:exec --only firestore --project demo-carenest \"node --test tests/firestore.rules.test.mjs\"",
     "test:load": "firebase emulators:exec --only auth,firestore --project demo-carenest \"node scripts/load-test.mjs\"",
     "test:load:1000": "firebase emulators:exec --only auth,firestore --project demo-carenest \"node scripts/load-test.mjs 1000 1000\"",
@@ -23,6 +25,8 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@firebase/rules-unit-testing": "^5.0.1",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
@@ -31,6 +35,7 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "firebase-tools": "^15.23.0",
     "globals": "^17.6.0",
-    "vite": "^8.0.12"
+    "vite": "^8.0.12",
+    "vitest": "^4.1.10"
   }
 }
