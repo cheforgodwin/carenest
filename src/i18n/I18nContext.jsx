@@ -1,8 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { I18nContext } from './I18nContextStore.js'
 import { defaultLocale, localeStorageKey, supportedLocales, staticEnglishMessages } from './translationData.js'
 import { detectSystemLocale, translateText } from './translationService.js'
-
-const I18nContext = createContext(null)
 
 function getInitialLocale() {
   if (typeof window === 'undefined') return defaultLocale
@@ -59,27 +58,8 @@ export function I18nProvider({ children }) {
     dictionary,
     loading,
     error,
-  }), [locale, supportedLocales, translateMessage, dictionary, loading, error])
+  }), [locale, translateMessage, dictionary, loading, error])
 
   return <I18nContext.Provider value={contextValue}>{children}</I18nContext.Provider>
 }
 
-export function useI18n() {
-  const context = useContext(I18nContext)
-  if (!context) {
-    throw new Error('useI18n must be used within I18nProvider')
-  }
-  return context
-}
-
-export function useT(key) {
-  const { locale, dictionary, translateMessage } = useI18n()
-
-  useEffect(() => {
-    if (locale === 'en') return
-    if (dictionary[key]) return
-    translateMessage(key)
-  }, [locale, key, dictionary, translateMessage])
-
-  return dictionary[key] || key
-}

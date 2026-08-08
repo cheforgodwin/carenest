@@ -3,7 +3,7 @@ import { Link, NavLink } from 'react-router-dom'
 import { FiMenu, FiX } from 'react-icons/fi'
 import Logo from './Logo'
 import { appVersion } from '../config/appVersion'
-import { useI18n, useT } from '../i18n/I18nContext.jsx'
+import { useI18n, useT } from '../i18n/useI18n.jsx'
 import './Navbar.css'
 
 function Navbar() {

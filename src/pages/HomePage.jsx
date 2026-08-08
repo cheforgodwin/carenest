@@ -1,7 +1,7 @@
 import { FiArrowRight, FiCheckCircle, FiClock, FiHeadphones, FiShield } from 'react-icons/fi'
 import { Link } from 'react-router-dom'
 import Navbar from '../components/Navbar'
-import { useT } from '../i18n/I18nContext.jsx'
+import { useT } from '../i18n/useI18n.jsx'
 import './HomePage.css'
 
 const serviceKeys = ['home.service.laundry', 'home.service.homeCleaning', 'home.service.essentialsDelivery', 'home.service.repairs']
@@ -24,7 +24,11 @@ function HomePage() {
   const fastService = useT('home.how.fastService')
   const supportLabel = useT('home.how.support')
   const openDashboard = useT('home.how.openDashboard')
-  const serviceNames = serviceKeys.map((serviceKey) => useT(serviceKey))
+  const serviceLaundry = useT('home.service.laundry')
+  const serviceHomeCleaning = useT('home.service.homeCleaning')
+  const serviceEssentialsDelivery = useT('home.service.essentialsDelivery')
+  const serviceRepairs = useT('home.service.repairs')
+  const serviceNames = [serviceLaundry, serviceHomeCleaning, serviceEssentialsDelivery, serviceRepairs]
 
   return (
     <main className="home-page">
