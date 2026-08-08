@@ -15,7 +15,7 @@ function getNavigator() {
   throw new Error('Navigator is not available')
 }
 
-function getStoredCache() {
+export function getStoredCache() {
   try {
     const raw = getStorage().getItem(translationCacheKey)
     return raw ? JSON.parse(raw) : {}
@@ -37,13 +37,79 @@ function getTargetLocale(locale) {
   return supportedLocales.includes(normalized) ? normalized : 'en'
 }
 
-export async function translateText(text, targetLocale) {
+export function getCachedTranslations(locale) {
+  const normalized = getTargetLocale(locale)
+  const cache = getStoredCache()
+  return Object.entries(cache).reduce((translations, [cacheKey, value]) => {
+    const [cachedLocale, messageKey] = cacheKey.split('::')
+    if (cachedLocale === normalized && messageKey) {
+      translations[messageKey] = value
+    }
+    return translations
+  }, {})
+}
+
+export async function translateMessages(entries, targetLocale) {
   const locale = getTargetLocale(targetLocale)
-  if (locale === 'en') return text
+  if (locale === 'en') {
+    return entries.reduce((result, entry) => ({ ...result, [entry.key]: entry.text }), {})
+  }
 
   const cache = getStoredCache()
-  const cacheKey = `${locale}::${text}`
-  if (cache[cacheKey]) return cache[cacheKey]
+  const result = {}
+  const missingEntries = []
+
+  entries.forEach((entry) => {
+    const cacheKey = `${locale}::${entry.key}`
+    if (cache[cacheKey]) {
+      result[entry.key] = cache[cacheKey]
+    } else {
+      missingEntries.push(entry)
+    }
+  })
+
+  if (missingEntries.length === 0) return result
+
+  const apiKey = import.meta?.env?.VITE_GOOGLE_CLOUD_TRANSLATION_API_KEY || (typeof process !== 'undefined' && process?.env?.VITE_GOOGLE_CLOUD_TRANSLATION_API_KEY)
+  if (!apiKey) {
+    throw new Error('Missing VITE_GOOGLE_CLOUD_TRANSLATION_API_KEY')
+  }
+
+  const response = await fetch(`${GOOGLE_TRANSLATE_ENDPOINT}?key=${encodeURIComponent(apiKey)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      q: missingEntries.map((entry) => entry.text),
+      source: 'en',
+      target: locale,
+      format: 'text',
+    }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => null)
+    throw new Error(error?.error?.message || 'Google Translate API request failed')
+  }
+
+  const data = await response.json()
+  const translations = data?.data?.translations || []
+
+  missingEntries.forEach((entry, index) => {
+    const translatedText = translations[index]?.translatedText
+    if (translatedText) {
+      const cacheKey = `${locale}::${entry.key}`
+      cache[cacheKey] = translatedText
+      result[entry.key] = translatedText
+    }
+  })
+
+  setStoredCache(cache)
+  return result
+}
+
+export async function translateText(messageKey, text, targetLocale) {
+  const entries = await translateMessages([{ key: messageKey, text }], targetLocale)
+  return entries[messageKey]
 
   const apiKey = import.meta?.env?.VITE_GOOGLE_CLOUD_TRANSLATION_API_KEY || (typeof process !== 'undefined' && process?.env?.VITE_GOOGLE_CLOUD_TRANSLATION_API_KEY)
   if (!apiKey) {

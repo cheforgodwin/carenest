@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { I18nContext } from './I18nContextStore.js'
-import { defaultLocale, localeStorageKey, supportedLocales, staticEnglishMessages } from './translationData.js'
-import { detectSystemLocale, translateText } from './translationService.js'
+import { defaultLocale, localeStorageKey, supportedLocales, staticEnglishMessages, translationKeys } from './translationData.js'
+import { detectSystemLocale, translateText, translateMessages, getCachedTranslations } from './translationService.js'
 
 function getInitialLocale() {
   if (typeof window === 'undefined') return defaultLocale
@@ -10,9 +10,15 @@ function getInitialLocale() {
   return detectSystemLocale()
 }
 
+function getInitialTranslations(locale) {
+  if (typeof window === 'undefined') return {}
+  if (locale === 'en') return {}
+  return { [locale]: getCachedTranslations(locale) }
+}
+
 export function I18nProvider({ children }) {
   const [locale, setLocale] = useState(getInitialLocale)
-  const [translations, setTranslations] = useState({})
+  const [translations, setTranslations] = useState(() => getInitialTranslations(getInitialLocale()))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const pendingKeys = useRef(new Set())
@@ -20,6 +26,55 @@ export function I18nProvider({ children }) {
   useEffect(() => {
     window.localStorage.setItem(localeStorageKey, locale)
   }, [locale])
+
+  useEffect(() => {
+    if (locale === 'en') return
+
+    setTranslations((current) => {
+      const cached = getCachedTranslations(locale)
+      if (!cached || Object.keys(cached).length === 0) return current
+      if (current[locale] && Object.keys(current[locale]).length >= Object.keys(cached).length) return current
+
+      return {
+        ...current,
+        [locale]: {
+          ...current[locale],
+          ...cached,
+        },
+      }
+    })
+  }, [locale])
+
+  useEffect(() => {
+    if (locale === 'en') return
+    const missingKeys = translationKeys.filter((key) => !translations[locale]?.[key])
+    if (missingKeys.length === 0) return
+    if (pendingKeys.current.has('prefetch')) return
+
+    pendingKeys.current.add('prefetch')
+    setLoading(true)
+    setError('')
+
+    const entries = missingKeys.map((key) => ({ key, text: staticEnglishMessages[key] || key }))
+
+    translateMessages(entries, locale)
+      .then((translated) => {
+        setTranslations((current) => ({
+          ...current,
+          [locale]: {
+            ...current[locale],
+            ...translated,
+          },
+        }))
+      })
+      .catch((err) => {
+        setError(err.message)
+      })
+      .finally(() => {
+        pendingKeys.current.delete('prefetch')
+        setLoading(false)
+      })
+  }, [locale, translations])
 
   const translateMessage = useCallback(async (key) => {
     if (locale === 'en') return
@@ -32,7 +87,7 @@ export function I18nProvider({ children }) {
 
     try {
       const sourceText = staticEnglishMessages[key] || key
-      const translated = await translateText(sourceText, locale)
+      const translated = await translateText(key, sourceText, locale)
       setTranslations((current) => ({
         ...current,
         [locale]: {
@@ -56,9 +111,10 @@ export function I18nProvider({ children }) {
     supportedLocales,
     translateMessage,
     dictionary,
+    translations,
     loading,
     error,
-  }), [locale, translateMessage, dictionary, loading, error])
+  }), [locale, translateMessage, dictionary, loading, error, translations])
 
   return <I18nContext.Provider value={contextValue}>{children}</I18nContext.Provider>
 }

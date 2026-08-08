@@ -45,11 +45,11 @@ function Navbar() {
           </div>
           <div className="nav-version">v{appVersion}</div>
           <div className="nav-auth">
-            <a className="nav-language" aria-label={languageLabel}>
+            <div className="nav-language" aria-label={languageLabel}>
               <select value={locale} onChange={(event) => setLocale(event.target.value)}>
                 {supportedLocales.map((lang) => <option key={lang} value={lang}>{lang.toUpperCase()}</option>)}
               </select>
-            </a>
+            </div>
             <NavLink to="/login" onClick={() => setIsMenuOpen(false)}>{loginLabel}</NavLink>
             <Link className="nav-cta" to="/signup" onClick={() => setIsMenuOpen(false)}>{signupLabel}</Link>
           </div>

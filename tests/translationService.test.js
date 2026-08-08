@@ -55,10 +55,10 @@ describe('translationService', () => {
       json: async () => ({ data: { translations: [{ translatedText: 'Bonjour' }] } }),
     })
 
-    const result = await translateText('Hello', 'fr')
+    const result = await translateText('hello.greeting', 'Hello', 'fr')
     expect(result).toBe('Bonjour')
     const cacheEntry = JSON.parse(globalThis.localStorage.getItem('carenest_translation_cache_v1'))
-    expect(cacheEntry['fr::Hello']).toBe('Bonjour')
+    expect(cacheEntry['fr::hello.greeting']).toBe('Bonjour')
 
     const second = await translateText('Hello', 'fr')
     expect(second).toBe('Bonjour')

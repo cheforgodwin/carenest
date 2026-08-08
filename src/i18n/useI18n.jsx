@@ -10,13 +10,13 @@ export function useI18n() {
 }
 
 export function useT(key) {
-  const { locale, dictionary, translateMessage } = useI18n()
+  const { locale, dictionary, translateMessage, translations } = useI18n()
 
   useEffect(() => {
     if (locale === 'en') return
-    if (dictionary[key]) return
+    if (translations[locale]?.[key]) return
     translateMessage(key)
-  }, [locale, key, dictionary, translateMessage])
+  }, [locale, key, translations, translateMessage])
 
   return dictionary[key] || key
 }
