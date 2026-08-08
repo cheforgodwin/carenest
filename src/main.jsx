@@ -4,9 +4,14 @@ import './index.css'
 import { AuthProvider } from './auth/AuthContext.jsx'
 import App from './App.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
+import { I18nProvider } from './i18n/I18nContext.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <ErrorBoundary><AuthProvider><App /></AuthProvider></ErrorBoundary>
+    <I18nProvider>
+      <ErrorBoundary>
+        <AuthProvider><App /></AuthProvider>
+      </ErrorBoundary>
+    </I18nProvider>
   </StrictMode>,
 )
