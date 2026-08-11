@@ -300,6 +300,7 @@ function CustomerAppPage() {
   const primaryValue = form[requestConfig.primaryField] || Object.keys(requestConfig.primaryOptions)[0]
   const selectedOption = requestConfig.serviceOptions.find(([name]) => name === form.serviceSpeed) || requestConfig.serviceOptions[0]
   const requestAmount = requestConfig.primaryOptions[primaryValue] + selectedOption[2]
+  const isFapshiPayment = form.paymentMethod === 'Fapshi'
   const manualPayment = manualPaymentMethods[form.paymentMethod]
   const selectedApplicationRole = ['provider', 'rider'].includes(applicationRole) ? applicationRole : null
   const applicationHeading = selectedApplicationRole
@@ -411,6 +412,42 @@ function CustomerAppPage() {
       placedAt: 'Just now',
       currentStep: 0,
     }
+
+    if (isFapshiPayment) {
+      try {
+        const response = await fetch('/api/fapshi', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'payment_request',
+            order: {
+              id: nextOrder.id,
+              amount: nextOrder.amount,
+              customerName: nextOrder.customerName,
+              customerEmail: nextOrder.customerEmail,
+              customerPhone: nextOrder.customerPhone,
+              service: nextOrder.service,
+              serviceType: nextOrder.serviceType,
+              paymentMethod: nextOrder.paymentMethod,
+            },
+          }),
+        })
+
+        if (!response.ok) {
+          const errorBody = await response.json().catch(() => null)
+          throw new Error(errorBody?.error || 'Fapshi request failed')
+        }
+
+        const result = await response.json()
+        nextOrder.paymentStatus = result?.status || 'Pending'
+        nextOrder.paymentReference = result?.reference || nextOrder.paymentReference
+        nextOrder.paymentReceiptTransactionId = result?.transactionId || nextOrder.paymentReceiptTransactionId
+        nextOrder.paymentReceiptText = result?.message ? String(result.message) : JSON.stringify(result)
+      } catch (error) {
+        throw new Error(`Fapshi payment failed: ${error.message}`)
+      }
+    }
+
     try {
       const createdOrder = await createServiceRequest(nextOrder)
       setRecentOrder(createdOrder)
@@ -636,7 +673,16 @@ function CustomerAppPage() {
                   <label>{currentServiceType === 'delivery' ? 'Delivery Address' : 'Service Address'}<span className="request-input"><FiMapPin /><select name="address" value={form.address} onChange={updateForm}>{addresses.map((address) => <option key={address} value={address}>{address}</option>)}</select><FiChevronDown /></span></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Date' : 'Service Date'}<span className="request-input"><FiCalendar /><input name="pickupDate" type="date" min={minimumPickupDate} value={form.pickupDate} onChange={updateForm} /></span></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Time' : 'Service Time'}<span className="request-input"><FiClock /><input name="pickupTime" type="time" value={form.pickupTime} onChange={updateForm} /></span></label>
-                  <label>Payment Method<span className="request-input"><select name="paymentMethod" value={form.paymentMethod} onChange={updateForm}><option value="MTN Mobile Money">MTN Mobile Money</option><option value="Orange Money">Orange Money</option><option value="Cash">Cash</option></select><FiChevronDown /></span></label>
+                  <label>Payment Method<span className="request-input"><select name="paymentMethod" value={form.paymentMethod} onChange={updateForm}><option value="MTN Mobile Money">MTN Mobile Money</option><option value="Orange Money">Orange Money</option><option value="Fapshi">Fapshi</option><option value="Cash">Cash</option></select><FiChevronDown /></span></label>
+                  {isFapshiPayment && (
+                    <div className="manual-payment-panel">
+                      <div>
+                        <span>Fapshi payment</span>
+                        <strong>Process payment automatically</strong>
+                        <small>No MTN/Orange SMS copy needed for this method.</small>
+                      </div>
+                    </div>
+                  )}
                   {manualPayment && (
                     <div className="manual-payment-panel">
                       <div>

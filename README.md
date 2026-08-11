@@ -29,6 +29,20 @@ VITE_PAYMENT_ORANGE_NUMBER="+237 6XX XXX XXX"
 VITE_PAYMENT_ORANGE_NAME="CareNest"
 ```
 
+For secure Fapshi integration with Vercel, use server-side env vars and the sandbox mode before going live:
+
+```bash
+FAPSHI_MODE="sandbox"
+FAPSHI_SANDBOX_API_URL="https://sandbox.fapshi.com/initiate-pay"
+FAPSHI_SANDBOX_API_USER="your-sandbox-user-id"
+FAPSHI_SANDBOX_SECRET_KEY="your-sandbox-secret"
+FAPSHI_LIVE_API_URL="https://api.fapshi.com/initiate-pay"
+FAPSHI_LIVE_API_USER="your-live-user-id"
+FAPSHI_LIVE_SECRET_KEY="your-live-secret"
+```
+
+Keep the `FAPSHI_*_SECRET_KEY` values in your Vercel project settings, not in `VITE_*`.
+
 ## SMS Payment Verifier
 
 CareNest includes a no-billing private Android owner app skeleton. It reads MTN/Orange payment SMS messages from your phone, signs in with the CareNest admin account, and uses Firestore directly under admin security rules.
