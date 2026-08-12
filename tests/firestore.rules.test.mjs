@@ -10,7 +10,7 @@ const verified = { email_verified: true }
 const baseOrder = {
   id: 'CN-TEST', customerUid: 'customer-a', customerEmail: 'a@example.com', customerPhone: '+237670000001',
   serviceType: 'laundry', serviceSpeed: 'Normal', itemSummary: 'Mixed clothes', amount: 3000,
-  status: 'Pending', currentStep: 0, paymentMethod: 'Cash', paymentStatus: 'Pending',
+  status: 'Pending', currentStep: 0, paymentMethod: 'Fapshi', paymentStatus: 'Pending',
 }
 
 before(async () => {
@@ -38,6 +38,15 @@ test('signed-out users cannot read orders', async () => {
   await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'serviceRequests/order-a')))
 })
 
+test('a customer without a profile document can still create a booking when auth email matches', async () => {
+  const db = env.authenticatedContext('customer-c', { email_verified: true, email: 'c@example.com' }).firestore()
+  await assertSucceeds(setDoc(doc(db, 'serviceRequests/order-c'), {
+    id: 'CN-TEST-2', customerUid: 'customer-c', customerEmail: 'c@example.com', customerPhone: '+237670000002',
+    serviceType: 'laundry', serviceSpeed: 'Normal', itemSummary: 'Mixed clothes', amount: 3000,
+    status: 'Pending', currentStep: 0, paymentMethod: 'Fapshi', paymentStatus: 'Pending',
+  }))
+})
+
 test('a customer can read only their own order', async () => {
   await seed()
   await assertSucceeds(getDoc(doc(env.authenticatedContext('customer-a').firestore(), 'serviceRequests/order-a')))
@@ -58,10 +67,10 @@ test('a customer cannot change role or payment state', async () => {
   await assertFails(updateDoc(doc(db, 'serviceRequests/order-a'), { paymentStatus: 'Paid' }))
 })
 
-test('unverified customers cannot create bookings or provider applications', async () => {
+test('unverified customers can create bookings but cannot create provider applications', async () => {
   await seed()
   const db = env.authenticatedContext('customer-a', { email_verified: false }).firestore()
-  await assertFails(setDoc(doc(db, 'serviceRequests/unverified-order'), baseOrder))
+  await assertSucceeds(setDoc(doc(db, 'serviceRequests/unverified-order'), baseOrder))
   await assertFails(setDoc(doc(db, 'providerApplications/customer-a'), {
     userUid: 'customer-a', name: 'Customer A', email: 'a@example.com', phone: '+237670000001',
     services: 'Cleaning', area: 'Douala', experience: 'Two years', status: 'Pending',

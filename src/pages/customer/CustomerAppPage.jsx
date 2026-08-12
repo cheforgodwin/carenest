@@ -115,40 +115,7 @@ const serviceConfig = {
 
 const serviceSlugs = Object.keys(serviceConfig)
 
-const manualPaymentMethods = {
-  'MTN Mobile Money': {
-    label: 'MTN Mobile Money',
-    number: import.meta.env.VITE_PAYMENT_MTN_NUMBER || phonePlaceholder,
-    accountName: import.meta.env.VITE_PAYMENT_MTN_NAME || 'CareNest',
-  },
-  'Orange Money': {
-    label: 'Orange Money',
-    number: import.meta.env.VITE_PAYMENT_ORANGE_NUMBER || phonePlaceholder,
-    accountName: import.meta.env.VITE_PAYMENT_ORANGE_NAME || 'CareNest',
-  },
-}
-
 const formatAmount = (amount) => `${amount.toLocaleString()} FCFA`
-
-function parsePaymentMessage(message) {
-  const safeMessage = String(message || '')
-  const amountMatch = safeMessage.match(/(?:XAF|FCFA|CFA)?\s*([0-9 .,_]{3,})\s*(?:XAF|FCFA|CFA)/i)
-  const phoneMatch = safeMessage.match(/(?:\+?237)?\s*6(?:[\s.-]?\d){8}/)
-  const transactionMatch = safeMessage.match(/(?:transaction|trans|txn|reference|ref|id|code)\D{0,12}([A-Z0-9-]{5,})/i)
-  const amount = amountMatch ? Number(amountMatch[1].replace(/\D/g, '')) : 0
-  const senderDigits = phoneMatch ? phoneMatch[0].replace(/\D/g, '') : ''
-  const senderPhone = senderDigits.length > 9 ? senderDigits.slice(-9) : senderDigits
-  const transactionId = transactionMatch ? transactionMatch[1].replace(/[^A-Za-z0-9]/g, '').toUpperCase() : ''
-
-  return { amount, senderPhone, transactionId }
-}
-
-function createPaymentReference(message) {
-  const parsed = parsePaymentMessage(message)
-  if (parsed.transactionId) return parsed.transactionId
-  if (parsed.senderPhone) return parsed.senderPhone
-  return String(message || '').trim().slice(0, 80)
-}
 
 const formatPlacedAt = (order) => {
   if (order?.createdAtDate) {
@@ -206,9 +173,8 @@ const createEmptyForm = (serviceType = 'laundry') => {
     address: serviceAddresses[0] || defaultCustomerAddress,
     pickupDate,
     pickupTime: '10:00',
-    paymentMethod: 'MTN Mobile Money',
+    paymentMethod: 'Fapshi',
     paymentReference: '',
-    paymentReceiptText: '',
     note: '',
   }
 }
@@ -237,7 +203,6 @@ function CustomerAppPage() {
   const [requestError, setRequestError] = useState('')
   const [complaintText, setComplaintText] = useState('')
   const [complaintStatus, setComplaintStatus] = useState({ loading: false, error: '', message: '' })
-  const [showReview, setShowReview] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [recentOrder, setRecentOrder] = useState(null)
   const [isCustomerMenuOpen, setIsCustomerMenuOpen] = useState(false)
@@ -301,7 +266,6 @@ function CustomerAppPage() {
   const selectedOption = requestConfig.serviceOptions.find(([name]) => name === form.serviceSpeed) || requestConfig.serviceOptions[0]
   const requestAmount = requestConfig.primaryOptions[primaryValue] + selectedOption[2]
   const isFapshiPayment = form.paymentMethod === 'Fapshi'
-  const manualPayment = manualPaymentMethods[form.paymentMethod]
   const selectedApplicationRole = ['provider', 'rider'].includes(applicationRole) ? applicationRole : null
   const applicationHeading = selectedApplicationRole
     ? selectedApplicationRole === 'provider'
@@ -354,10 +318,9 @@ function CustomerAppPage() {
     }))
     setRequestMessage('')
     setRequestError('')
-    setShowReview(false)
   }
 
-  function reviewServiceRequest() {
+  async function submitServiceRequest() {
     setRequestMessage('')
     setRequestError('')
     if (!user?.uid) {
@@ -372,21 +335,11 @@ function CustomerAppPage() {
       setRequestError('Please select an address, date, and time.')
       return
     }
-    if (manualPayment && form.paymentReceiptText.trim().length < 15) {
-      setRequestError('Please copy the payment confirmation SMS from MTN or Orange and paste it here.')
-      return
-    }
-    setShowReview(true)
-  }
-
-  async function submitServiceRequest() {
+    setIsSubmitting(true)
     if (isSubmitting) return
     setIsSubmitting(true)
     setRequestError('')
     const requestId = createRequestId()
-    const paymentReceiptText = form.paymentReceiptText.trim()
-    const parsedPaymentReceipt = parsePaymentMessage(paymentReceiptText)
-    const paymentReference = manualPayment ? createPaymentReference(paymentReceiptText) : form.paymentReference.trim()
     const nextOrder = {
       id: requestId,
       customerUid: user.uid,
@@ -399,15 +352,11 @@ function CustomerAppPage() {
       serviceSpeed: selectedOption[0],
       itemSummary: primaryValue,
       amount: requestAmount,
-      paymentMethod: form.paymentMethod,
-      paymentReference,
-      paymentReceiptText,
-      paymentReceiptAmount: parsedPaymentReceipt.amount || null,
-      paymentReceiptSenderPhone: parsedPaymentReceipt.senderPhone,
-      paymentReceiptTransactionId: parsedPaymentReceipt.transactionId,
-      paymentReceiverNumber: manualPayment?.number || '',
-      paymentReceiverName: manualPayment?.accountName || '',
-      paymentStatus: manualPayment ? 'Submitted' : 'Pending',
+      paymentMethod: 'Fapshi',
+      paymentReference: '',
+      paymentReceiptTransactionId: '',
+      paymentReceiptText: '',
+      paymentStatus: 'Pending',
       status: 'Pending',
       placedAt: 'Just now',
       currentStep: 0,
@@ -456,7 +405,6 @@ function CustomerAppPage() {
         [currentServiceType]: createEmptyForm(currentServiceType),
       }))
       setRequestMessage(`Request ${nextOrder.id} created successfully.`)
-      setShowReview(false)
       navigate(`/dashboard/customer/orders/${nextOrder.id}`)
     } catch (error) {
       setRequestError(error.message)
@@ -673,66 +621,21 @@ function CustomerAppPage() {
                   <label>{currentServiceType === 'delivery' ? 'Delivery Address' : 'Service Address'}<span className="request-input"><FiMapPin /><select name="address" value={form.address} onChange={updateForm}>{addresses.map((address) => <option key={address} value={address}>{address}</option>)}</select><FiChevronDown /></span></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Date' : 'Service Date'}<span className="request-input"><FiCalendar /><input name="pickupDate" type="date" min={minimumPickupDate} value={form.pickupDate} onChange={updateForm} /></span></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Time' : 'Service Time'}<span className="request-input"><FiClock /><input name="pickupTime" type="time" value={form.pickupTime} onChange={updateForm} /></span></label>
-                  <label>Payment Method<span className="request-input"><select name="paymentMethod" value={form.paymentMethod} onChange={updateForm}><option value="MTN Mobile Money">MTN Mobile Money</option><option value="Orange Money">Orange Money</option><option value="Fapshi">Fapshi</option><option value="Cash">Cash</option></select><FiChevronDown /></span></label>
-                  {isFapshiPayment && (
-                    <div className="manual-payment-panel">
-                      <div>
-                        <span>Fapshi payment</span>
-                        <strong>Process payment automatically</strong>
-                        <small>No MTN/Orange SMS copy needed for this method.</small>
-                      </div>
+                  <div className="manual-payment-panel">
+                    <div>
+                      <span>Fapshi payment</span>
+                      <strong>Pay securely with Fapshi</strong>
+                      <small>This request will be processed automatically via Fapshi.</small>
                     </div>
-                  )}
-                  {manualPayment && (
-                    <div className="manual-payment-panel">
-                      <div>
-                        <span>Send payment to</span>
-                        <strong>{manualPayment.number}</strong>
-                        <small>{manualPayment.accountName} - {manualPayment.label}</small>
-                      </div>
-                      <div>
-                        <span>Amount</span>
-                        <strong>{formatAmount(requestAmount)}</strong>
-                        <small>After payment, copy the confirmation SMS and paste it below.</small>
-                      </div>
-                    </div>
-                  )}
-                  {manualPayment && (
-                    <label className="request-note-field">
-                      Paste payment confirmation SMS
-                      <textarea
-                        className="payment-message-input"
-                        name="paymentReceiptText"
-                        value={form.paymentReceiptText}
-                        onChange={updateForm}
-                        placeholder="Paste the full MTN or Orange payment message here."
-                      />
-                    </label>
-                  )}
+                  </div>
                   <label className="request-note-field">Additional Note (Optional)<textarea name="note" value={form.note} onChange={updateForm} placeholder={requestConfig.notePlaceholder} /></label>
                 </div>
                 {requestMessage && <p className="request-message">{requestMessage}</p>}
                 {requestError && <p className="request-message request-error" role="alert">{requestError}</p>}
-                {showReview && (
-                  <section className="booking-review" aria-labelledby="booking-review-title">
-                    <div className="booking-review-header"><div><small>Final step</small><h2 id="booking-review-title">Review your request</h2></div><button type="button" onClick={() => setShowReview(false)}>Edit</button></div>
-                    <dl>
-                      <div><dt>Service</dt><dd>{requestConfig.label} · {selectedOption[0]}</dd></div>
-                      <div><dt>Details</dt><dd>{primaryValue}</dd></div>
-                      <div><dt>When</dt><dd>{formatPickupDate(form.pickupDate)}, {formatPickupTime(form.pickupTime)}</dd></div>
-                      <div><dt>Address</dt><dd>{form.address}</dd></div>
-                      <div><dt>Payment</dt><dd>{form.paymentMethod}</dd></div>
-                      {manualPayment && <div><dt>Send to</dt><dd>{manualPayment.number}</dd></div>}
-                      {manualPayment && <div><dt>Payment message</dt><dd>{form.paymentReceiptText}</dd></div>}
-                      <div><dt>Total</dt><dd>{formatAmount(requestAmount)}</dd></div>
-                    </dl>
-                    <button className="confirm-request" type="button" onClick={submitServiceRequest} disabled={isSubmitting}>{isSubmitting ? 'Creating request…' : 'Confirm and create request'}</button>
-                  </section>
-                )}
-                {!showReview && <div className="request-submit-row">
+                <div className="request-submit-row">
                   <span><small>Estimated total</small><strong>{formatAmount(requestAmount)}</strong></span>
-                  <button type="button" onClick={reviewServiceRequest}>Review request</button>
-                </div>}
+                  <button type="button" onClick={submitServiceRequest} disabled={isSubmitting}>{isSubmitting ? 'Processing payment…' : 'Pay with Fapshi'}</button>
+                </div>
               </div>
               <div className="request-aside">
                 <div className="aside-visual"><PrimaryIcon /></div>

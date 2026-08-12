@@ -32,10 +32,18 @@ export function AuthProvider({ children }) {
 
       setLoading(true)
       unsubscribeProfile = onSnapshot(doc(db, 'users', firebaseUser.uid), (snapshot) => {
-        setProfile(snapshot.exists() ? snapshot.data() : null)
+        const profileData = snapshot.exists() ? snapshot.data() : null
+        console.log('AuthProvider profile load', {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          profileExists: snapshot.exists(),
+          profileData,
+        })
+        setProfile(profileData)
         setError('')
         setLoading(false)
       }, () => {
+        console.log('AuthProvider profile load failed', { uid: firebaseUser.uid, email: firebaseUser.email })
         setProfile(null)
         setError('We could not load your account. Check your connection and try again.')
         setLoading(false)

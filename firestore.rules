@@ -28,6 +28,17 @@ service cloud.firestore {
     }
 
     function isCustomer() {
+      return role() == 'customer';
+    }
+
+    function signedInCustomerWithoutProfile() {
+      return signedIn()
+        && !hasUserDoc()
+        && request.resource.data.customerUid == request.auth.uid
+        && request.resource.data.customerEmail == request.auth.token.email;
+    }
+
+    function isVerifiedCustomer() {
       return role() == 'customer' && request.auth.token.email_verified == true;
     }
 
@@ -57,7 +68,7 @@ service cloud.firestore {
     }
 
     function validPaymentMethod(method) {
-      return method in ['Cash', 'MTN Mobile Money', 'Orange Money'];
+      return method == 'Fapshi';
     }
 
     function validStepForStatus(status, step) {
@@ -140,7 +151,7 @@ service cloud.firestore {
     }
 
     match /providerApplications/{applicationId} {
-      allow create: if isCustomer()
+      allow create: if isVerifiedCustomer()
         && applicationId == request.auth.uid
         && request.resource.data.userUid == request.auth.uid
         && request.resource.data.phone.matches('^\\+2376[0-9]{8}$')
@@ -176,7 +187,10 @@ service cloud.firestore {
 
     match /serviceRequests/{requestId} {
       allow create: if signedIn()
-        && isCustomer()
+        && (
+          isCustomer()
+          || signedInCustomerWithoutProfile()
+        )
         && request.resource.data.keys().hasAll([
           'customerUid',
           'customerEmail',

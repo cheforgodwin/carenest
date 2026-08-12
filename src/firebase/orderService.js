@@ -135,8 +135,14 @@ export async function createServiceRequest(order) {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }
-  const docRef = await addDoc(ordersRef, payload)
-  return { firestoreId: docRef.id, ...payload, createdAtDate: new Date(), updatedAtDate: new Date() }
+
+  const sanitizedPayload = Object.entries(payload).reduce((acc, [key, value]) => {
+    if (value !== undefined) acc[key] = value
+    return acc
+  }, {})
+
+  const docRef = await addDoc(ordersRef, sanitizedPayload)
+  return { firestoreId: docRef.id, ...sanitizedPayload, createdAtDate: new Date(), updatedAtDate: new Date() }
 }
 
 export function subscribeToAllOrders(onNext, onError) {
