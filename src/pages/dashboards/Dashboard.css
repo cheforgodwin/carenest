@@ -755,3 +755,14 @@
     font-size: 12px;
   }
 }
+
+@media (max-width: 340px) {
+  .metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-panel-header h2,
+  .dashboard-top h1 {
+    overflow-wrap: anywhere;
+  }
+}

@@ -289,6 +289,21 @@ h2 {
   }
 }
 
+@media (max-width: 430px) {
+  .hero-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-card {
+    padding: 18px;
+  }
+
+  .trust-grid span,
+  .trust-grid a {
+    align-items: flex-start;
+  }
+}
+
 @media (max-width: 380px) {
   .hero,
   .section {

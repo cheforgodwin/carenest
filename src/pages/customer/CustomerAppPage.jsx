@@ -200,6 +200,7 @@ function CustomerAppPage() {
   ))
   const [requestMessage, setRequestMessage] = useState('')
   const [requestError, setRequestError] = useState('')
+  const [paymentSuccess, setPaymentSuccess] = useState(null)
   const [complaintText, setComplaintText] = useState('')
   const [complaintStatus, setComplaintStatus] = useState({ loading: false, error: '', message: '' })
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -354,7 +355,6 @@ function CustomerAppPage() {
       placedAt: 'Just now',
       currentStep: 0,
     }
-
     if (isFapshiPayment) {
       try {
         const response = await fetch('/api/fapshi', {
@@ -382,8 +382,8 @@ function CustomerAppPage() {
 
         const result = await response.json()
         nextOrder.paymentStatus = result?.status || 'Pending'
-        nextOrder.paymentReference = result?.reference || nextOrder.paymentReference
-        nextOrder.paymentReceiptTransactionId = result?.transactionId || nextOrder.paymentReceiptTransactionId
+        nextOrder.paymentReference = result?.reference || result?.transId || nextOrder.paymentReference
+        nextOrder.paymentReceiptTransactionId = result?.transactionId || result?.transId || nextOrder.paymentReceiptTransactionId
         nextOrder.paymentReceiptText = result?.message ? String(result.message) : JSON.stringify(result)
       } catch (error) {
         setRequestError(`Fapshi payment failed: ${error.message}`)
@@ -399,8 +399,7 @@ function CustomerAppPage() {
         ...current,
         [currentServiceType]: createEmptyForm(currentServiceType),
       }))
-      setRequestMessage(`Request ${nextOrder.id} created successfully.`)
-      navigate(`/dashboard/customer/orders/${nextOrder.id}`)
+      setPaymentSuccess({ id: nextOrder.id, amount: nextOrder.amount })
     } catch (error) {
       setRequestError(error.message)
     } finally {
@@ -618,9 +617,9 @@ function CustomerAppPage() {
                   <label>{currentServiceType === 'laundry' ? 'Pickup Time' : 'Service Time'}<span className="request-input"><FiClock /><input name="pickupTime" type="time" value={form.pickupTime} onChange={updateForm} /></span></label>
                   <div className="manual-payment-panel">
                     <div>
-                      <span>Fapshi payment</span>
-                      <strong>Pay securely with Fapshi</strong>
-                      <small>This request will be processed automatically via Fapshi.</small>
+                      <span>Mobile Money payment</span>
+                      <strong>Pay securely</strong>
+                      <small>Your payment is processed securely and confirmed in CareNest.</small>
                     </div>
                   </div>
                   <label className="request-note-field">Additional Note (Optional)<textarea name="note" value={form.note} onChange={updateForm} placeholder={requestConfig.notePlaceholder} /></label>
@@ -718,6 +717,19 @@ function CustomerAppPage() {
               </div>
             </div>
           </section>
+        )}
+
+        {paymentSuccess && (
+          <div className="payment-success-backdrop" role="presentation">
+            <section className="payment-success-modal" role="dialog" aria-modal="true" aria-labelledby="payment-success-title">
+              <button className="payment-success-close" type="button" onClick={() => setPaymentSuccess(null)} aria-label="Close payment confirmation"><FiX /></button>
+              <span className="payment-success-icon"><FiCheck /></span>
+              <h2 id="payment-success-title">Payment successful</h2>
+              <p>Your {formatAmount(paymentSuccess.amount)} payment has been received and your request is confirmed.</p>
+              <small>Request {paymentSuccess.id}</small>
+              <button type="button" onClick={() => { setPaymentSuccess(null); navigate(`/dashboard/customer/orders/${paymentSuccess.id}`) }}>View order</button>
+            </section>
+          </div>
         )}
 
         <nav className="mobile-tabs">

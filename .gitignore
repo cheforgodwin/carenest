@@ -37,3 +37,6 @@ android-verifier/local.properties
 *.njsproj
 *.sln
 *.sw?
+
+.vercel
+.env*

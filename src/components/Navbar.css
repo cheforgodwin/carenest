@@ -204,3 +204,14 @@
     font-size: 13px;
   }
 }
+
+@media (max-width: 340px) {
+  .nav-links,
+  .nav-auth {
+    grid-template-columns: 1fr;
+  }
+
+  .nav-version {
+    grid-column: 1 / -1;
+  }
+}
