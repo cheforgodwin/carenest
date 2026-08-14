@@ -27,7 +27,7 @@ import {
   defaultCustomerCity,
   getStartingPrice,
   phonePlaceholder,
-  serviceAddresses,
+  availableServiceAddresses,
   servicePrices,
   supportPhoneHref,
 } from '../../config/businessConfig'
@@ -114,7 +114,7 @@ const serviceConfig = {
 
 const serviceSlugs = Object.keys(serviceConfig)
 
-const formatAmount = (amount) => `${amount.toLocaleString()} FCFA`
+const formatAmount = (amount) => `${Number(amount || 0).toLocaleString()} FCFA`
 
 const formatPlacedAt = (order) => {
   if (order?.createdAtDate) {
@@ -169,7 +169,7 @@ const createEmptyForm = (serviceType = 'laundry') => {
     serviceType,
     serviceSpeed: config.serviceOptions[0][0],
     [config.primaryField]: Object.keys(config.primaryOptions)[0],
-    address: serviceAddresses[0] || defaultCustomerAddress,
+    address: availableServiceAddresses[0] || defaultCustomerAddress || defaultCustomerCity,
     pickupDate,
     pickupTime: '10:00',
     paymentMethod: 'Fapshi',
@@ -178,7 +178,7 @@ const createEmptyForm = (serviceType = 'laundry') => {
   }
 }
 
-const addresses = serviceAddresses
+const addresses = availableServiceAddresses
 
 function CustomerAppPage() {
   const { profile, user } = useAuth()
@@ -263,7 +263,7 @@ function CustomerAppPage() {
   const form = forms[currentServiceType]
   const primaryValue = form[requestConfig.primaryField] || Object.keys(requestConfig.primaryOptions)[0]
   const selectedOption = requestConfig.serviceOptions.find(([name]) => name === form.serviceSpeed) || requestConfig.serviceOptions[0]
-  const requestAmount = requestConfig.primaryOptions[primaryValue] + selectedOption[2]
+  const requestAmount = Number(requestConfig.primaryOptions[primaryValue] || 0) + Number(selectedOption[2] || 0)
   const isFapshiPayment = form.paymentMethod === 'Fapshi'
   const selectedApplicationRole = ['provider', 'rider'].includes(applicationRole) ? applicationRole : null
   const applicationHeading = selectedApplicationRole
@@ -613,7 +613,7 @@ function CustomerAppPage() {
                 </div>
                 <div className="request-field-grid">
                   <label>{requestConfig.primaryLabel}<span className="request-input"><select name={requestConfig.primaryField} value={primaryValue} onChange={updateForm}>{Object.keys(requestConfig.primaryOptions).map((type) => <option key={type} value={type}>{type}</option>)}</select><FiChevronDown /></span></label>
-                  <label>{currentServiceType === 'delivery' ? 'Delivery Address' : 'Service Address'}<span className="request-input"><FiMapPin /><select name="address" value={form.address} onChange={updateForm}>{addresses.map((address) => <option key={address} value={address}>{address}</option>)}</select><FiChevronDown /></span></label>
+                  <label>{currentServiceType === 'delivery' ? 'Delivery Address' : 'Service Address'}<span className="request-input"><FiMapPin /><input name="address" type="text" list="service-addresses" value={form.address} onChange={updateForm} placeholder="Enter your pickup or service address" required /></span><datalist id="service-addresses">{addresses.map((address) => <option key={address} value={address} />)}</datalist></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Date' : 'Service Date'}<span className="request-input"><FiCalendar /><input name="pickupDate" type="date" min={minimumPickupDate} value={form.pickupDate} onChange={updateForm} /></span></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Time' : 'Service Time'}<span className="request-input"><FiClock /><input name="pickupTime" type="time" value={form.pickupTime} onChange={updateForm} /></span></label>
                   <div className="manual-payment-panel">
