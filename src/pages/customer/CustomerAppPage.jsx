@@ -6,7 +6,6 @@ import {
   FiBell,
   FiBriefcase,
   FiCalendar,
-  FiCamera,
   FiCheck,
   FiChevronDown,
   FiClock,
@@ -182,7 +181,7 @@ const createEmptyForm = (serviceType = 'laundry') => {
 const addresses = serviceAddresses
 
 function CustomerAppPage() {
-  const { profile, setSession, user } = useAuth()
+  const { profile, user } = useAuth()
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const isServices = pathname.includes('/services')
@@ -290,18 +289,13 @@ function CustomerAppPage() {
     setApplicationStatus({ loading: false, error: '', message: '' })
   }
 
-  useEffect(() => {
-    if (selectedApplicationRole) {
-      setApplicationForm((current) => ({ ...current, role: selectedApplicationRole }))
-    }
-  }, [selectedApplicationRole])
-
   async function submitApplication(event) {
     event.preventDefault()
     setApplicationStatus({ loading: true, error: '', message: '' })
     try {
-      await createProviderApplication(user, profile, applicationForm)
-      setApplicationStatus({ loading: false, error: '', message: `Application submitted. CareNest will review it before ${applicationForm.role} access is enabled.` })
+      const application = { ...applicationForm, role: selectedApplicationRole || applicationForm.role }
+      await createProviderApplication(user, profile, application)
+      setApplicationStatus({ loading: false, error: '', message: `Application submitted. CareNest will review it before ${application.role} access is enabled.` })
     } catch (error) {
       setApplicationStatus({ loading: false, error: error.message, message: '' })
     }
@@ -335,7 +329,6 @@ function CustomerAppPage() {
       setRequestError('Please select an address, date, and time.')
       return
     }
-    setIsSubmitting(true)
     if (isSubmitting) return
     setIsSubmitting(true)
     setRequestError('')
@@ -393,7 +386,9 @@ function CustomerAppPage() {
         nextOrder.paymentReceiptTransactionId = result?.transactionId || nextOrder.paymentReceiptTransactionId
         nextOrder.paymentReceiptText = result?.message ? String(result.message) : JSON.stringify(result)
       } catch (error) {
-        throw new Error(`Fapshi payment failed: ${error.message}`)
+        setRequestError(`Fapshi payment failed: ${error.message}`)
+        setIsSubmitting(false)
+        return
       }
     }
 

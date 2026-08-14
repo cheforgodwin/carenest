@@ -7,7 +7,7 @@ import {
   sendPasswordResetEmail,
   updateProfile,
 } from 'firebase/auth'
-import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore'
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { phoneCountryCode } from '../config/businessConfig'
 import { auth, db } from './firebaseConfig'
 import { isValidCameroonPhone as isValidCameroonPhoneUtil, normalizePhoneNumber } from './phoneUtils'

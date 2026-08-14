@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../auth/useAuth'
-import { FiArrowRight } from 'react-icons/fi'
 import {
   assignServiceRequestToRider,
   subscribeToOpenRiderDeliveries,
@@ -9,10 +8,6 @@ import {
   updateRiderDeliveryStatus,
 } from '../../firebase/orderService'
 import DashboardShell from './DashboardShell'
-
-function formatAmount(amount) {
-  return `${Number(amount || 0).toLocaleString()} FCFA`
-}
 
 function normalizeStatus(status) {
   return String(status || 'Pending').toLowerCase().replace(/\s+/g, '-')

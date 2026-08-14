@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { FiLock, FiMail } from 'react-icons/fi'
+import { FiLock, FiMail, FiEye, FiEyeOff } from 'react-icons/fi'
 import { useAuth } from '../auth/useAuth'
 import Logo from '../components/Logo'
 import { getAuthErrorMessage, getDashboardPath, loginWithEmail, logout, requestPasswordReset } from '../firebase/authService'
@@ -14,6 +14,7 @@ function LoginPage({ adminOnly = false }) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
 
   function updateField(event) {
     setForm({ ...form, [event.target.name]: event.target.value })
@@ -73,7 +74,7 @@ function LoginPage({ adminOnly = false }) {
           <h2>{adminOnly ? 'Admin login' : 'Login'}</h2>
           <p>{adminOnly ? 'Owner account only.' : 'Access your account.'}</p>
           <label>Email<span className="auth-input"><FiMail /><input name="email" type="email" value={form.email} onChange={updateField} required /></span></label>
-          <label>Password<span className="auth-input"><FiLock /><input name="password" type="password" value={form.password} onChange={updateField} required /></span></label>
+          <label>Password<span className="auth-input"><FiLock /><input name="password" type={showPassword ? 'text' : 'password'} value={form.password} onChange={updateField} required /><button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)}>{showPassword ? <FiEyeOff /> : <FiEye />}</button></span></label>
           {error && <p className="auth-status error">{error}</p>}
           {message && <p className="auth-status">{message}</p>}
           <button type="submit" disabled={loading}>{loading ? 'Logging in...' : adminOnly ? 'Open admin dashboard' : 'Login'}</button>

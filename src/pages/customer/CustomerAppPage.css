@@ -1229,7 +1229,7 @@
   min-width: 0;
   border: 0;
   outline: 0;
-  color: var(--cn-muted);
+  color: var(--cn-ink);
   background: transparent;
   font: inherit;
   font-weight: 750;
@@ -1237,6 +1237,29 @@
 
 .request-input select {
   appearance: none;
+  cursor: pointer;
+}
+
+.request-input input::placeholder {
+  color: var(--cn-muted);
+  opacity: 0.8;
+}
+
+.request-input select,
+.request-input input {
+  transition: color 120ms ease;
+}
+
+.request-input:has(input:focus),
+.request-input:has(select:focus) {
+  border-color: var(--cn-green);
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(0, 127, 69, 0.08);
+}
+
+.request-input input:focus,
+.request-input select:focus {
+  color: var(--cn-ink);
 }
 
 .mobile-content textarea {

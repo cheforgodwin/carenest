@@ -9,7 +9,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "vitest run tests/translationService.test.js && node --test tests/phone-utils.test.mjs",
     "test:unit": "vitest run tests/translationService.test.js",
     "test:rules": "firebase emulators:exec --only firestore --project demo-carenest \"node --test tests/firestore.rules.test.mjs\"",
     "test:load": "firebase emulators:exec --only auth,firestore --project demo-carenest \"node scripts/load-test.mjs\"",

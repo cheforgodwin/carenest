@@ -70,7 +70,7 @@ export async function translateMessages(entries, targetLocale) {
 
   if (missingEntries.length === 0) return result
 
-  const apiKey = import.meta?.env?.VITE_GOOGLE_CLOUD_TRANSLATION_API_KEY || (typeof process !== 'undefined' && process?.env?.VITE_GOOGLE_CLOUD_TRANSLATION_API_KEY)
+  const apiKey = import.meta.env.VITE_GOOGLE_CLOUD_TRANSLATION_API_KEY || globalThis.process?.env?.VITE_GOOGLE_CLOUD_TRANSLATION_API_KEY
   if (!apiKey) {
     throw new Error('Missing VITE_GOOGLE_CLOUD_TRANSLATION_API_KEY')
   }
@@ -110,37 +110,6 @@ export async function translateMessages(entries, targetLocale) {
 export async function translateText(messageKey, text, targetLocale) {
   const entries = await translateMessages([{ key: messageKey, text }], targetLocale)
   return entries[messageKey]
-
-  const apiKey = import.meta?.env?.VITE_GOOGLE_CLOUD_TRANSLATION_API_KEY || (typeof process !== 'undefined' && process?.env?.VITE_GOOGLE_CLOUD_TRANSLATION_API_KEY)
-  if (!apiKey) {
-    throw new Error('Missing VITE_GOOGLE_CLOUD_TRANSLATION_API_KEY')
-  }
-
-  const response = await fetch(`${GOOGLE_TRANSLATE_ENDPOINT}?key=${encodeURIComponent(apiKey)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      q: text,
-      source: 'en',
-      target: locale,
-      format: 'text',
-    }),
-  })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => null)
-    throw new Error(error?.error?.message || 'Google Translate API request failed')
-  }
-
-  const data = await response.json()
-  const translatedText = data?.data?.translations?.[0]?.translatedText
-  if (!translatedText) {
-    throw new Error('Translation response could not be parsed')
-  }
-
-  cache[cacheKey] = translatedText
-  setStoredCache(cache)
-  return translatedText
 }
 
 export function getBrowserLocale() {

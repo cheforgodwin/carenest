@@ -27,22 +27,18 @@ export function I18nProvider({ children }) {
     window.localStorage.setItem(localeStorageKey, locale)
   }, [locale])
 
-  useEffect(() => {
-    if (locale === 'en') return
-
-    setTranslations((current) => {
-      const cached = getCachedTranslations(locale)
-      if (!cached || Object.keys(cached).length === 0) return current
-      if (current[locale] && Object.keys(current[locale]).length >= Object.keys(cached).length) return current
-
-      return {
-        ...current,
-        [locale]: {
-          ...current[locale],
-          ...cached,
-        },
+  const updateLocale = useCallback((nextLocale) => {
+    const resolvedLocale = typeof nextLocale === 'function' ? nextLocale(locale) : nextLocale
+    if (resolvedLocale !== 'en') {
+      const cached = getCachedTranslations(resolvedLocale)
+      if (Object.keys(cached).length > 0) {
+        setTranslations((current) => ({
+          ...current,
+          [resolvedLocale]: { ...current[resolvedLocale], ...cached },
+        }))
       }
-    })
+    }
+    setLocale(resolvedLocale)
   }, [locale])
 
   useEffect(() => {
@@ -107,14 +103,14 @@ export function I18nProvider({ children }) {
 
   const contextValue = useMemo(() => ({
     locale,
-    setLocale,
+    setLocale: updateLocale,
     supportedLocales,
     translateMessage,
     dictionary,
     translations,
     loading,
     error,
-  }), [locale, translateMessage, dictionary, loading, error, translations])
+  }), [locale, updateLocale, translateMessage, dictionary, loading, error, translations])
 
   return <I18nContext.Provider value={contextValue}>{children}</I18nContext.Provider>
 }

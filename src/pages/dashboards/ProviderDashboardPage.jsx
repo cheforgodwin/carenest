@@ -31,7 +31,7 @@ function getArea(address = '') {
 function ProviderDashboardPage() {
   const [searchParams] = useSearchParams()
   const activeView = searchParams.get('view') || 'overview'
-  const { profile, setSession, user } = useAuth()
+  const { profile, user } = useAuth()
   const [orders, setOrders] = useState([])
   const [openOrders, setOpenOrders] = useState([])
   const [error, setError] = useState('')

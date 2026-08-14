@@ -144,6 +144,31 @@
   font-weight: 750;
 }
 
+.password-toggle {
+  width: auto !important;
+  min-height: auto !important;
+  padding: 4px !important;
+  border: none !important;
+  border-radius: 4px !important;
+  background: transparent !important;
+  color: #008a4c !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-weight: 750 !important;
+  flex-shrink: 0 !important;
+}
+
+.password-toggle:hover {
+  background: rgba(0, 138, 76, 0.1) !important;
+}
+
+.password-toggle svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
 .auth-card button {
   width: 100%;
   min-height: 52px;
