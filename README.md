@@ -33,6 +33,7 @@ For secure Fapshi integration with Vercel, use server-side env vars and the sand
 
 ```bash
 FAPSHI_MODE="sandbox"
+FAPSHI_PAYMENT_FLOW="direct"
 FAPSHI_SANDBOX_API_URL="https://sandbox.fapshi.com/initiate-pay"
 FAPSHI_SANDBOX_API_USER="your-sandbox-user-id"
 FAPSHI_SANDBOX_SECRET_KEY="your-sandbox-secret"
@@ -42,6 +43,12 @@ FAPSHI_LIVE_SECRET_KEY="your-live-secret"
 ```
 
 Keep the `FAPSHI_*_SECRET_KEY` values in your Vercel project settings, not in `VITE_*`.
+
+`FAPSHI_PAYMENT_FLOW="direct"` sends the Mobile Money approval prompt to the phone number saved on the customer account, so CareNest does not redirect the customer to Fapshi checkout. Direct Pay must be enabled by Fapshi before using it in live mode.
+
+### Fapshi payment verification
+
+Set your Fapshi service webhook URL to `https://your-domain.vercel.app/api/fapshi-webhook`, then set the same webhook secret in both Fapshi and `FAPSHI_WEBHOOK_SECRET` in Vercel. Add `FIREBASE_SERVICE_ACCOUNT_JSON` in Vercel as a single-line Firebase service-account JSON value. The webhook verifies the transaction directly with Fapshi before marking a matching CareNest order as `Paid` (or `Failed`).
 
 ## SMS Payment Verifier
 

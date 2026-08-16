@@ -57,20 +57,26 @@ export default async function handler(req, res) {
 
   const payload = req.body || {}
   const order = payload.order || {}
+  const paymentFlow = String(process.env.FAPSHI_PAYMENT_FLOW || 'direct').trim().toLowerCase()
+  const isDirectPayment = paymentFlow === 'direct' && payload.type === 'direct_payment_request'
+  const paymentUrl = isDirectPayment
+    ? `${apiUrl.replace(/\/initiate-pay\/?$/, '').replace(/\/$/, '')}/direct-pay`
+    : apiUrl
+  const phone = String(order.customerPhone || payload.phone || '').replace(/\D/g, '').replace(/^237/, '')
+  if (isDirectPayment && !phone) {
+    return res.status(400).json({ error: 'A customer Mobile Money number is required for direct payment.' })
+  }
   const fapshiPayload = {
     amount: order.amount || payload.amount || 0,
     email: order.customerEmail || payload.email || '',
     userId: order.customerUid || payload.userId || order.id || '',
-    metadata: {
-      customerName: order.customerName || payload.customerName,
-      service: order.service || payload.service,
-      serviceType: order.serviceType || payload.serviceType,
-      paymentMethod: order.paymentMethod || payload.paymentMethod,
-    },
+    externalId: order.id || payload.externalId || '',
+    message: order.service ? `CareNest ${order.service} request ${order.id}` : payload.message || 'CareNest service request',
+    ...(isDirectPayment ? { phone, name: order.customerName || payload.customerName || '' } : {}),
   }
 
   try {
-    const response = await fetch(apiUrl, {
+    const response = await fetch(paymentUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -81,11 +87,16 @@ export default async function handler(req, res) {
     })
 
     const data = await response.text()
-    const parsed = data ? JSON.parse(data) : {}
+    let parsed = {}
+    try {
+      parsed = data ? JSON.parse(data) : {}
+    } catch {
+      parsed = { message: data }
+    }
 
     if (!response.ok) {
       return res.status(response.status).json({
-        error: 'Fapshi request failed.',
+        error: parsed.message || 'Fapshi request failed.',
         status: response.status,
         details: parsed,
       })

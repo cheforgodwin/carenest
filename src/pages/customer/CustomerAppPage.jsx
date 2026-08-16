@@ -174,6 +174,7 @@ const createEmptyForm = (serviceType = 'laundry') => {
     pickupTime: '10:00',
     paymentMethod: 'Fapshi',
     paymentReference: '',
+    paymentPhone: '',
     note: '',
   }
 }
@@ -339,7 +340,7 @@ function CustomerAppPage() {
       customerUid: user.uid,
       customerName: profile?.name || user.displayName || 'Customer',
       customerEmail: user.email,
-      customerPhone: profile?.phone || '',
+      customerPhone: form.paymentPhone || profile?.phone || '',
       service: requestConfig.label,
       serviceType: currentServiceType,
       ...form,
@@ -356,12 +357,17 @@ function CustomerAppPage() {
       currentStep: 0,
     }
     if (isFapshiPayment) {
+      if (!nextOrder.customerPhone) {
+        setRequestError('Enter the Mobile Money number that should receive the payment prompt.')
+        setIsSubmitting(false)
+        return
+      }
       try {
         const response = await fetch('/api/fapshi', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            type: 'payment_request',
+            type: 'direct_payment_request',
             order: {
               id: nextOrder.id,
               amount: nextOrder.amount,
@@ -399,7 +405,11 @@ function CustomerAppPage() {
         ...current,
         [currentServiceType]: createEmptyForm(currentServiceType),
       }))
-      setPaymentSuccess({ id: nextOrder.id, amount: nextOrder.amount })
+      setPaymentSuccess({
+        id: nextOrder.id,
+        amount: nextOrder.amount,
+        confirmed: String(nextOrder.paymentStatus).toUpperCase() === 'SUCCESSFUL',
+      })
     } catch (error) {
       setRequestError(error.message)
     } finally {
@@ -615,6 +625,7 @@ function CustomerAppPage() {
                   <label>{currentServiceType === 'delivery' ? 'Delivery Address' : 'Service Address'}<span className="request-input"><FiMapPin /><input name="address" type="text" list="service-addresses" value={form.address} onChange={updateForm} placeholder="Enter your pickup or service address" required /></span><datalist id="service-addresses">{addresses.map((address) => <option key={address} value={address} />)}</datalist></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Date' : 'Service Date'}<span className="request-input"><FiCalendar /><input name="pickupDate" type="date" min={minimumPickupDate} value={form.pickupDate} onChange={updateForm} /></span></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Time' : 'Service Time'}<span className="request-input"><FiClock /><input name="pickupTime" type="time" value={form.pickupTime} onChange={updateForm} /></span></label>
+                  <label>Mobile Money Number<span className="request-input"><FiPhone /><input name="paymentPhone" type="tel" value={form.paymentPhone || profile?.phone || ''} onChange={updateForm} placeholder={phonePlaceholder} required /></span></label>
                   <div className="manual-payment-panel">
                     <div>
                       <span>Mobile Money payment</span>
@@ -724,8 +735,10 @@ function CustomerAppPage() {
             <section className="payment-success-modal" role="dialog" aria-modal="true" aria-labelledby="payment-success-title">
               <button className="payment-success-close" type="button" onClick={() => setPaymentSuccess(null)} aria-label="Close payment confirmation"><FiX /></button>
               <span className="payment-success-icon"><FiCheck /></span>
-              <h2 id="payment-success-title">Payment successful</h2>
-              <p>Your {formatAmount(paymentSuccess.amount)} payment has been received and your request is confirmed.</p>
+              <h2 id="payment-success-title">{paymentSuccess.confirmed ? 'Payment successful' : 'Payment request created'}</h2>
+              <p>{paymentSuccess.confirmed
+                ? `Your ${formatAmount(paymentSuccess.amount)} payment has been received and your request is confirmed.`
+                : 'We are waiting for Fapshi to confirm the payment. Your order will update automatically once it is verified.'}</p>
               <small>Request {paymentSuccess.id}</small>
               <button type="button" onClick={() => { setPaymentSuccess(null); navigate(`/dashboard/customer/orders/${paymentSuccess.id}`) }}>View order</button>
             </section>
