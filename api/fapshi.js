@@ -96,7 +96,7 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       return res.status(response.status).json({
-        error: parsed.message || 'Fapshi request failed.',
+        error: parsed.message || 'Unable to start the Mobile Money payment.',
         status: response.status,
         details: parsed,
       })
@@ -105,7 +105,7 @@ export default async function handler(req, res) {
     return res.status(200).json(parsed)
   } catch (error) {
     return res.status(500).json({
-      error: 'Fapshi proxy error.',
+      error: 'The payment service is temporarily unavailable.',
       details: String(error),
     })
   }

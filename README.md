@@ -48,7 +48,7 @@ Keep the `FAPSHI_*_SECRET_KEY` values in your Vercel project settings, not in `V
 
 ### Fapshi payment verification
 
-Set your Fapshi service webhook URL to `https://your-domain.vercel.app/api/fapshi-webhook`, then set the same webhook secret in both Fapshi and `FAPSHI_WEBHOOK_SECRET` in Vercel. Add `FIREBASE_SERVICE_ACCOUNT_JSON` in Vercel as a single-line Firebase service-account JSON value. The webhook verifies the transaction directly with Fapshi before marking a matching CareNest order as `Paid` (or `Failed`).
+Set your Fapshi service webhook URL to `https://your-domain.vercel.app/api/fapshi-webhook`. Generate a webhook secret, set it in Fapshi, and store the same value as `FAPSHI_WEBHOOK_SECRET` in Vercel. Add `FIREBASE_SERVICE_ACCOUNT_JSON` in Vercel as a single-line Firebase service-account JSON value. The webhook checks Fapshi's `x-wh-secret` header, then verifies every callback by querying Fapshi with server-side credentials and matching its transaction ID, order ID, and amount before marking a CareNest order as `Paid` (or `Failed`).
 
 ## SMS Payment Verifier
 

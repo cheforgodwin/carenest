@@ -2,7 +2,7 @@ import { after, before, beforeEach, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing'
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore'
 
 let env
 const projectId = 'demo-carenest'
@@ -67,11 +67,11 @@ test('a customer cannot change role or payment state', async () => {
   await assertFails(updateDoc(doc(db, 'serviceRequests/order-a'), { paymentStatus: 'Paid' }))
 })
 
-test('unverified customers can create bookings but cannot create provider applications', async () => {
+test('signed-in customers can create bookings and pending provider applications', async () => {
   await seed()
   const db = env.authenticatedContext('customer-a', { email_verified: false }).firestore()
   await assertSucceeds(setDoc(doc(db, 'serviceRequests/unverified-order'), baseOrder))
-  await assertFails(setDoc(doc(db, 'providerApplications/customer-a'), {
+  await assertSucceeds(setDoc(doc(db, 'providerApplications/customer-a'), {
     userUid: 'customer-a', name: 'Customer A', email: 'a@example.com', phone: '+237670000001',
     services: 'Cleaning', area: 'Douala', experience: 'Two years', status: 'Pending',
     identityVerified: false, payoutPhoneVerified: false,
@@ -102,6 +102,12 @@ test('only one provider wins concurrent acceptance', async () => {
   })
   const outcomes = await Promise.allSettled([accept(first, 'provider-a'), accept(second, 'provider-b')])
   assert.equal(outcomes.filter((item) => item.status === 'fulfilled').length, 1)
+})
+
+test('an admin-approved provider can see open jobs without email verification', async () => {
+  await seed()
+  const db = env.authenticatedContext('provider-a', { email_verified: false }).firestore()
+  await assertSucceeds(getDocs(query(collection(db, 'serviceRequests'), where('status', '==', 'Pending'))))
 })
 
 test('a provider cannot edit price or another provider job', async () => {

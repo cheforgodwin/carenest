@@ -5,6 +5,7 @@ import {
   signOut,
   setPersistence,
   sendPasswordResetEmail,
+  sendEmailVerification,
   updateProfile,
 } from 'firebase/auth'
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore'
@@ -91,6 +92,7 @@ export async function signUpWithProfile(profile) {
   )
   await updateProfile(credential.user, { displayName: profile.name.trim() })
   const createdProfile = await createUserProfile(credential.user, profile)
+  await sendEmailVerification(credential.user).catch(() => {})
   return createdProfile
 }
 
@@ -106,6 +108,11 @@ export function logout() {
 
 export function requestPasswordReset(email) {
   return sendPasswordResetEmail(auth, email.trim())
+}
+
+export function requestEmailVerification(user) {
+  if (!user) throw new Error('Please login again before requesting verification.')
+  return sendEmailVerification(user)
 }
 
 export function getDashboardPath(accountType) {

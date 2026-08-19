@@ -1207,6 +1207,30 @@
   line-height: 1.2;
 }
 
+.payment-network-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.payment-network-badges b {
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: #111111;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.payment-network-mtn {
+  background: #ffcb05;
+}
+
+.payment-network-orange {
+  color: #ffffff !important;
+  background: #ff7900;
+}
+
 .mobile-content label div,
 .request-input,
 .mobile-content textarea {

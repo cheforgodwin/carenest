@@ -172,7 +172,7 @@ const createEmptyForm = (serviceType = 'laundry') => {
     address: availableServiceAddresses[0] || defaultCustomerAddress || defaultCustomerCity,
     pickupDate,
     pickupTime: '10:00',
-    paymentMethod: 'Fapshi',
+    paymentMethod: 'Mobile Money',
     paymentReference: '',
     paymentPhone: '',
     note: '',
@@ -266,7 +266,7 @@ function CustomerAppPage() {
   const primaryValue = form[requestConfig.primaryField] || Object.keys(requestConfig.primaryOptions)[0]
   const selectedOption = requestConfig.serviceOptions.find(([name]) => name === form.serviceSpeed) || requestConfig.serviceOptions[0]
   const requestAmount = Number(requestConfig.primaryOptions[primaryValue] || 0) + Number(selectedOption[2] || 0)
-  const isFapshiPayment = form.paymentMethod === 'Fapshi'
+  const isMobileMoneyPayment = form.paymentMethod === 'Mobile Money'
   const selectedApplicationRole = ['provider', 'rider'].includes(applicationRole) ? applicationRole : null
   const applicationHeading = selectedApplicationRole
     ? selectedApplicationRole === 'provider'
@@ -347,7 +347,7 @@ function CustomerAppPage() {
       serviceSpeed: selectedOption[0],
       itemSummary: primaryValue,
       amount: requestAmount,
-      paymentMethod: 'Fapshi',
+      paymentMethod: 'Mobile Money',
       paymentReference: '',
       paymentReceiptTransactionId: '',
       paymentReceiptText: '',
@@ -356,14 +356,14 @@ function CustomerAppPage() {
       placedAt: 'Just now',
       currentStep: 0,
     }
-    if (isFapshiPayment) {
+    if (isMobileMoneyPayment) {
       if (!nextOrder.customerPhone) {
         setRequestError('Enter the Mobile Money number that should receive the payment prompt.')
         setIsSubmitting(false)
         return
       }
       try {
-        const response = await fetch('/api/fapshi', {
+        const response = await fetch('/api/payments', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -383,16 +383,18 @@ function CustomerAppPage() {
 
         if (!response.ok) {
           const errorBody = await response.json().catch(() => null)
-          throw new Error(errorBody?.error || 'Fapshi request failed')
+          throw new Error(errorBody?.error || 'Unable to start the payment')
         }
 
         const result = await response.json()
-        nextOrder.paymentStatus = result?.status || 'Pending'
+        const providerStatus = String(result?.status || '').toUpperCase()
+        nextOrder.paymentStatus = providerStatus === 'SUCCESSFUL' ? 'Submitted' : 'Pending'
+        nextOrder.paymentProviderStatus = providerStatus || 'PENDING'
         nextOrder.paymentReference = result?.reference || result?.transId || nextOrder.paymentReference
         nextOrder.paymentReceiptTransactionId = result?.transactionId || result?.transId || nextOrder.paymentReceiptTransactionId
         nextOrder.paymentReceiptText = result?.message ? String(result.message) : JSON.stringify(result)
       } catch (error) {
-        setRequestError(`Fapshi payment failed: ${error.message}`)
+        setRequestError(`Mobile Money payment failed: ${error.message}`)
         setIsSubmitting(false)
         return
       }
@@ -408,7 +410,7 @@ function CustomerAppPage() {
       setPaymentSuccess({
         id: nextOrder.id,
         amount: nextOrder.amount,
-        confirmed: String(nextOrder.paymentStatus).toUpperCase() === 'SUCCESSFUL',
+        confirmed: String(nextOrder.paymentProviderStatus).toUpperCase() === 'SUCCESSFUL',
       })
     } catch (error) {
       setRequestError(error.message)
@@ -628,9 +630,13 @@ function CustomerAppPage() {
                   <label>Mobile Money Number<span className="request-input"><FiPhone /><input name="paymentPhone" type="tel" value={form.paymentPhone || profile?.phone || ''} onChange={updateForm} placeholder={phonePlaceholder} required /></span></label>
                   <div className="manual-payment-panel">
                     <div>
-                      <span>Mobile Money payment</span>
-                      <strong>Pay securely</strong>
-                      <small>Your payment is processed securely and confirmed in CareNest.</small>
+                      <span>Secure Mobile Money</span>
+                      <strong>MTN MoMo and Orange Money</strong>
+                      <div className="payment-network-badges" aria-label="Supported payment networks">
+                        <b className="payment-network-mtn">MTN MoMo</b>
+                        <b className="payment-network-orange">Orange Money</b>
+                      </div>
+                      <small>Enter your number and approve the prompt on your phone. Confirmation is automatic.</small>
                     </div>
                   </div>
                   <label className="request-note-field">Additional Note (Optional)<textarea name="note" value={form.note} onChange={updateForm} placeholder={requestConfig.notePlaceholder} /></label>
@@ -639,7 +645,7 @@ function CustomerAppPage() {
                 {requestError && <p className="request-message request-error" role="alert">{requestError}</p>}
                 <div className="request-submit-row">
                   <span><small>Estimated total</small><strong>{formatAmount(requestAmount)}</strong></span>
-                  <button type="button" onClick={submitServiceRequest} disabled={isSubmitting}>{isSubmitting ? 'Processing payment…' : 'Pay with Fapshi'}</button>
+                  <button type="button" onClick={submitServiceRequest} disabled={isSubmitting}>{isSubmitting ? 'Processing…' : 'Pay'}</button>
                 </div>
               </div>
               <div className="request-aside">
@@ -697,7 +703,7 @@ function CustomerAppPage() {
                 <div><span>Service</span><strong>{viewedOrder.service}</strong></div>
                 <div><span>Pickup</span><strong>{formatPickupDate(viewedOrder.pickupDate)}, {formatPickupTime(viewedOrder.pickupTime)}</strong></div>
                 <div><span>Details</span><strong>{viewedOrder.note || viewedOrder.itemSummary || viewedOrder.clothesType}</strong></div>
-                <div><span>Payment</span><strong>{viewedOrder.paymentMethod || 'Cash'} - {viewedOrder.paymentStatus || 'Pending'}</strong></div>
+                <div><span>Payment</span><strong>Mobile Money - {viewedOrder.paymentStatus || 'Pending'}</strong></div>
                 {viewedOrder.paymentReceiverNumber && <div><span>Paid to</span><strong>{viewedOrder.paymentReceiverNumber}</strong></div>}
                 {viewedOrder.paymentReference && <div><span>Payment ref</span><strong>{viewedOrder.paymentReference}</strong></div>}
                 {viewedOrder.paymentReceiptText && <div><span>Payment message</span><strong>{viewedOrder.paymentReceiptText}</strong></div>}
@@ -738,7 +744,7 @@ function CustomerAppPage() {
               <h2 id="payment-success-title">{paymentSuccess.confirmed ? 'Payment successful' : 'Payment request created'}</h2>
               <p>{paymentSuccess.confirmed
                 ? `Your ${formatAmount(paymentSuccess.amount)} payment has been received and your request is confirmed.`
-                : 'We are waiting for Fapshi to confirm the payment. Your order will update automatically once it is verified.'}</p>
+                : 'Approve the Mobile Money prompt on your phone. Your order will update automatically once payment is confirmed.'}</p>
               <small>Request {paymentSuccess.id}</small>
               <button type="button" onClick={() => { setPaymentSuccess(null); navigate(`/dashboard/customer/orders/${paymentSuccess.id}`) }}>View order</button>
             </section>

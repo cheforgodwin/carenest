@@ -24,7 +24,10 @@ service cloud.firestore {
     }
 
     function isProvider() {
-      return role() == 'provider' && request.auth.token.email_verified == true;
+      // Only an administrator can promote an account to provider. That approval
+      // is the authorization boundary; Firebase email verification is not a
+      // second provider-approval system.
+      return role() == 'provider';
     }
 
     function isCustomer() {
@@ -36,10 +39,6 @@ service cloud.firestore {
         && !hasUserDoc()
         && request.resource.data.customerUid == request.auth.uid
         && request.resource.data.customerEmail == request.auth.token.email;
-    }
-
-    function isVerifiedCustomer() {
-      return role() == 'customer' && request.auth.token.email_verified == true;
     }
 
     function ownsUserDoc(userId) {
@@ -68,7 +67,7 @@ service cloud.firestore {
     }
 
     function validPaymentMethod(method) {
-      return method == 'Fapshi';
+      return method in ['Mobile Money', 'Fapshi'];
     }
 
     function validStepForStatus(status, step) {
@@ -151,7 +150,7 @@ service cloud.firestore {
     }
 
     match /providerApplications/{applicationId} {
-      allow create: if isVerifiedCustomer()
+      allow create: if isCustomer()
         && applicationId == request.auth.uid
         && request.resource.data.userUid == request.auth.uid
         && request.resource.data.phone.matches('^\\+2376[0-9]{8}$')
@@ -224,16 +223,16 @@ service cloud.firestore {
       allow get: if signedIn()
         && (
           isAdmin()
-          || resource.data.customerUid == request.auth.uid
-          || resource.data.providerUid == request.auth.uid
+          || resource.data.get('customerUid', '') == request.auth.uid
+          || resource.data.get('providerUid', '') == request.auth.uid
           || (isProvider() && resource.data.status == 'Pending')
         );
 
       allow list: if signedIn()
         && (
           isAdmin()
-          || resource.data.customerUid == request.auth.uid
-          || resource.data.providerUid == request.auth.uid
+          || resource.data.get('customerUid', '') == request.auth.uid
+          || resource.data.get('providerUid', '') == request.auth.uid
           || (isProvider() && resource.data.status == 'Pending')
         );
 

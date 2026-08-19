@@ -8,7 +8,7 @@ function fapshiDevApi() {
   return {
     name: 'carenest-fapshi-dev-api',
     configureServer(server) {
-      server.middlewares.use('/api/fapshi', (req, res) => {
+      server.middlewares.use('/api/payments', (req, res) => {
         const chunks = []
 
         req.on('data', (chunk) => chunks.push(chunk))
@@ -35,6 +35,7 @@ function fapshiDevApi() {
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  Object.assign(process.env, env)
   const appVersion = env.VITE_APP_VERSION || process.env.npm_package_version || '0.0.0'
 
   return {
