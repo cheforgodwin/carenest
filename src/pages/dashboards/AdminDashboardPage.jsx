@@ -446,17 +446,17 @@ function AdminDashboardPage() {
             </div>
           </div>
           {filteredOrders.length > 0 ? (
-            <table className="dashboard-table">
+            <table className="dashboard-table admin-requests-table">
               <thead><tr><th>Order</th><th>Customer</th><th>Service</th><th>Address</th><th>Amount</th><th>Provider</th><th>Payment ref</th><th>Evidence</th><th>Status</th><th>Payment</th></tr></thead>
               <tbody>
                 {filteredOrders.map((order) => (
                   <tr key={order.firestoreId}>
-                    <td>{order.id}</td>
-                    <td>{order.customerName || order.customerEmail || 'Customer'}</td>
-                    <td>{order.service}</td>
-                    <td>{order.address}</td>
-                    <td>{formatAmount(order.amount)}</td>
-                    <td className="admin-assignment-cell">
+                    <td data-label="Order">{order.id}</td>
+                    <td data-label="Customer">{order.customerName || order.customerEmail || 'Customer'}</td>
+                    <td data-label="Service">{order.service}</td>
+                    <td data-label="Address">{order.address}</td>
+                    <td data-label="Amount">{formatAmount(order.amount)}</td>
+                    <td className="admin-assignment-cell" data-label="Provider">
                       <select
                         className="dashboard-select"
                         value={providerSelections[order.firestoreId] ?? order.providerUid ?? ''}
@@ -473,8 +473,8 @@ function AdminDashboardPage() {
                       </div>
                       {order.providerName && <small>Current: {order.providerName}</small>}
                     </td>
-                    <td>{order.paymentReference || order.paymentReceiverNumber || 'Not submitted'}</td>
-                    <td className="payment-receipt-cell">
+                    <td data-label="Payment ref">{order.paymentReference || order.paymentReceiverNumber || 'Not submitted'}</td>
+                    <td className="payment-receipt-cell" data-label="Evidence">
                       {order.paymentReceiptText ? (
                         <details>
                           <summary>{order.paymentReceiptTransactionId || order.paymentReceiptSenderPhone || 'View message'}</summary>
@@ -488,12 +488,12 @@ function AdminDashboardPage() {
                       {order.completionProofText && <details><summary>Completion proof</summary><p>{order.completionProofText}</p></details>}
                       {order.complaintText && <details><summary>Complaint</summary><p>{order.complaintText}</p></details>}
                     </td>
-                    <td>
+                    <td data-label="Status">
                       <select className="dashboard-select" value={order.status} onChange={(event) => updateStatus(order, event.target.value)}>
                         {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
                       </select>
                     </td>
-                    <td>
+                    <td data-label="Payment">
                       <select className="dashboard-select" value={order.paymentStatus || 'Pending'} onChange={(event) => updatePayment(order, event.target.value)}>
                         {paymentStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
                       </select>

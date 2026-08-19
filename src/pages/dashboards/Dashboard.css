@@ -259,6 +259,89 @@
   text-transform: uppercase;
 }
 
+/* Request rows become cards before their ten columns can overflow. */
+@media (max-width: 9999px) {
+  .admin-requests-table {
+    min-width: 0;
+  }
+
+  .admin-requests-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .admin-requests-table,
+  .admin-requests-table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .admin-requests-table tbody {
+    display: grid;
+    gap: 14px;
+  }
+
+  .admin-requests-table tr {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    overflow: hidden;
+    border: 1px solid #dceee3;
+    border-radius: 10px;
+    background: #ffffff;
+  }
+
+  .admin-requests-table td {
+    display: block;
+    min-width: 0;
+    padding: 14px;
+    border-right: 1px solid #eef4f0;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-requests-table td:nth-child(5n) {
+    border-right: 0;
+  }
+
+  .admin-requests-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 8px;
+    color: #466454;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .admin-requests-table .admin-assignment-cell,
+  .admin-requests-table .payment-receipt-cell {
+    min-width: 0;
+    max-width: none;
+  }
+
+  .admin-requests-table .dashboard-select {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 1200px) {
+  .admin-requests-table tr {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-requests-table td:nth-child(5n) {
+    border-right: 1px solid #eef4f0;
+  }
+
+  .admin-requests-table td:nth-child(2n) {
+    border-right: 0;
+  }
+}
 .payment-receipt-cell {
   max-width: 260px;
   min-width: 220px;
@@ -811,5 +894,24 @@
   .dashboard-panel-header h2,
   .dashboard-top h1 {
     overflow-wrap: anywhere;
+  }
+}
+
+/* Final request-table overflow guard. */
+@media (max-width: 768px) {
+  .admin-requests-table {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-requests-table tr {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-requests-table td,
+  .admin-requests-table td:nth-child(2n),
+  .admin-requests-table td:nth-child(5n) {
+    border-right: 0;
   }
 }
