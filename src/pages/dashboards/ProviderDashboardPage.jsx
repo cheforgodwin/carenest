@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../auth/useAuth'
 import { phonePlaceholder, serviceAreaPlaceholder } from '../../config/businessConfig'
+import { getMarketplaceCategory, marketplaceCategoryEntries } from '../../config/marketplaceConfig'
 import {
   calculateProviderEarning,
   assignServiceRequestToProvider,
@@ -12,9 +13,20 @@ import {
   updateProviderAvailability,
 } from '../../firebase/orderService'
 
+import {
+  createProviderListing,
+  setProviderListingActive,
+  subscribeToProviderListings,
+} from '../../firebase/marketplaceService'
+
 import DashboardShell from './DashboardShell'
 
-const providerStatuses = ['Assigned', 'In Progress', 'Quality Check', 'Out for Delivery', 'Completed']
+const providerStatuses = ['Pending', 'Assigned', 'In Progress', 'Quality Check', 'Out for Delivery', 'Completed']
+
+const emptyListing = {
+  category: 'gas', title: '', description: '', price: '', unit: 'cylinder', serviceArea: '',
+  turnaround: '', options: '', stockTracked: true, stockQuantity: '', active: true,
+}
 
 function formatAmount(amount) {
   return `${Number(amount || 0).toLocaleString()} FCFA`
@@ -37,6 +49,8 @@ function ProviderDashboardPage() {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [query, setQuery] = useState('')
+  const [listings, setListings] = useState([])
+  const [listingForm, setListingForm] = useState(emptyListing)
   const [availability, setAvailability] = useState(() => ({
     status: profile?.availability?.status || 'Available',
     area: profile?.availability?.area || '',
@@ -61,6 +75,12 @@ function ProviderDashboardPage() {
       unsubMine()
     }
   }, [user?.uid])
+
+  useEffect(() => subscribeToProviderListings(
+    user?.uid,
+    setListings,
+    (nextError) => setError(nextError.message),
+  ), [user?.uid])
 
   const openJobs = openOrders.filter((order) => !order.providerUid && order.status === 'Pending')
   const myJobs = orders.filter((order) => order.providerUid === user.uid)
@@ -134,9 +154,45 @@ function ProviderDashboardPage() {
     setAvailability((current) => ({ ...current, [name]: value }))
   }
 
+  function updateListingForm(event) {
+    const { name, value, type, checked } = event.target
+    setListingForm((current) => {
+      const next = { ...current, [name]: type === 'checkbox' ? checked : value }
+      if (name === 'category') next.unit = getMarketplaceCategory(value).unitLabel
+      return next
+    })
+  }
+
+  async function saveListing(event) {
+    event.preventDefault()
+    setError('')
+    setMessage('')
+    try {
+      await createProviderListing({
+        uid: user.uid,
+        name: profile?.name || user.displayName,
+        phone: profile?.phone || availability.phone,
+      }, listingForm)
+      setListingForm({ ...emptyListing, serviceArea: listingForm.serviceArea })
+      setMessage('Your storefront listing is now available to customers.')
+    } catch (nextError) {
+      setError(nextError.message)
+    }
+  }
+
+  async function toggleListing(listing) {
+    setError('')
+    try {
+      await setProviderListingActive(listing.firestoreId, !listing.active)
+      setMessage(listing.title + ' is now ' + (listing.active ? 'hidden.' : 'available.'))
+    } catch (nextError) {
+      setError(nextError.message)
+    }
+  }
   const nav = [
     { label: 'Overview', to: '/dashboard/provider?view=overview', icon: 'dashboard' },
     { label: 'Jobs', to: '/dashboard/provider?view=jobs', icon: 'bookings' },
+    { label: 'Storefront', to: '/dashboard/provider?view=storefront', icon: 'bookings' },
     { label: 'Settings', to: '/dashboard/provider?view=settings', icon: 'settings' },
   ]
 
@@ -193,6 +249,48 @@ function ProviderDashboardPage() {
         </section>
       )}
 
+      {activeView === 'storefront' && (
+        <section className="dashboard-panel marketplace-manager">
+          <div className="dashboard-panel-header">
+            <div>
+              <h2>Your storefront</h2>
+              <p>Publish products and services from one place. Customers receive the right order form for each category.</p>
+            </div>
+          </div>
+          <form className="marketplace-listing-form" onSubmit={saveListing}>
+            <label>Category<select className="dashboard-select" name="category" value={listingForm.category} onChange={updateListingForm}>
+              {marketplaceCategoryEntries.map(([value, category]) => <option key={value} value={value}>{category.label}</option>)}
+            </select></label>
+            <label>Listing title<input className="dashboard-input" name="title" value={listingForm.title} onChange={updateListingForm} placeholder="E.g. 12.5 kg gas refill" required /></label>
+            <label>Price (FCFA)<input className="dashboard-input" name="price" type="number" min="100" step="1" value={listingForm.price} onChange={updateListingForm} required /></label>
+            <label>Price unit<input className="dashboard-input" name="unit" value={listingForm.unit} onChange={updateListingForm} placeholder="cylinder, item, visit…" required /></label>
+            <label>Service area<input className="dashboard-input" name="serviceArea" value={listingForm.serviceArea} onChange={updateListingForm} placeholder={serviceAreaPlaceholder} required /></label>
+            <label>Fulfilment time<input className="dashboard-input" name="turnaround" value={listingForm.turnaround} onChange={updateListingForm} placeholder="E.g. 45–90 minutes" /></label>
+            <label className="marketplace-form-wide">{getMarketplaceCategory(listingForm.category).listingPrompt}<input className="dashboard-input" name="options" value={listingForm.options} onChange={updateListingForm} placeholder="E.g. 6 kg, 12.5 kg, 50 kg" /></label>
+            <label className="marketplace-form-wide">Description<textarea className="dashboard-input dashboard-textarea" name="description" value={listingForm.description} onChange={updateListingForm} minLength="10" placeholder="Tell customers exactly what is included." required /></label>
+            {getMarketplaceCategory(listingForm.category).kind === 'product' && <>
+              <label className="marketplace-check"><input name="stockTracked" type="checkbox" checked={listingForm.stockTracked} onChange={updateListingForm} /> Track stock</label>
+              {listingForm.stockTracked && <label>Stock available<input className="dashboard-input" name="stockQuantity" type="number" min="0" step="1" value={listingForm.stockQuantity} onChange={updateListingForm} /></label>}
+            </>}
+            <label className="marketplace-check"><input name="active" type="checkbox" checked={listingForm.active} onChange={updateListingForm} /> Publish immediately</label>
+            <button className="dashboard-action-button form-action" type="submit">Add to storefront</button>
+          </form>
+          <div className="marketplace-listing-grid">
+            {listings.map((listing) => (
+              <article className="marketplace-listing-card" key={listing.firestoreId}>
+                <span>{getMarketplaceCategory(listing.category).label}</span>
+                <h3>{listing.title}</h3>
+                <p>{listing.description}</p>
+                <strong>{formatAmount(listing.price)} / {listing.unit}</strong>
+                <small>{listing.serviceArea}{listing.turnaround ? ' · ' + listing.turnaround : ''}</small>
+                {listing.stockTracked && <small>{listing.stockQuantity} in stock</small>}
+                <button className={listing.active ? 'table-action secondary' : 'table-action'} type="button" onClick={() => toggleListing(listing)}>{listing.active ? 'Hide listing' : 'Publish listing'}</button>
+              </article>
+            ))}
+            {listings.length === 0 && <p className="dashboard-empty">Your storefront is empty. Add your first product or service above.</p>}
+          </div>
+        </section>
+      )}
       {activeView === 'settings' && (
         <section className="dashboard-panel">
           <div className="dashboard-panel-header">

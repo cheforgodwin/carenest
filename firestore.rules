@@ -109,6 +109,24 @@ service cloud.firestore {
       );
     }
 
+    function validMarketplaceOrder() {
+      let listingId = request.resource.data.get('listingId', '');
+      let listingPath = /databases/$(database)/documents/providerListings/$(listingId);
+      let listing = get(listingPath).data;
+      return request.resource.data.serviceType == 'marketplace'
+        && listingId is string
+        && exists(listingPath)
+        && listing.active == true
+        && request.resource.data.providerUid == listing.providerUid
+        && request.resource.data.providerName == listing.providerName
+        && request.resource.data.listingCategory == listing.category
+        && request.resource.data.unitPrice == listing.price
+        && request.resource.data.quantity is int
+        && request.resource.data.quantity >= 1
+        && request.resource.data.quantity <= 50
+        && request.resource.data.amount == listing.price * request.resource.data.quantity
+        && (!listing.stockTracked || request.resource.data.quantity <= listing.stockQuantity);
+    }
     match /users/{userId} {
       allow create: if (
           ownsUserDoc(userId)
@@ -184,6 +202,51 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /providerListings/{listingId} {
+      allow create: if isProvider()
+        && request.resource.data.providerUid == request.auth.uid
+        && request.resource.data.category in ['gas', 'water', 'essentials', 'laundry', 'cleaning', 'repairs']
+        && request.resource.data.kind in ['product', 'service']
+        && request.resource.data.title is string
+        && request.resource.data.title.size() >= 3
+        && request.resource.data.description is string
+        && request.resource.data.description.size() >= 10
+        && request.resource.data.price is int
+        && request.resource.data.price >= 100
+        && request.resource.data.unit is string
+        && request.resource.data.serviceArea is string
+        && request.resource.data.serviceArea.size() >= 2
+        && request.resource.data.options is list
+        && request.resource.data.options.size() <= 12
+        && request.resource.data.stockTracked is bool
+        && request.resource.data.stockQuantity is int
+        && request.resource.data.stockQuantity >= 0
+        && request.resource.data.active is bool;
+
+      allow get: if signedIn()
+        && (resource.data.active == true || isAdmin() || (isProvider() && resource.data.providerUid == request.auth.uid));
+
+      allow list: if signedIn()
+        && (resource.data.active == true || isAdmin() || (isProvider() && resource.data.providerUid == request.auth.uid));
+
+      allow update: if isAdmin()
+        || (
+          isProvider()
+          && resource.data.providerUid == request.auth.uid
+          && request.resource.data.providerUid == request.auth.uid
+          && request.resource.data.category == resource.data.category
+          && request.resource.data.kind == resource.data.kind
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.price is int
+          && request.resource.data.price >= 100
+          && request.resource.data.stockQuantity is int
+          && request.resource.data.stockQuantity >= 0
+          && request.resource.data.options is list
+          && request.resource.data.options.size() <= 12
+        );
+
+      allow delete: if isAdmin();
+    }
     match /serviceRequests/{requestId} {
       allow create: if signedIn()
         && (
@@ -207,25 +270,31 @@ service cloud.firestore {
         && request.resource.data.currentStep == 0
         && request.resource.data.paymentStatus in ['Pending', 'Submitted']
         && validPaymentMethod(request.resource.data.paymentMethod)
-        && validPrice(
-          request.resource.data.serviceType,
-          request.resource.data.itemSummary,
-          request.resource.data.serviceSpeed,
-          request.resource.data.amount
-        )
-        && !request.resource.data.keys().hasAny([
-          'providerUid',
-          'providerName',
-          'providerEmail',
-          'paidAt'
-        ]);
+        && (
+          (
+            request.resource.data.serviceType != 'marketplace'
+            && validPrice(
+              request.resource.data.serviceType,
+              request.resource.data.itemSummary,
+              request.resource.data.serviceSpeed,
+              request.resource.data.amount
+            )
+            && !request.resource.data.keys().hasAny([
+              'providerUid',
+              'providerName',
+              'providerEmail',
+              'paidAt'
+            ])
+          )
+          || validMarketplaceOrder()
+        );
 
       allow get: if signedIn()
         && (
           isAdmin()
           || resource.data.get('customerUid', '') == request.auth.uid
           || resource.data.get('providerUid', '') == request.auth.uid
-          || (isProvider() && resource.data.status == 'Pending')
+          || (isProvider() && resource.data.status == 'Pending' && resource.data.get('providerUid', '') == '')
         );
 
       allow list: if signedIn()
@@ -233,7 +302,7 @@ service cloud.firestore {
           isAdmin()
           || resource.data.get('customerUid', '') == request.auth.uid
           || resource.data.get('providerUid', '') == request.auth.uid
-          || (isProvider() && resource.data.status == 'Pending')
+          || (isProvider() && resource.data.status == 'Pending' && resource.data.get('providerUid', '') == '')
         );
 
       allow update: if (

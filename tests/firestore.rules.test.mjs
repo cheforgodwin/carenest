@@ -13,6 +13,14 @@ const baseOrder = {
   status: 'Pending', currentStep: 0, paymentMethod: 'Fapshi', paymentStatus: 'Pending',
 }
 
+const baseListing = {
+  providerUid: 'provider-a', providerName: 'Provider A', providerPhone: '+237670000003',
+  title: '12.5 kg gas refill', category: 'gas', kind: 'product',
+  description: 'Delivered gas refill for household cooking.',
+  price: 6500, unit: 'cylinder', serviceArea: 'Bastos, Yaounde', turnaround: '60 minutes',
+  options: ['12.5 kg'], stockTracked: true, stockQuantity: 4, active: true,
+  createdAt: new Date(), updatedAt: new Date(),
+}
 before(async () => {
   env = await initializeTestEnvironment({
     projectId,
@@ -30,6 +38,7 @@ async function seed() {
     await setDoc(doc(db, 'users/provider-a'), { uid: 'provider-a', email: 'p@example.com', accountType: 'provider' })
     await setDoc(doc(db, 'users/admin-a'), { uid: 'admin-a', email: 'admin@example.com', accountType: 'admin' })
     await setDoc(doc(db, 'serviceRequests/order-a'), baseOrder)
+    await setDoc(doc(db, 'providerListings/listing-a'), baseListing)
   })
 }
 
@@ -60,6 +69,40 @@ test('a customer cannot create a changed price', async () => {
   await assertSucceeds(setDoc(doc(db, 'serviceRequests/good-price'), baseOrder))
 })
 
+test('providers own secure storefront listings', async () => {
+  await seed()
+  const provider = env.authenticatedContext('provider-a').firestore()
+  await assertSucceeds(setDoc(doc(provider, 'providerListings/provider-created'), {
+    ...baseListing,
+    title: 'Cooking gas delivery',
+  }))
+
+  const customer = env.authenticatedContext('customer-a').firestore()
+  await assertFails(setDoc(doc(customer, 'providerListings/customer-listing'), {
+    ...baseListing,
+    providerUid: 'customer-a',
+  }))
+  await assertFails(updateDoc(doc(customer, 'providerListings/listing-a'), { price: 100 }))
+})
+
+test('marketplace orders use the published listing price and stock', async () => {
+  await seed()
+  const db = env.authenticatedContext('customer-a', verified).firestore()
+  const marketplaceOrder = {
+    id: 'CN-MARKET', customerUid: 'customer-a', customerEmail: 'a@example.com',
+    customerPhone: '+237670000001', service: '12.5 kg gas refill',
+    serviceType: 'marketplace', serviceSpeed: 'Standard', itemSummary: '12.5 kg gas refill',
+    listingId: 'listing-a', listingCategory: 'gas', providerUid: 'provider-a',
+    providerName: 'Provider A', unitPrice: 6500, quantity: 2, amount: 13000,
+    orderDetails: { orderType: 'Refill', variant: '12.5 kg' },
+    status: 'Pending', currentStep: 0, paymentMethod: 'Mobile Money', paymentStatus: 'Pending',
+  }
+
+  await assertSucceeds(setDoc(doc(db, 'serviceRequests/market-good'), marketplaceOrder))
+  await assertFails(setDoc(doc(db, 'serviceRequests/market-cheap'), { ...marketplaceOrder, amount: 100 }))
+  await assertFails(setDoc(doc(db, 'serviceRequests/market-stock'), { ...marketplaceOrder, quantity: 5, amount: 32500 }))
+  await assertFails(setDoc(doc(db, 'serviceRequests/market-provider'), { ...marketplaceOrder, providerUid: 'provider-b' }))
+})
 test('a customer cannot change role or payment state', async () => {
   await seed()
   const db = env.authenticatedContext('customer-a', verified).firestore()

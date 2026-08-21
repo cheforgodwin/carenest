@@ -31,8 +31,10 @@ import {
   servicePrices,
   supportPhoneHref,
 } from '../../config/businessConfig'
+import { formatMarketplaceAmount, getMarketplaceCategory } from '../../config/marketplaceConfig'
 import Logo from '../../components/Logo'
-import { createRequestId, createServiceRequest, submitCustomerComplaint, subscribeToCustomerOrders } from '../../firebase/orderService'
+import { createMarketplaceServiceRequest, createRequestId, createServiceRequest, submitCustomerComplaint, subscribeToCustomerOrders } from '../../firebase/orderService'
+import { subscribeToActiveListings } from '../../firebase/marketplaceService'
 import { createProviderApplication, subscribeToMyProviderApplications } from '../../firebase/providerApplicationService'
 import './CustomerAppPage.css'
 
@@ -186,6 +188,8 @@ function CustomerAppPage() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const isServices = pathname.includes('/services')
+  const marketplaceMatch = pathname.match(/\/shop\/([^/]+)/)
+  const isMarketplaceRequest = Boolean(marketplaceMatch)
   const requestMatch = pathname.match(/\/request\/([^/]+)/)
   const currentServiceType = serviceSlugs.includes(requestMatch?.[1]) ? requestMatch[1] : 'laundry'
   const isRequest = Boolean(requestMatch) || pathname.includes('/laundry-request')
@@ -195,6 +199,12 @@ function CustomerAppPage() {
   const isApplication = pathname.includes('/apply')
   const isOrdersIndex = pathname.endsWith('/orders')
   const [orders, setOrders] = useState([])
+  const [marketplaceListings, setMarketplaceListings] = useState([])
+  const [marketplaceForm, setMarketplaceForm] = useState(() => ({
+    quantity: 1, address: availableServiceAddresses[0] || defaultCustomerAddress || defaultCustomerCity,
+    pickupDate: createEmptyForm('delivery').pickupDate, pickupTime: '10:00',
+    paymentPhone: '', note: '', orderType: '', variant: '', returnableContainers: 0, rooms: 1, fabricNotes: '', problem: '',
+  }))
   const [ordersLoading, setOrdersLoading] = useState(true)
   const [forms, setForms] = useState(() => Object.fromEntries(
     serviceSlugs.map((serviceType) => [serviceType, createEmptyForm(serviceType)]),
@@ -253,6 +263,11 @@ function CustomerAppPage() {
     )
   }, [user?.uid])
 
+  useEffect(() => subscribeToActiveListings(
+    setMarketplaceListings,
+    (error) => setRequestError(error.message),
+  ), [])
+
   const activeOrder = useMemo(
     () => orders.find((order) => !['Completed', 'Cancelled'].includes(order.status)) || null,
     [orders],
@@ -260,6 +275,9 @@ function CustomerAppPage() {
   const viewedOrderId = pathname.split('/').pop()
   const viewedOrder = orders.find((order) => order.id === viewedOrderId)
     || (recentOrder?.id === viewedOrderId ? recentOrder : null)
+  const selectedListing = marketplaceListings.find((listing) => listing.firestoreId === marketplaceMatch?.[1]) || null
+  const marketplaceCategory = selectedListing ? getMarketplaceCategory(selectedListing.category) : null
+  const marketplaceAmount = selectedListing ? Number(selectedListing.price) * Number(marketplaceForm.quantity || 0) : 0
   const requestConfig = serviceConfig[currentServiceType]
   const PrimaryIcon = requestConfig.icon
   const form = forms[currentServiceType]
@@ -419,6 +437,99 @@ function CustomerAppPage() {
     }
   }
 
+  function updateMarketplaceForm(event) {
+    const { name, value } = event.target
+    setMarketplaceForm((current) => ({ ...current, [name]: value }))
+    setRequestError('')
+  }
+
+  async function submitMarketplaceRequest(event) {
+    event.preventDefault()
+    setRequestError('')
+    if (!selectedListing || !marketplaceCategory) {
+      setRequestError('This listing is no longer available.')
+      return
+    }
+    const quantity = Number(marketplaceForm.quantity)
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 50) {
+      setRequestError('Choose a quantity between 1 and 50.')
+      return
+    }
+    if (selectedListing.stockTracked && quantity > Number(selectedListing.stockQuantity || 0)) {
+      setRequestError('The provider does not have that quantity in stock.')
+      return
+    }
+    if (!marketplaceForm.address || !marketplaceForm.pickupDate || !marketplaceForm.pickupTime) {
+      setRequestError('Enter the delivery address, date, and time.')
+      return
+    }
+    const customerPhone = marketplaceForm.paymentPhone || profile?.phone || ''
+    if (!customerPhone) {
+      setRequestError('Enter the Mobile Money number that should receive the payment prompt.')
+      return
+    }
+    if (isSubmitting) return
+    setIsSubmitting(true)
+
+    const nextOrder = {
+      id: createRequestId(),
+      customerUid: user.uid,
+      customerName: profile?.name || user.displayName || 'Customer',
+      customerEmail: user.email,
+      customerPhone,
+      service: selectedListing.title,
+      serviceType: 'marketplace',
+      serviceSpeed: 'Standard',
+      itemSummary: selectedListing.title,
+      listingCategory: selectedListing.category,
+      quantity,
+      orderDetails: Object.fromEntries(marketplaceCategory.orderFields.map((field) => [field.name, marketplaceForm[field.name] || ''])),
+      address: marketplaceForm.address,
+      pickupDate: marketplaceForm.pickupDate,
+      pickupTime: marketplaceForm.pickupTime,
+      note: marketplaceForm.note,
+      amount: marketplaceAmount,
+      paymentMethod: 'Mobile Money',
+      paymentReference: '',
+      paymentReceiptTransactionId: '',
+      paymentReceiptText: '',
+      paymentStatus: 'Pending',
+      status: 'Pending',
+      placedAt: 'Just now',
+      currentStep: 0,
+    }
+
+    try {
+      const response = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'direct_payment_request', order: nextOrder }),
+      })
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null)
+        throw new Error(errorBody?.error || 'Unable to start the payment')
+      }
+      const result = await response.json()
+      const providerStatus = String(result?.status || '').toUpperCase()
+      nextOrder.paymentStatus = providerStatus === 'SUCCESSFUL' ? 'Submitted' : 'Pending'
+      nextOrder.paymentProviderStatus = providerStatus || 'PENDING'
+      nextOrder.paymentReference = result?.reference || result?.transId || ''
+      nextOrder.paymentReceiptTransactionId = result?.transactionId || result?.transId || ''
+      nextOrder.paymentReceiptText = result?.message ? String(result.message) : JSON.stringify(result)
+
+      const createdOrder = await createMarketplaceServiceRequest(nextOrder, selectedListing)
+      setRecentOrder(createdOrder)
+      setPaymentSuccess({
+        id: nextOrder.id,
+        amount: nextOrder.amount,
+        confirmed: providerStatus === 'SUCCESSFUL',
+      })
+    } catch (error) {
+      setRequestError('Marketplace order failed: ' + error.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
   async function submitComplaint(event) {
     event.preventDefault()
     if (!viewedOrder?.firestoreId) return
@@ -435,7 +546,7 @@ function CustomerAppPage() {
   return (
     <main className="mobile-app-page">
       <section className={`mobile-phone ${isCustomerMenuOpen ? 'customer-menu-open' : ''}`}>
-        {!isServices && !isRequest && !isOrder && !isApplication && (
+        {!isServices && !isRequest && !isMarketplaceRequest && !isOrder && !isApplication && (
           <section className="mobile-content mobile-content-home">
             <div className="app-header">
               <button
@@ -538,7 +649,25 @@ function CustomerAppPage() {
                   </article>
                 ))}
               </div>
-              <div className="service-support-strip">
+              <div className="marketplace-section-heading">
+                <div><span>Local marketplace</span><h2>Provider storefronts</h2></div>
+                <p>Order directly from verified home-essential shops and service businesses.</p>
+              </div>
+              <div className="marketplace-customer-grid">
+                {marketplaceListings.map((listing) => (
+                  <article className="marketplace-customer-card" key={listing.firestoreId}>
+                    <span>{getMarketplaceCategory(listing.category).label}</span>
+                    <h3>{listing.title}</h3>
+                    <p>{listing.description}</p>
+                    <small>Sold by {listing.providerName} · {listing.serviceArea}</small>
+                    {listing.turnaround && <small>{listing.turnaround}</small>}
+                    <strong>{formatMarketplaceAmount(listing.price)} / {listing.unit}</strong>
+                    {listing.stockTracked && <small>{listing.stockQuantity > 0 ? listing.stockQuantity + ' available' : 'Out of stock'}</small>}
+                    <Link className={listing.stockTracked && listing.stockQuantity < 1 ? 'disabled' : ''} aria-disabled={listing.stockTracked && listing.stockQuantity < 1} to={'/dashboard/customer/shop/' + listing.firestoreId}>View and order <FiArrowRight /></Link>
+                  </article>
+                ))}
+                {marketplaceListings.length === 0 && <div className="marketplace-empty"><FiShoppingBag /><strong>Provider shops are coming soon</strong><p>Approved providers can publish products and services from their dashboard.</p></div>}
+              </div>              <div className="service-support-strip">
                 <span><FiCheck /> Verified providers</span>
                 <span><FiClock /> Reliable pickup times</span>
                 <a href={supportPhoneHref}><FiPhone /> Call CareNest</a>
@@ -605,6 +734,58 @@ function CustomerAppPage() {
           </section>
         )}
 
+        {isMarketplaceRequest && (
+          <section className="mobile-content mobile-content-request marketplace-checkout-page">
+            <div className="request-shell">
+              {selectedListing ? (
+                <>
+                  <form className="request-main" onSubmit={submitMarketplaceRequest}>
+                    <div className="top-title"><Link to="/dashboard/customer/services"><FiArrowLeft /></Link><h1>{selectedListing.title}</h1></div>
+                    <div className="marketplace-seller-line"><FiCheck /><span>Verified provider</span><strong>{selectedListing.providerName}</strong></div>
+                    <p>{selectedListing.description}</p>
+                    <div className="request-field-grid">
+                      {marketplaceCategory.orderFields.map((field) => (
+                        <label key={field.name}>{field.label}
+                          {field.type === 'select' || (field.type === 'listing-options' && selectedListing.options?.length > 0) ? (
+                            <span className="request-input"><select name={field.name} value={marketplaceForm[field.name]} onChange={updateMarketplaceForm} required>
+                              <option value="">Choose an option</option>
+                              {(field.type === 'listing-options' ? selectedListing.options : field.options).map((option) => <option key={option} value={option}>{option}</option>)}
+                            </select><FiChevronDown /></span>
+                          ) : field.type === 'textarea' ? (
+                            <textarea name={field.name} value={marketplaceForm[field.name]} onChange={updateMarketplaceForm} required />
+                          ) : (
+                            <span className="request-input"><input name={field.name} type={field.type === 'number' ? 'number' : 'text'} min={field.min} value={marketplaceForm[field.name]} onChange={updateMarketplaceForm} required /></span>
+                          )}
+                        </label>
+                      ))}
+                      <label>Quantity<span className="request-input"><input name="quantity" type="number" min="1" max={selectedListing.stockTracked ? Math.min(50, selectedListing.stockQuantity) : 50} value={marketplaceForm.quantity} onChange={updateMarketplaceForm} required /></span></label>
+                      <label>{marketplaceCategory.kind === 'product' ? 'Delivery address' : 'Service address'}<span className="request-input"><FiMapPin /><input name="address" value={marketplaceForm.address} onChange={updateMarketplaceForm} required /></span></label>
+                      <label>{marketplaceCategory.kind === 'product' ? 'Delivery date' : 'Service date'}<span className="request-input"><FiCalendar /><input name="pickupDate" type="date" min={minimumPickupDate} value={marketplaceForm.pickupDate} onChange={updateMarketplaceForm} required /></span></label>
+                      <label>Preferred time<span className="request-input"><FiClock /><input name="pickupTime" type="time" value={marketplaceForm.pickupTime} onChange={updateMarketplaceForm} required /></span></label>
+                      <label>Mobile Money number<span className="request-input"><FiPhone /><input name="paymentPhone" type="tel" value={marketplaceForm.paymentPhone || profile?.phone || ''} onChange={updateMarketplaceForm} placeholder={phonePlaceholder} required /></span></label>
+                      <label className="request-note-field">Instructions<textarea name="note" value={marketplaceForm.note} onChange={updateMarketplaceForm} placeholder="Delivery directions, preferences, or other details…" /></label>
+                    </div>
+                    {requestError && <p className="request-message request-error" role="alert">{requestError}</p>}
+                    <div className="request-submit-row">
+                      <span><small>{formatMarketplaceAmount(selectedListing.price)} × {marketplaceForm.quantity || 0}</small><strong>{formatMarketplaceAmount(marketplaceAmount)}</strong></span>
+                      <button type="submit" disabled={isSubmitting || (selectedListing.stockTracked && selectedListing.stockQuantity < 1)}>{isSubmitting ? 'Processing…' : 'Pay and order'}</button>
+                    </div>
+                  </form>
+                  <aside className="request-aside">
+                    <div className="aside-visual"><FiShoppingBag /></div>
+                    <h2>{getMarketplaceCategory(selectedListing.category).label}</h2>
+                    <p>Provided by {selectedListing.providerName} in {selectedListing.serviceArea}.</p>
+                    <div className="aside-list">
+                      <span><FiCheck /> Verified provider</span>
+                      <span><FiClock /> {selectedListing.turnaround || 'Provider confirms timing'}</span>
+                      <span><FiCheck /> Order tracking included</span>
+                    </div>
+                  </aside>
+                </>
+              ) : <div className="marketplace-empty"><FiShoppingBag /><strong>Listing unavailable</strong><p>It may have been hidden or removed by the provider.</p><Link to="/dashboard/customer/services">Back to services</Link></div>}
+            </div>
+          </section>
+        )}
         {isRequest && (
           <section className="mobile-content mobile-content-request">
             <div className="request-shell">
@@ -754,9 +935,9 @@ function CustomerAppPage() {
         <nav className="mobile-tabs">
           <Logo to="/dashboard/customer" className="customer-nav-brand" />
           <div className="customer-nav-links">
-            <Link className={!isServices && !isRequest && !isOrder && !isApplication ? 'active' : ''} aria-current={!isServices && !isRequest && !isOrder && !isApplication ? 'page' : undefined} to="/dashboard/customer"><FiHome />Home</Link>
+            <Link className={!isServices && !isRequest && !isMarketplaceRequest && !isOrder && !isApplication ? 'active' : ''} aria-current={!isServices && !isRequest && !isMarketplaceRequest && !isOrder && !isApplication ? 'page' : undefined} to="/dashboard/customer"><FiHome />Home</Link>
             <Link className={isOrder ? 'active' : ''} aria-current={isOrder ? 'page' : undefined} to="/dashboard/customer/orders"><FiBriefcase />Orders</Link>
-            <Link className={isServices || isRequest ? 'active' : ''} aria-current={isServices || isRequest ? 'page' : undefined} to="/dashboard/customer/services"><FiGift />Services</Link>
+            <Link className={isServices || isRequest || isMarketplaceRequest ? 'active' : ''} aria-current={isServices || isRequest || isMarketplaceRequest ? 'page' : undefined} to="/dashboard/customer/services"><FiGift />Services</Link>
             <Link className={isApplication ? 'active' : ''} aria-current={isApplication ? 'page' : undefined} to="/dashboard/customer/apply"><FiUserPlus />Apply</Link>
           </div>
         </nav>

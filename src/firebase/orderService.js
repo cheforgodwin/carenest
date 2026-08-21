@@ -145,6 +145,31 @@ export async function createServiceRequest(order) {
   return { firestoreId: docRef.id, ...sanitizedPayload, createdAtDate: new Date(), updatedAtDate: new Date() }
 }
 
+export async function createMarketplaceServiceRequest(order, listing) {
+  const quantity = Number(order.quantity)
+  if (!listing?.firestoreId || !listing.active) throw new Error('This listing is no longer available.')
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 50) throw new Error('Choose a valid quantity.')
+  if (Number(order.amount) !== Number(listing.price) * quantity) throw new Error('The order total does not match the listing price.')
+  if (listing.stockTracked && quantity > Number(listing.stockQuantity || 0)) throw new Error('The requested quantity is not in stock.')
+  if (order.status !== 'Pending' || order.currentStep !== 0) throw new Error('New requests must start as pending.')
+
+  const payload = Object.fromEntries(Object.entries({
+    ...order,
+    listingId: listing.firestoreId,
+    listingTitle: listing.title,
+    listingCategory: listing.category,
+    providerUid: listing.providerUid,
+    providerName: listing.providerName,
+    providerPhone: listing.providerPhone || '',
+    unitPrice: Number(listing.price),
+    id: order.id || createRequestId(),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }).filter(([, value]) => value !== undefined))
+
+  const docRef = await addDoc(ordersRef, payload)
+  return { firestoreId: docRef.id, ...payload, createdAtDate: new Date(), updatedAtDate: new Date() }
+}
 export function subscribeToAllOrders(onNext, onError) {
   return onSnapshot(
     query(ordersRef, orderBy('createdAt', 'desc')),

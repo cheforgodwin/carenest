@@ -915,3 +915,115 @@
     border-right: 0;
   }
 }
+/* Provider marketplace storefront */
+.marketplace-listing-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+  padding: 18px;
+  border: 1px solid #dceee3;
+  border-radius: 12px;
+  background: #f8fcf9;
+}
+
+.marketplace-listing-form label {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-width: 0;
+  color: #466454;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.marketplace-listing-form .dashboard-input,
+.marketplace-listing-form .dashboard-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.marketplace-form-wide {
+  grid-column: span 2;
+}
+
+.marketplace-check {
+  display: flex !important;
+  grid-auto-flow: column;
+  justify-content: start;
+  align-items: center;
+}
+
+.marketplace-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: #007f45;
+}
+
+.marketplace-listing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: 14px;
+}
+
+.marketplace-listing-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 9px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid #dceee3;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.marketplace-listing-card > span {
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: #006a3a;
+  background: #e8f6ec;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.marketplace-listing-card h3,
+.marketplace-listing-card p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.marketplace-listing-card h3 {
+  color: #073b25;
+}
+
+.marketplace-listing-card p,
+.marketplace-listing-card small {
+  color: #466454;
+}
+
+.marketplace-listing-card strong {
+  color: #ff6f0f;
+}
+
+.marketplace-listing-card button {
+  margin-top: auto;
+}
+
+@media (max-width: 900px) {
+  .marketplace-listing-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .marketplace-listing-form {
+    grid-template-columns: 1fr;
+    padding: 14px;
+  }
+
+  .marketplace-form-wide {
+    grid-column: auto;
+  }
+}
