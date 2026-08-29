@@ -36,6 +36,7 @@ async function seed() {
     await setDoc(doc(db, 'users/customer-a'), { uid: 'customer-a', email: 'a@example.com', accountType: 'customer' })
     await setDoc(doc(db, 'users/customer-b'), { uid: 'customer-b', email: 'b@example.com', accountType: 'customer' })
     await setDoc(doc(db, 'users/provider-a'), { uid: 'provider-a', email: 'p@example.com', accountType: 'provider' })
+    await setDoc(doc(db, 'users/rider-a'), { uid: 'rider-a', email: 'r@example.com', accountType: 'rider' })
     await setDoc(doc(db, 'users/admin-a'), { uid: 'admin-a', email: 'admin@example.com', accountType: 'admin' })
     await setDoc(doc(db, 'serviceRequests/order-a'), baseOrder)
     await setDoc(doc(db, 'providerListings/listing-a'), baseListing)
@@ -83,6 +84,79 @@ test('providers own secure storefront listings', async () => {
     providerUid: 'customer-a',
   }))
   await assertFails(updateDoc(doc(customer, 'providerListings/listing-a'), { price: 100 }))
+})
+
+test('only admins can set marketplace moderation metadata', async () => {
+  await seed()
+  const provider = env.authenticatedContext('provider-a').firestore()
+  await assertFails(updateDoc(doc(provider, 'providerListings/listing-a'), {
+    moderationStatus: 'Approved',
+    moderationNote: 'Self approved',
+    reviewedBy: 'provider-a',
+    reviewedAt: new Date(),
+  }))
+
+  const admin = env.authenticatedContext('admin-a').firestore()
+  await assertSucceeds(updateDoc(doc(admin, 'providerListings/listing-a'), {
+    active: false,
+    moderationStatus: 'Hidden',
+    moderationNote: 'Listing requires review.',
+    reviewedBy: 'admin-a',
+    reviewedAt: new Date(),
+    updatedAt: new Date(),
+  }))
+})
+test('riders can claim delivery jobs and update only their own progress', async () => {
+  await seed()
+  await env.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'serviceRequests/delivery-a'), {
+      ...baseOrder,
+      id: 'CN-DELIVERY',
+      serviceType: 'delivery',
+      serviceSpeed: 'Standard',
+      itemSummary: 'Groceries',
+      amount: 2500,
+      status: 'Out for Delivery',
+      currentStep: 4,
+      createdAt: new Date(),
+    })
+  })
+
+  const rider = env.authenticatedContext('rider-a').firestore()
+  const openDeliveries = query(
+    collection(rider, 'serviceRequests'),
+    where('serviceType', '==', 'delivery'),
+    where('status', '==', 'Out for Delivery'),
+  )
+  await assertSucceeds(getDocs(openDeliveries))
+
+  await assertSucceeds(updateDoc(doc(rider, 'serviceRequests/delivery-a'), {
+    riderUid: 'rider-a',
+    riderName: 'Rider A',
+    riderPhone: '+237670000004',
+    riderStatus: 'Accepted',
+    riderAssignedAt: new Date(),
+    updatedAt: new Date(),
+  }))
+  await assertSucceeds(getDocs(query(
+    collection(rider, 'serviceRequests'),
+    where('riderUid', '==', 'rider-a'),
+  )))
+  await assertSucceeds(updateDoc(doc(rider, 'serviceRequests/delivery-a'), {
+    riderStatus: 'Picked up',
+    updatedAt: new Date(),
+  }))
+  await assertFails(updateDoc(doc(rider, 'serviceRequests/delivery-a'), {
+    amount: 1,
+    updatedAt: new Date(),
+  }))
+  await assertSucceeds(updateDoc(doc(rider, 'serviceRequests/delivery-a'), {
+    riderStatus: 'Delivered',
+    status: 'Completed',
+    currentStep: 5,
+    deliveredAt: new Date(),
+    updatedAt: new Date(),
+  }))
 })
 
 test('marketplace orders use the published listing price and stock', async () => {
@@ -190,10 +264,16 @@ test('a customer can submit a valid complaint but cannot forge its payout outcom
   await assertFails(updateDoc(order, { payoutStatus: 'Paid' }))
 })
 
-test('an admin can pay only eligible provider payouts', async () => {
+test('only the payment server can approve payments and admins can pay eligible payouts', async () => {
   await seed()
   const order = doc(env.authenticatedContext('admin-a').firestore(), 'serviceRequests/order-a')
+  await assertFails(updateDoc(order, { paymentStatus: 'Paid' }))
+  await assertSucceeds(updateDoc(order, { paymentStatus: 'Failed' }))
   await assertFails(updateDoc(order, { payoutStatus: 'Unknown' }))
   await assertFails(updateDoc(order, { payoutStatus: 'Paid' }))
-  await assertSucceeds(updateDoc(order, { status: 'Completed', currentStep: 5, paymentStatus: 'Paid', payoutStatus: 'Paid' }))
+
+  await env.withSecurityRulesDisabled(async (context) => updateDoc(doc(context.firestore(), 'serviceRequests/order-a'), {
+    status: 'Completed', currentStep: 5, paymentStatus: 'Paid',
+  }))
+  await assertSucceeds(updateDoc(order, { payoutStatus: 'Paid' }))
 })

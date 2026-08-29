@@ -215,9 +215,13 @@ export function subscribeToOpenRiderDeliveries(onNext, onError) {
       ordersRef,
       where('serviceType', '==', 'delivery'),
       where('status', '==', 'Out for Delivery'),
-      orderBy('createdAt', 'desc'),
     ),
-    (snapshot) => onNext(snapshot.docs.map(normalizeOrder)),
+    (snapshot) => {
+      const orders = snapshot.docs
+        .map(normalizeOrder)
+        .sort((a, b) => (b.createdAtDate?.getTime() || 0) - (a.createdAtDate?.getTime() || 0))
+      onNext(orders)
+    },
     onError,
   )
 }

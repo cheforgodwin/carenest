@@ -1,0 +1,12 @@
+.gitz
+.firebase-emulators
+.vscode
+android-verifier
+dist
+docs
+node_modules
+tests
+firebase-debug.log
+firestore-debug.log
+OPTIMIZATION_CHECKLIST.md
+PERFORMANCE_OPTIMIZATION.md

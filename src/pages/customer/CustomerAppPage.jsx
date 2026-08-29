@@ -34,6 +34,7 @@ import {
 import { formatMarketplaceAmount, getMarketplaceCategory } from '../../config/marketplaceConfig'
 import Logo from '../../components/Logo'
 import { createMarketplaceServiceRequest, createRequestId, createServiceRequest, submitCustomerComplaint, subscribeToCustomerOrders } from '../../firebase/orderService'
+import { postJson } from '../../utils/networkUtils'
 import { subscribeToActiveListings } from '../../firebase/marketplaceService'
 import { createProviderApplication, subscribeToMyProviderApplications } from '../../firebase/providerApplicationService'
 import './CustomerAppPage.css'
@@ -374,6 +375,16 @@ function CustomerAppPage() {
       placedAt: 'Just now',
       currentStep: 0,
     }
+
+    let createdOrder
+    try {
+      createdOrder = await createServiceRequest(nextOrder)
+    } catch (error) {
+      setRequestError(error.message)
+      setIsSubmitting(false)
+      return
+    }
+
     if (isMobileMoneyPayment) {
       if (!nextOrder.customerPhone) {
         setRequestError('Enter the Mobile Money number that should receive the payment prompt.')
@@ -381,30 +392,20 @@ function CustomerAppPage() {
         return
       }
       try {
-        const response = await fetch('/api/payments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'direct_payment_request',
-            order: {
-              id: nextOrder.id,
-              amount: nextOrder.amount,
-              customerName: nextOrder.customerName,
-              customerEmail: nextOrder.customerEmail,
-              customerPhone: nextOrder.customerPhone,
-              service: nextOrder.service,
-              serviceType: nextOrder.serviceType,
-              paymentMethod: nextOrder.paymentMethod,
-            },
-          }),
+        const result = await postJson('/api/payments', {
+          type: 'direct_payment_request',
+          order: {
+            id: nextOrder.id,
+            firestoreId: createdOrder.firestoreId,
+            amount: nextOrder.amount,
+            customerName: nextOrder.customerName,
+            customerEmail: nextOrder.customerEmail,
+            customerPhone: nextOrder.customerPhone,
+            service: nextOrder.service,
+            serviceType: nextOrder.serviceType,
+            paymentMethod: nextOrder.paymentMethod,
+          },
         })
-
-        if (!response.ok) {
-          const errorBody = await response.json().catch(() => null)
-          throw new Error(errorBody?.error || 'Unable to start the payment')
-        }
-
-        const result = await response.json()
         const providerStatus = String(result?.status || '').toUpperCase()
         nextOrder.paymentStatus = providerStatus === 'SUCCESSFUL' ? 'Submitted' : 'Pending'
         nextOrder.paymentProviderStatus = providerStatus || 'PENDING'
@@ -412,29 +413,24 @@ function CustomerAppPage() {
         nextOrder.paymentReceiptTransactionId = result?.transactionId || result?.transId || nextOrder.paymentReceiptTransactionId
         nextOrder.paymentReceiptText = result?.message ? String(result.message) : JSON.stringify(result)
       } catch (error) {
-        setRequestError(`Mobile Money payment failed: ${error.message}`)
+        setRecentOrder(createdOrder)
+        setRequestError(`Order ${nextOrder.id} was saved, but payment could not start: ${error.message} Do not submit a second order.`)
         setIsSubmitting(false)
         return
       }
     }
 
-    try {
-      const createdOrder = await createServiceRequest(nextOrder)
-      setRecentOrder(createdOrder)
-      setForms((current) => ({
-        ...current,
-        [currentServiceType]: createEmptyForm(currentServiceType),
-      }))
-      setPaymentSuccess({
-        id: nextOrder.id,
-        amount: nextOrder.amount,
-        confirmed: String(nextOrder.paymentProviderStatus).toUpperCase() === 'SUCCESSFUL',
-      })
-    } catch (error) {
-      setRequestError(error.message)
-    } finally {
-      setIsSubmitting(false)
-    }
+    setRecentOrder(createdOrder)
+    setForms((current) => ({
+      ...current,
+      [currentServiceType]: createEmptyForm(currentServiceType),
+    }))
+    setPaymentSuccess({
+      id: nextOrder.id,
+      amount: nextOrder.amount,
+      confirmed: String(nextOrder.paymentProviderStatus).toUpperCase() === 'SUCCESSFUL',
+    })
+    setIsSubmitting(false)
   }
 
   function updateMarketplaceForm(event) {
@@ -499,17 +495,20 @@ function CustomerAppPage() {
       currentStep: 0,
     }
 
+    let createdOrder
     try {
-      const response = await fetch('/api/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'direct_payment_request', order: nextOrder }),
+      createdOrder = await createMarketplaceServiceRequest(nextOrder, selectedListing)
+    } catch (error) {
+      setRequestError('Marketplace order failed: ' + error.message)
+      setIsSubmitting(false)
+      return
+    }
+
+    try {
+      const result = await postJson('/api/payments', {
+        type: 'direct_payment_request',
+        order: { ...nextOrder, firestoreId: createdOrder.firestoreId },
       })
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => null)
-        throw new Error(errorBody?.error || 'Unable to start the payment')
-      }
-      const result = await response.json()
       const providerStatus = String(result?.status || '').toUpperCase()
       nextOrder.paymentStatus = providerStatus === 'SUCCESSFUL' ? 'Submitted' : 'Pending'
       nextOrder.paymentProviderStatus = providerStatus || 'PENDING'
@@ -517,7 +516,6 @@ function CustomerAppPage() {
       nextOrder.paymentReceiptTransactionId = result?.transactionId || result?.transId || ''
       nextOrder.paymentReceiptText = result?.message ? String(result.message) : JSON.stringify(result)
 
-      const createdOrder = await createMarketplaceServiceRequest(nextOrder, selectedListing)
       setRecentOrder(createdOrder)
       setPaymentSuccess({
         id: nextOrder.id,
@@ -525,7 +523,8 @@ function CustomerAppPage() {
         confirmed: providerStatus === 'SUCCESSFUL',
       })
     } catch (error) {
-      setRequestError('Marketplace order failed: ' + error.message)
+      setRecentOrder(createdOrder)
+      setRequestError('Order ' + nextOrder.id + ' was saved, but payment could not start: ' + error.message + ' Do not submit a second order.')
     } finally {
       setIsSubmitting(false)
     }

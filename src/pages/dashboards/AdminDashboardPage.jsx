@@ -7,7 +7,6 @@ import {
   calculatePlatformFee,
   calculateProviderEarning,
   isPayoutReady,
-  paymentStatuses,
   payoutStatuses,
   subscribeToAllOrders,
   subscribeToPaymentSmsReceipts,
@@ -22,6 +21,8 @@ import {
   subscribeToProviderApplications,
   updateProviderVerification,
 } from '../../firebase/providerApplicationService'
+import { getMarketplaceCategory, marketplaceCategoryEntries } from '../../config/marketplaceConfig'
+import { adminSetListingVisibility, subscribeToAllListings } from '../../firebase/marketplaceService'
 import { useAuth } from '../../auth/useAuth'
 import DashboardShell from './DashboardShell'
 import { useEffect } from 'react'
@@ -66,11 +67,14 @@ function AdminDashboardPage() {
   const [paymentReceipts, setPaymentReceipts] = useState([])
   const [users, setUsers] = useState([])
   const [applications, setApplications] = useState([])
+  const [listings, setListings] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [listingVisibility, setListingVisibility] = useState('all')
+  const [listingCategory, setListingCategory] = useState('all')
   const [providerSelections, setProviderSelections] = useState({})
 
   useEffect(() => {
@@ -92,6 +96,10 @@ function AdminDashboardPage() {
       setApplications,
       (nextError) => setError(nextError.message),
     )
+    const unsubListings = subscribeToAllListings(
+      setListings,
+      (nextError) => setError(nextError.message),
+    )
     const unsubPaymentReceipts = subscribeToPaymentSmsReceipts(
       setPaymentReceipts,
       (nextError) => setError(nextError.message),
@@ -101,6 +109,7 @@ function AdminDashboardPage() {
       unsubUsers()
       unsubApplications()
       unsubPaymentReceipts()
+      unsubListings()
     }
   }, [])
 
@@ -124,6 +133,7 @@ function AdminDashboardPage() {
     ['Users', String(users.length)],
     ['Customers', String(customers.length)],
     ['Providers', String(providers.length)],
+    ['Listings', String(listings.length)],
     ['Riders', String(riders.length)],
     ['Revenue', formatAmount(revenue)],
     ['Open requests', String(openOrders.length)],
@@ -195,6 +205,20 @@ function AdminDashboardPage() {
     })
   }, [orders, query])
 
+  const filteredListings = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    return listings.filter((listing) => {
+      const matchesVisibility = listingVisibility === 'all'
+        || (listingVisibility === 'active' && listing.active)
+        || (listingVisibility === 'hidden' && !listing.active)
+      const matchesCategory = listingCategory === 'all' || listing.category === listingCategory
+      const haystack = [
+        listing.title, listing.description, listing.providerName, listing.providerPhone,
+        listing.serviceArea, listing.category, listing.moderationStatus,
+      ].join(' ').toLowerCase()
+      return matchesVisibility && matchesCategory && (!needle || haystack.includes(needle))
+    })
+  }, [listings, listingCategory, listingVisibility, query])
   function exportData() {
     if (activeView === 'payments') {
       downloadCsv('carenest-payment-sms-receipts.csv', [
@@ -351,6 +375,21 @@ function AdminDashboardPage() {
     }
   }
 
+  async function reviewListing(listing, active) {
+    setError('')
+    setMessage('')
+    const note = window.prompt(
+      active ? 'Optional approval note for this listing.' : 'Why are you hiding this listing?',
+      listing.moderationNote || '',
+    )
+    if (note === null) return
+    try {
+      await adminSetListingVisibility(listing.firestoreId, active, user.uid, note)
+      setMessage(listing.title + (active ? ' is published in the marketplace.' : ' has been hidden from customers.'))
+    } catch (nextError) {
+      setError(nextError.message)
+    }
+  }
   const nav = [
     { label: 'Overview', to: '/dashboard/admin?view=overview', icon: 'dashboard' },
     { label: 'Users', to: '/dashboard/admin?view=users', icon: 'users' },
@@ -358,6 +397,7 @@ function AdminDashboardPage() {
     { label: 'Payments', to: '/dashboard/admin?view=payments', icon: 'payments' },
     { label: 'Payouts', to: '/dashboard/admin?view=payouts', icon: 'payments' },
     { label: 'Applications', to: '/dashboard/admin?view=applications', icon: 'users' },
+    { label: 'Marketplace', to: '/dashboard/admin?view=marketplace', icon: 'bookings' },
     { label: 'Settings', to: '/dashboard/admin?view=settings', icon: 'settings' },
   ]
 
@@ -494,14 +534,18 @@ function AdminDashboardPage() {
                       </select>
                     </td>
                     <td data-label="Payment">
-                      <select className="dashboard-select" value={order.paymentStatus || 'Pending'} onChange={(event) => updatePayment(order, event.target.value)}>
-                        {paymentStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
-                      </select>
-                      <div className="table-action-row">
-                        <button className="table-action" type="button" onClick={() => updatePayment(order, 'Paid', 'Customer receipt accepted by admin.')}>Accept</button>
-                        <button className="table-action danger" type="button" onClick={() => updatePayment(order, 'Failed', 'Customer receipt rejected by admin.')}>Reject</button>
-                        <button className="table-action secondary" type="button" onClick={() => updatePayment(order, 'Refunded', 'Customer refund approved by admin.')}>Refund</button>
-                      </div>
+                      {order.paymentStatus === 'Paid' ? (
+                        <span className="status-chip completed">Paid automatically</span>
+                      ) : (
+                        <>
+                          <strong>{order.paymentStatus || 'Pending'}</strong>
+                          <div className="table-action-row">
+                            <button className="table-action danger" type="button" onClick={() => updatePayment(order, 'Failed', 'Payment marked failed after review.')}>Mark failed</button>
+                            <button className="table-action secondary" type="button" onClick={() => updatePayment(order, 'Refunded', 'Customer refund approved by admin.')}>Refund</button>
+                          </div>
+                          {order.paymentStatus === 'Submitted' && <small className="dashboard-muted">Awaiting automatic provider verification.</small>}
+                        </>
+                      )}
                       {order.paymentReviewNote && <small className="dashboard-muted">{order.paymentReviewNote}</small>}
                     </td>
                   </tr>
@@ -512,6 +556,62 @@ function AdminDashboardPage() {
         </section>
       )}
 
+      {activeView === 'marketplace' && (
+        <section className="dashboard-panel admin-marketplace-panel">
+          <div className="dashboard-panel-header">
+            <div>
+              <h2>Marketplace operations</h2>
+              <p>Review provider storefronts, control customer visibility, and monitor pricing and stock.</p>
+            </div>
+            <div className="dashboard-tools">
+              <input className="dashboard-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search listings or providers" />
+              <select className="dashboard-select" value={listingCategory} onChange={(event) => setListingCategory(event.target.value)}>
+                <option value="all">All categories</option>
+                {marketplaceCategoryEntries.map(([value, category]) => <option key={value} value={value}>{category.label}</option>)}
+              </select>
+              <select className="dashboard-select" value={listingVisibility} onChange={(event) => setListingVisibility(event.target.value)}>
+                <option value="all">All visibility</option>
+                <option value="active">Published</option>
+                <option value="hidden">Hidden</option>
+              </select>
+            </div>
+          </div>
+          <div className="marketplace-ops-summary">
+            <article><span>Total listings</span><strong>{listings.length}</strong></article>
+            <article><span>Published</span><strong>{listings.filter((listing) => listing.active).length}</strong></article>
+            <article><span>Hidden</span><strong>{listings.filter((listing) => !listing.active).length}</strong></article>
+            <article><span>Low or no stock</span><strong>{listings.filter((listing) => listing.stockTracked && listing.stockQuantity < 3).length}</strong></article>
+          </div>
+          <div className="marketplace-listing-grid admin-marketplace-grid">
+            {filteredListings.map((listing) => (
+              <article className="marketplace-listing-card admin-marketplace-card" key={listing.firestoreId}>
+                <div className="admin-listing-heading">
+                  <span>{getMarketplaceCategory(listing.category).label}</span>
+                  <b className={'status-chip ' + (listing.active ? 'paid' : 'held')}>{listing.active ? 'Published' : 'Hidden'}</b>
+                </div>
+                <h3>{listing.title}</h3>
+                <p>{listing.description}</p>
+                <strong>{formatAmount(listing.price)} / {listing.unit}</strong>
+                <dl>
+                  <div><dt>Provider</dt><dd>{listing.providerName}</dd></div>
+                  <div><dt>Phone</dt><dd>{listing.providerPhone || 'Not supplied'}</dd></div>
+                  <div><dt>Area</dt><dd>{listing.serviceArea}</dd></div>
+                  <div><dt>Fulfilment</dt><dd>{listing.turnaround || 'Not specified'}</dd></div>
+                  <div><dt>Stock</dt><dd>{listing.stockTracked ? listing.stockQuantity : 'Not tracked'}</dd></div>
+                  <div><dt>Reviewed</dt><dd>{listing.moderationStatus || 'Not reviewed'}</dd></div>
+                </dl>
+                {listing.options?.length > 0 && <small>Options: {listing.options.join(', ')}</small>}
+                {listing.moderationNote && <p className="admin-moderation-note">{listing.moderationNote}</p>}
+                <div className="table-action-row">
+                  {!listing.active && <button className="table-action" type="button" onClick={() => reviewListing(listing, true)}>Publish</button>}
+                  {listing.active && <button className="table-action danger" type="button" onClick={() => reviewListing(listing, false)}>Hide</button>}
+                </div>
+              </article>
+            ))}
+            {filteredListings.length === 0 && <p className="dashboard-empty">No marketplace listings match these filters.</p>}
+          </div>
+        </section>
+      )}
       {activeView === 'applications' && (
         <section className="dashboard-panel">
           <div className="dashboard-panel-header">

@@ -24,6 +24,24 @@ function validateListing(listing) {
   if (!String(listing.serviceArea || '').trim()) throw new Error('Enter the area you serve.')
 }
 
+export function subscribeToAllListings(onNext, onError) {
+  return onSnapshot(
+    listingsRef,
+    (snapshot) => onNext(snapshot.docs.map(normalizeListing).sort((a, b) => (b.createdAtDate?.getTime() || 0) - (a.createdAtDate?.getTime() || 0))),
+    onError,
+  )
+}
+
+export function adminSetListingVisibility(listingId, active, adminUid, note = '') {
+  return updateDoc(doc(db, 'providerListings', listingId), {
+    active: Boolean(active),
+    moderationStatus: active ? 'Approved' : 'Hidden',
+    moderationNote: String(note || (active ? 'Approved for the CareNest marketplace.' : 'Hidden by CareNest operations.')).trim(),
+    reviewedBy: adminUid,
+    reviewedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+}
 export function subscribeToActiveListings(onNext, onError) {
   return onSnapshot(
     query(listingsRef, where('active', '==', true)),

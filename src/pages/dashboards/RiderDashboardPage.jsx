@@ -13,6 +13,12 @@ function normalizeStatus(status) {
   return String(status || 'Pending').toLowerCase().replace(/\s+/g, '-')
 }
 
+function getDeliveryErrorMessage(error) {
+  if (error?.code === 'failed-precondition' || error?.message?.includes('requires an index')) {
+    return 'Deliveries could not be loaded right now. Please try again shortly.'
+  }
+  return error?.message || 'Something went wrong while loading deliveries.'
+}
 function RiderDashboardPage() {
   const [searchParams] = useSearchParams()
   const activeView = searchParams.get('view') || 'overview'
@@ -26,12 +32,12 @@ function RiderDashboardPage() {
   useEffect(() => {
     const unsubOpen = subscribeToOpenRiderDeliveries(
       setAvailableDeliveries,
-      (nextError) => setError(nextError.message),
+      (nextError) => setError(getDeliveryErrorMessage(nextError)),
     )
     const unsubAssigned = subscribeToRiderOrders(
       user?.uid,
       setAssignedDeliveries,
-      (nextError) => setError(nextError.message),
+      (nextError) => setError(getDeliveryErrorMessage(nextError)),
     )
 
     return () => {

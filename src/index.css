@@ -80,3 +80,50 @@ a {
     padding: 1rem;
   }
 }
+
+.network-status {
+  position: sticky;
+  z-index: 10000;
+  top: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px max(16px, calc((100vw - 1120px) / 2));
+  color: #102018;
+  background: #fff4d6;
+  border-bottom: 1px solid #e5bd59;
+}
+
+.network-status.offline {
+  color: #ffffff;
+  background: #7f1d1d;
+  border-bottom-color: #5f1515;
+}
+
+.network-status span {
+  display: grid;
+}
+
+.network-status strong,
+.network-status small {
+  line-height: 1.3;
+}
+
+.network-status small {
+  font-size: 12px;
+}
+
+.network-status button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  place-items: center;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  cursor: pointer;
+}

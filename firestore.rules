@@ -34,6 +34,14 @@ service cloud.firestore {
       return role() == 'customer';
     }
 
+    function isRider() {
+      return role() == 'rider';
+    }
+
+    function validRiderStatus(status) {
+      return status in ['Accepted', 'Picked up', 'Delivered'];
+    }
+
     function signedInCustomerWithoutProfile() {
       return signedIn()
         && !hasUserDoc()
@@ -237,6 +245,9 @@ service cloud.firestore {
           && request.resource.data.category == resource.data.category
           && request.resource.data.kind == resource.data.kind
           && request.resource.data.createdAt == resource.data.createdAt
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'moderationStatus', 'moderationNote', 'reviewedBy', 'reviewedAt'
+          ])
           && request.resource.data.price is int
           && request.resource.data.price >= 100
           && request.resource.data.stockQuantity is int
@@ -294,6 +305,16 @@ service cloud.firestore {
           isAdmin()
           || resource.data.get('customerUid', '') == request.auth.uid
           || resource.data.get('providerUid', '') == request.auth.uid
+          || (
+            isRider()
+            && (
+              resource.data.get('riderUid', '') == request.auth.uid
+              || (
+                resource.data.serviceType == 'delivery'
+                && resource.data.status == 'Out for Delivery'
+              )
+            )
+          )
           || (isProvider() && resource.data.status == 'Pending' && resource.data.get('providerUid', '') == '')
         );
 
@@ -302,6 +323,16 @@ service cloud.firestore {
           isAdmin()
           || resource.data.get('customerUid', '') == request.auth.uid
           || resource.data.get('providerUid', '') == request.auth.uid
+          || (
+            isRider()
+            && (
+              resource.data.get('riderUid', '') == request.auth.uid
+              || (
+                resource.data.serviceType == 'delivery'
+                && resource.data.status == 'Out for Delivery'
+              )
+            )
+          )
           || (isProvider() && resource.data.status == 'Pending' && resource.data.get('providerUid', '') == '')
         );
 
@@ -310,6 +341,10 @@ service cloud.firestore {
           && validStatus(request.resource.data.status)
           && validStepForStatus(request.resource.data.status, request.resource.data.currentStep)
           && validPaymentStatus(request.resource.data.paymentStatus)
+          && (
+            request.resource.data.paymentStatus == resource.data.paymentStatus
+            || request.resource.data.paymentStatus in ['Pending', 'Submitted', 'Failed', 'Refunded']
+          )
           && (
             !('payoutStatus' in request.resource.data)
             || (
@@ -392,6 +427,53 @@ service cloud.firestore {
                 'payoutNote',
                 'updatedAt'
               ])
+            )
+          )
+        )
+        || (
+          isRider()
+          && resource.data.serviceType == 'delivery'
+          && request.resource.data.customerUid == resource.data.customerUid
+          && request.resource.data.customerEmail == resource.data.customerEmail
+          && request.resource.data.amount == resource.data.amount
+          && request.resource.data.paymentStatus == resource.data.paymentStatus
+          && request.resource.data.serviceType == resource.data.serviceType
+          && request.resource.data.itemSummary == resource.data.itemSummary
+          && request.resource.data.serviceSpeed == resource.data.serviceSpeed
+          && request.resource.data.paymentMethod == resource.data.paymentMethod
+          && (
+            (
+              resource.data.status == 'Out for Delivery'
+              && resource.data.get('riderUid', '') == ''
+              && request.resource.data.riderUid == request.auth.uid
+              && request.resource.data.riderStatus == 'Accepted'
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'riderUid', 'riderName', 'riderPhone', 'riderStatus',
+                'riderAssignedAt', 'updatedAt'
+              ])
+            )
+            || (
+              resource.data.get('riderUid', '') == request.auth.uid
+              && request.resource.data.riderUid == request.auth.uid
+              && validRiderStatus(request.resource.data.riderStatus)
+              && (
+                (
+                  request.resource.data.riderStatus != 'Delivered'
+                  && request.resource.data.status == resource.data.status
+                  && request.resource.data.currentStep == resource.data.currentStep
+                  && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                    'riderStatus', 'updatedAt'
+                  ])
+                )
+                || (
+                  request.resource.data.riderStatus == 'Delivered'
+                  && request.resource.data.status == 'Completed'
+                  && request.resource.data.currentStep == 5
+                  && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                    'riderStatus', 'status', 'currentStep', 'deliveredAt', 'updatedAt'
+                  ])
+                )
+              )
             )
           )
         );
