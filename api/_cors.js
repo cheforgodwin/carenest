@@ -1,6 +1,8 @@
 const defaultOrigins = [
   'https://carenest237.com',
   'https://www.carenest237.com',
+  'https://carenest-ashy-two.vercel.app',
+  'https://carenest.vercel.app',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
 ]

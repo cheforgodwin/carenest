@@ -3,6 +3,7 @@ import {
 } from 'firebase/firestore'
 import { marketplaceCategories, parseListingOptions } from '../config/marketplaceConfig'
 import { db } from './firebaseConfig'
+import { assertTextLength, inputLimits, sanitizeTrimmedText } from '../utils/securityUtils'
 
 const listingsRef = collection(db, 'providerListings')
 
@@ -18,10 +19,10 @@ function normalizeListing(snapshot) {
 
 function validateListing(listing) {
   if (!marketplaceCategories[listing.category]) throw new Error('Choose a supported category.')
-  if (String(listing.title || '').trim().length < 3) throw new Error('Enter a listing title.')
-  if (String(listing.description || '').trim().length < 10) throw new Error('Add a useful listing description.')
+  assertTextLength(listing.title, { field: 'Listing title', min: 3, max: inputLimits.title })
+  assertTextLength(listing.description, { field: 'Listing description', min: 10, max: inputLimits.description })
   if (!Number.isInteger(Number(listing.price)) || Number(listing.price) < 100) throw new Error('Price must be at least 100 FCFA.')
-  if (!String(listing.serviceArea || '').trim()) throw new Error('Enter the area you serve.')
+  assertTextLength(listing.serviceArea, { field: 'Service area', min: 2, max: inputLimits.address })
 }
 
 export function subscribeToAllListings(onNext, onError) {
@@ -66,14 +67,14 @@ export async function createProviderListing(provider, listing) {
     providerUid: provider.uid,
     providerName: provider.name || 'CareNest provider',
     providerPhone: provider.phone || '',
-    title: String(listing.title).trim(),
+    title: sanitizeTrimmedText(listing.title, inputLimits.title),
     category: listing.category,
     kind: category.kind,
-    description: String(listing.description).trim(),
+    description: sanitizeTrimmedText(listing.description, inputLimits.description),
     price: Number(listing.price),
-    unit: String(listing.unit || category.unitLabel).trim(),
-    serviceArea: String(listing.serviceArea).trim(),
-    turnaround: String(listing.turnaround || '').trim(),
+    unit: sanitizeTrimmedText(listing.unit || category.unitLabel, 40),
+    serviceArea: sanitizeTrimmedText(listing.serviceArea, inputLimits.address),
+    turnaround: sanitizeTrimmedText(listing.turnaround, inputLimits.short),
     options: parseListingOptions(listing.options),
     stockTracked: category.kind === 'product' && Boolean(listing.stockTracked),
     stockQuantity: category.kind === 'product' && listing.stockTracked ? Math.max(0, Number(listing.stockQuantity) || 0) : 0,
@@ -85,12 +86,12 @@ export async function createProviderListing(provider, listing) {
 
 export function updateProviderListing(listingId, updates) {
   const allowed = {
-    title: String(updates.title || '').trim(),
-    description: String(updates.description || '').trim(),
+    title: sanitizeTrimmedText(updates.title, inputLimits.title),
+    description: sanitizeTrimmedText(updates.description, inputLimits.description),
     price: Number(updates.price),
-    unit: String(updates.unit || '').trim(),
-    serviceArea: String(updates.serviceArea || '').trim(),
-    turnaround: String(updates.turnaround || '').trim(),
+    unit: sanitizeTrimmedText(updates.unit, 40),
+    serviceArea: sanitizeTrimmedText(updates.serviceArea, inputLimits.address),
+    turnaround: sanitizeTrimmedText(updates.turnaround, inputLimits.short),
     options: parseListingOptions(updates.options),
     stockTracked: Boolean(updates.stockTracked),
     stockQuantity: Math.max(0, Number(updates.stockQuantity) || 0),

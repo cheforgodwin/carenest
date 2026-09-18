@@ -503,6 +503,21 @@ function CustomerAppPage() {
       setIsSubmitting(false)
     }
   }
+  async function retryOrderPayment() {
+    if (!viewedOrder?.firestoreId || viewedOrder.paymentStatus === 'Paid' || viewedOrder.paymentReference) return
+    if (isSubmitting) return
+    setIsSubmitting(true)
+    setRequestError('')
+    try {
+      await postJson('/api/payments', { firestoreId: viewedOrder.firestoreId })
+      setPaymentSuccess({ id: viewedOrder.id, amount: viewedOrder.amount })
+    } catch (error) {
+      setRequestError('Payment could not start: ' + error.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   async function submitComplaint(event) {
     event.preventDefault()
     if (!viewedOrder?.firestoreId) return
@@ -681,19 +696,19 @@ function CustomerAppPage() {
                   {providerApplications[0]?.status !== 'Approved' && providerApplications[0]?.status !== 'Pending' && (
                     <form className="provider-application-form" onSubmit={submitApplication}>
                       <input type="hidden" name="role" value={applicationForm.role} />
-                      <label>Telephone number<input name="phone" type="tel" value={applicationForm.phone} onChange={updateApplicationForm} placeholder={phonePlaceholder} required /></label>
+                      <label>Telephone number<input name="phone" type="tel" maxLength="20" value={applicationForm.phone} onChange={updateApplicationForm} placeholder={phonePlaceholder} required /></label>
                       {selectedApplicationRole === 'provider' && (
                         <>
-                          <label>Services you can provide<input name="services" value={applicationForm.services} onChange={updateApplicationForm} placeholder="Laundry, cleaning, delivery…" required /></label>
-                          <label>Area where you can work<input name="area" value={applicationForm.area} onChange={updateApplicationForm} placeholder="Town, neighbourhood or service area" required /></label>
-                          <label>Your experience<textarea name="experience" value={applicationForm.experience} onChange={updateApplicationForm} placeholder="Describe your experience, equipment and availability." minLength="20" required /></label>
+                          <label>Services you can provide<input name="services" maxLength="240" value={applicationForm.services} onChange={updateApplicationForm} placeholder="Laundry, cleaning, delivery…" required /></label>
+                          <label>Area where you can work<input name="area" maxLength="240" value={applicationForm.area} onChange={updateApplicationForm} placeholder="Town, neighbourhood or service area" required /></label>
+                          <label>Your experience<textarea name="experience" maxLength="2000" value={applicationForm.experience} onChange={updateApplicationForm} placeholder="Describe your experience, equipment and availability." minLength="20" required /></label>
                         </>
                       )}
                       {selectedApplicationRole === 'rider' && (
                         <>
-                          <label>Transport type<input name="transportType" value={applicationForm.transportType} onChange={updateApplicationForm} placeholder="Motorbike, bicycle, car…" required /></label>
-                          <label>Service area<input name="area" value={applicationForm.area} onChange={updateApplicationForm} placeholder="Town, neighbourhood or route" required /></label>
-                          <label>Experience<textarea name="experience" value={applicationForm.experience} onChange={updateApplicationForm} placeholder="Describe your delivery experience, routes, and schedule." minLength="20" required /></label>
+                          <label>Transport type<input name="transportType" maxLength="120" value={applicationForm.transportType} onChange={updateApplicationForm} placeholder="Motorbike, bicycle, car…" required /></label>
+                          <label>Service area<input name="area" maxLength="240" value={applicationForm.area} onChange={updateApplicationForm} placeholder="Town, neighbourhood or route" required /></label>
+                          <label>Experience<textarea name="experience" maxLength="2000" value={applicationForm.experience} onChange={updateApplicationForm} placeholder="Describe your delivery experience, routes, and schedule." minLength="20" required /></label>
                         </>
                       )}
                       {applicationStatus.error && <p className="request-message request-error" role="alert">{applicationStatus.error}</p>}
@@ -732,11 +747,11 @@ function CustomerAppPage() {
                         </label>
                       ))}
                       <label>Quantity<span className="request-input"><input name="quantity" type="number" min="1" max={selectedListing.stockTracked ? Math.min(50, selectedListing.stockQuantity) : 50} value={marketplaceForm.quantity} onChange={updateMarketplaceForm} required /></span></label>
-                      <label>{marketplaceCategory.kind === 'product' ? 'Delivery address' : 'Service address'}<span className="request-input"><FiMapPin /><input name="address" value={marketplaceForm.address} onChange={updateMarketplaceForm} required /></span></label>
+                      <label>{marketplaceCategory.kind === 'product' ? 'Delivery address' : 'Service address'}<span className="request-input"><FiMapPin /><input name="address" maxLength="240" value={marketplaceForm.address} onChange={updateMarketplaceForm} required /></span></label>
                       <label>{marketplaceCategory.kind === 'product' ? 'Delivery date' : 'Service date'}<span className="request-input"><FiCalendar /><input name="pickupDate" type="date" min={minimumPickupDate} value={marketplaceForm.pickupDate} onChange={updateMarketplaceForm} required /></span></label>
                       <label>Preferred time<span className="request-input"><FiClock /><input name="pickupTime" type="time" value={marketplaceForm.pickupTime} onChange={updateMarketplaceForm} required /></span></label>
-                      <label>Mobile Money number<span className="request-input"><FiPhone /><input name="paymentPhone" type="tel" value={marketplaceForm.paymentPhone || profile?.phone || ''} onChange={updateMarketplaceForm} placeholder={phonePlaceholder} required /></span></label>
-                      <label className="request-note-field">Instructions<textarea name="note" value={marketplaceForm.note} onChange={updateMarketplaceForm} placeholder="Delivery directions, preferences, or other details…" /></label>
+                      <label>Mobile Money number<span className="request-input"><FiPhone /><input name="paymentPhone" type="tel" maxLength="20" value={marketplaceForm.paymentPhone || profile?.phone || ''} onChange={updateMarketplaceForm} placeholder={phonePlaceholder} required /></span></label>
+                      <label className="request-note-field">Instructions<textarea name="note" maxLength="1000" value={marketplaceForm.note} onChange={updateMarketplaceForm} placeholder="Delivery directions, preferences, or other details…" /></label>
                     </div>
                     {requestError && <p className="request-message request-error" role="alert">{requestError}</p>}
                     <div className="request-submit-row">
@@ -778,10 +793,10 @@ function CustomerAppPage() {
                 </div>
                 <div className="request-field-grid">
                   <label>{requestConfig.primaryLabel}<span className="request-input"><select name={requestConfig.primaryField} value={primaryValue} onChange={updateForm}>{Object.keys(requestConfig.primaryOptions).map((type) => <option key={type} value={type}>{type}</option>)}</select><FiChevronDown /></span></label>
-                  <label>{currentServiceType === 'delivery' ? 'Delivery Address' : 'Service Address'}<span className="request-input"><FiMapPin /><input name="address" type="text" list="service-addresses" value={form.address} onChange={updateForm} placeholder="Enter your pickup or service address" required /></span><datalist id="service-addresses">{addresses.map((address) => <option key={address} value={address} />)}</datalist></label>
+                  <label>{currentServiceType === 'delivery' ? 'Delivery Address' : 'Service Address'}<span className="request-input"><FiMapPin /><input name="address" type="text" maxLength="240" list="service-addresses" value={form.address} onChange={updateForm} placeholder="Enter your pickup or service address" required /></span><datalist id="service-addresses">{addresses.map((address) => <option key={address} value={address} />)}</datalist></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Date' : 'Service Date'}<span className="request-input"><FiCalendar /><input name="pickupDate" type="date" min={minimumPickupDate} value={form.pickupDate} onChange={updateForm} /></span></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Time' : 'Service Time'}<span className="request-input"><FiClock /><input name="pickupTime" type="time" value={form.pickupTime} onChange={updateForm} /></span></label>
-                  <label>Mobile Money Number<span className="request-input"><FiPhone /><input name="paymentPhone" type="tel" value={form.paymentPhone || profile?.phone || ''} onChange={updateForm} placeholder={phonePlaceholder} required /></span></label>
+                  <label>Mobile Money Number<span className="request-input"><FiPhone /><input name="paymentPhone" type="tel" maxLength="20" value={form.paymentPhone || profile?.phone || ''} onChange={updateForm} placeholder={phonePlaceholder} required /></span></label>
                   <div className="manual-payment-panel">
                     <div>
                       <span>Secure Mobile Money</span>
@@ -793,7 +808,7 @@ function CustomerAppPage() {
                       <small>Enter your number and approve the prompt on your phone. Confirmation is automatic.</small>
                     </div>
                   </div>
-                  <label className="request-note-field">Additional Note (Optional)<textarea name="note" value={form.note} onChange={updateForm} placeholder={requestConfig.notePlaceholder} /></label>
+                  <label className="request-note-field">Additional Note (Optional)<textarea name="note" maxLength="1000" value={form.note} onChange={updateForm} placeholder={requestConfig.notePlaceholder} /></label>
                 </div>
                 {requestMessage && <p className="request-message">{requestMessage}</p>}
                 {requestError && <p className="request-message request-error" role="alert">{requestError}</p>}
@@ -858,6 +873,8 @@ function CustomerAppPage() {
                 <div><span>Pickup</span><strong>{formatPickupDate(viewedOrder.pickupDate, locale)}, {formatPickupTime(viewedOrder.pickupTime, locale)}</strong></div>
                 <div><span>Details</span><strong>{viewedOrder.note || viewedOrder.itemSummary || viewedOrder.clothesType}</strong></div>
                 <div><span>Payment</span><strong>Mobile Money - {viewedOrder.paymentStatus || 'Pending'}</strong></div>
+                {requestError && <p className="request-error" role="alert">{requestError}</p>}
+                {['Pending', 'Failed'].includes(viewedOrder.paymentStatus || 'Pending') && !viewedOrder.paymentReference && <button className="payment-retry-button" type="button" disabled={isSubmitting} onClick={retryOrderPayment}>{isSubmitting ? 'Starting payment…' : 'Retry payment'}</button>}
                 {viewedOrder.paymentReceiverNumber && <div><span>Paid to</span><strong>{viewedOrder.paymentReceiverNumber}</strong></div>}
                 {viewedOrder.paymentReference && <div><span>Payment ref</span><strong>{viewedOrder.paymentReference}</strong></div>}
                 {viewedOrder.paymentReceiptText && <div><span>Payment message</span><strong>{viewedOrder.paymentReceiptText}</strong></div>}
@@ -866,7 +883,7 @@ function CustomerAppPage() {
                 {viewedOrder.completionProofText && <div><span>Completion note</span><strong>{viewedOrder.completionProofText}</strong></div>}
                 {viewedOrder.status !== 'Complaint' && !['Cancelled'].includes(viewedOrder.status) && (
                   <form className="customer-complaint-form" onSubmit={submitComplaint}>
-                    <label>Report a problem<textarea value={complaintText} onChange={(event) => setComplaintText(event.target.value)} placeholder="Describe what went wrong with this service." /></label>
+                    <label>Report a problem<textarea maxLength="2000" value={complaintText} onChange={(event) => setComplaintText(event.target.value)} placeholder="Describe what went wrong with this service." /></label>
                     {complaintStatus.error && <small className="error" role="alert">{complaintStatus.error}</small>}
                     {complaintStatus.message && <small role="status">{complaintStatus.message}</small>}
                     <button type="submit" disabled={complaintStatus.loading}>{complaintStatus.loading ? 'Submitting…' : 'Submit complaint'}</button>

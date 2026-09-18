@@ -12,7 +12,10 @@ export const inputLimits = Object.freeze({
 })
 
 function withoutControlCharacters(value) {
-  return value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+  return [...value].filter((character) => {
+    const code = character.charCodeAt(0)
+    return code === 9 || code === 10 || code === 13 || code >= 32
+  }).join('')
 }
 
 export function sanitizeText(value, maxLength = inputLimits.note) {

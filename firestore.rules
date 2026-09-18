@@ -185,6 +185,11 @@ service cloud.firestore {
         && request.resource.data.payoutPhoneVerified == false
         && request.resource.data.status == 'Pending'
         && request.resource.data.role in ['provider', 'rider']
+        && request.resource.data.get('name', '').size() <= 80
+        && request.resource.data.get('services', '').size() <= 240
+        && request.resource.data.get('area', '').size() <= 240
+        && request.resource.data.get('experience', '').size() <= 2000
+        && request.resource.data.get('transportType', '').size() <= 120
         && request.resource.data.email == request.auth.token.email;
 
       allow get: if signedIn()
@@ -222,13 +227,18 @@ service cloud.firestore {
         && request.resource.data.kind in ['product', 'service']
         && request.resource.data.title is string
         && request.resource.data.title.size() >= 3
+        && request.resource.data.title.size() <= 120
         && request.resource.data.description is string
         && request.resource.data.description.size() >= 10
+        && request.resource.data.description.size() <= 2000
         && request.resource.data.price is int
         && request.resource.data.price >= 100
         && request.resource.data.unit is string
         && request.resource.data.serviceArea is string
         && request.resource.data.serviceArea.size() >= 2
+        && request.resource.data.serviceArea.size() <= 240
+        && request.resource.data.unit.size() <= 40
+        && request.resource.data.get('turnaround', '').size() <= 120
         && request.resource.data.options is list
         && request.resource.data.options.size() <= 12
         && request.resource.data.stockTracked is bool
@@ -285,6 +295,10 @@ service cloud.firestore {
         && request.resource.data.status == 'Pending'
         && request.resource.data.currentStep == 0
         && request.resource.data.paymentStatus == 'Pending'
+        && request.resource.data.get('customerName', '').size() <= 80
+        && request.resource.data.get('customerPhone', '').size() <= 20
+        && request.resource.data.get('address', '').size() <= 240
+        && request.resource.data.get('note', '').size() <= 1000
         && validPaymentMethod(request.resource.data.paymentMethod)
         && (
           (
@@ -361,6 +375,7 @@ service cloud.firestore {
                 || (
                   request.resource.data.completionProofText is string
                   && request.resource.data.completionProofText.size() >= 8
+                  && request.resource.data.completionProofText.size() <= 1000
                 )
               )
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -383,6 +398,7 @@ service cloud.firestore {
               && request.resource.data.payoutStatus == 'Held'
               && request.resource.data.complaintText is string
               && request.resource.data.complaintText.size() >= 10
+              && request.resource.data.complaintText.size() <= 2000
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
                 'status',
                 'currentStep',

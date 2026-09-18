@@ -17,6 +17,9 @@ export async function postJson(url, body, { timeoutMs = 30000, authenticated = t
         ...(token ? { Authorization: 'Bearer ' + token } : {}),
       },
       body: JSON.stringify(body),
+      cache: 'no-store',
+      credentials: 'omit',
+      referrerPolicy: 'no-referrer',
       signal: controller.signal,
     })
     const result = await response.json().catch(() => null)

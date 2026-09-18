@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore'
 import { db } from './firebaseConfig'
 import { formatPhoneNumber, isValidCameroonPhone } from './authService'
+import { assertTextLength, inputLimits } from '../utils/securityUtils'
 
 const applicationsRef = collection(db, 'providerApplications')
 
@@ -36,18 +37,20 @@ export function createProviderApplication(user, profile, application) {
   if (!user?.uid) throw new Error('Please login before applying.')
   const phone = formatPhoneNumber(application.phone || profile?.phone || '')
   if (!isValidCameroonPhone(phone)) throw new Error('Enter a valid Cameroon phone number before applying.')
+  const area = assertTextLength(application.area, { field: 'Service area', min: 2, max: inputLimits.address })
+  const experience = assertTextLength(application.experience, { field: 'Experience', min: 20, max: inputLimits.description })
   const payload = {
     userUid: user.uid,
     name: profile?.name || user.displayName || application.name,
     email: user.email,
     phone,
     role: application.role || 'provider',
-    services: application.services?.trim() || '',
-    area: application.area?.trim() || '',
-    experience: application.experience?.trim() || '',
-    transportType: application.transportType?.trim() || '',
-    dispatchRegion: application.dispatchRegion?.trim() || '',
-    shiftAvailability: application.shiftAvailability?.trim() || '',
+    services: assertTextLength(application.services, { field: 'Services', min: application.role === 'provider' ? 2 : 0, max: inputLimits.address }),
+    area,
+    experience,
+    transportType: assertTextLength(application.transportType, { field: 'Transport type', min: application.role === 'rider' ? 2 : 0, max: inputLimits.short }),
+    dispatchRegion: assertTextLength(application.dispatchRegion, { field: 'Dispatch region', max: inputLimits.address }),
+    shiftAvailability: assertTextLength(application.shiftAvailability, { field: 'Shift availability', max: inputLimits.address }),
     status: 'Pending',
     identityVerified: false,
     payoutPhoneVerified: false,

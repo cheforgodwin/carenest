@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore'
 import { servicePrices } from '../config/businessConfig'
 import { db } from './firebaseConfig'
+import { assertTextLength, inputLimits, sanitizeTrimmedText } from '../utils/securityUtils'
 
 const ordersRef = collection(db, 'serviceRequests')
 const usersRef = collection(db, 'users')
@@ -115,6 +116,23 @@ function getExpectedAmount(order) {
   return basePrice + speedPrice
 }
 
+function sanitizeOrderInput(order) {
+  const orderDetails = Object.fromEntries(Object.entries(order.orderDetails || {}).map(([key, value]) => [
+    sanitizeTrimmedText(key, 60),
+    sanitizeTrimmedText(value, inputLimits.address),
+  ]))
+  return {
+    ...order,
+    customerName: sanitizeTrimmedText(order.customerName, inputLimits.name),
+    customerPhone: sanitizeTrimmedText(order.customerPhone, inputLimits.phone),
+    service: sanitizeTrimmedText(order.service, inputLimits.title),
+    itemSummary: sanitizeTrimmedText(order.itemSummary, inputLimits.title),
+    address: sanitizeTrimmedText(order.address, inputLimits.address),
+    note: sanitizeTrimmedText(order.note, inputLimits.note),
+    orderDetails,
+  }
+}
+
 function validateServiceRequest(order) {
   const expectedAmount = getExpectedAmount(order)
   if (expectedAmount === null || expectedAmount !== Number(order.amount)) {
@@ -126,9 +144,10 @@ function validateServiceRequest(order) {
 }
 
 export async function createServiceRequest(order) {
-  validateServiceRequest(order)
+  const safeOrder = sanitizeOrderInput(order)
+  validateServiceRequest(safeOrder)
   const payload = {
-    ...order,
+    ...safeOrder,
     id: order.id || createRequestId(),
     status: order.status || 'Pending',
     currentStep: order.currentStep ?? 0,
@@ -148,15 +167,16 @@ export async function createServiceRequest(order) {
 }
 
 export async function createMarketplaceServiceRequest(order, listing) {
-  const quantity = Number(order.quantity)
+  const safeOrder = sanitizeOrderInput(order)
+  const quantity = Number(safeOrder.quantity)
   if (!listing?.firestoreId || !listing.active) throw new Error('This listing is no longer available.')
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 50) throw new Error('Choose a valid quantity.')
-  if (Number(order.amount) !== Number(listing.price) * quantity) throw new Error('The order total does not match the listing price.')
+  if (Number(safeOrder.amount) !== Number(listing.price) * quantity) throw new Error('The order total does not match the listing price.')
   if (listing.stockTracked && quantity > Number(listing.stockQuantity || 0)) throw new Error('The requested quantity is not in stock.')
   if (order.status !== 'Pending' || order.currentStep !== 0) throw new Error('New requests must start as pending.')
 
   const payload = Object.fromEntries(Object.entries({
-    ...order,
+    ...safeOrder,
     listingId: listing.firestoreId,
     listingTitle: listing.title,
     listingCategory: listing.category,
@@ -289,7 +309,7 @@ export function updateServiceRequestStatus(firestoreId, status) {
 }
 
 export function submitCustomerComplaint(firestoreId, complaintText) {
-  const cleanText = complaintText.trim()
+  const cleanText = assertTextLength(complaintText, { field: 'Complaint', min: 10, max: inputLimits.description })
   if (cleanText.length < 10) {
     throw new Error('Please describe the problem before submitting a complaint.')
   }
@@ -312,7 +332,7 @@ export function updateProviderJobStatus(firestoreId, status, proofText = '') {
   }
 
   if (status === 'Completed') {
-    const cleanProof = proofText.trim()
+    const cleanProof = assertTextLength(proofText, { field: 'Completion note', min: 8, max: inputLimits.note })
     if (cleanProof.length < 8) {
       throw new Error('Add a short completion note before marking this job completed.')
     }

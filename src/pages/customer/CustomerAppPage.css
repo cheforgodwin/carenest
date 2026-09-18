@@ -2957,3 +2957,21 @@
   .mobile-hero { order: 1; }
   .home-secondary { order: 2; }
 }
+
+
+.payment-retry-button {
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  border-radius: 10px;
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--cn-orange), var(--cn-orange-dark));
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+}
+
+.payment-retry-button:disabled {
+  cursor: wait;
+  opacity: .65;
+}

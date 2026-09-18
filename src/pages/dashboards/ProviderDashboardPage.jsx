@@ -261,13 +261,13 @@ function ProviderDashboardPage() {
             <label>Category<select className="dashboard-select" name="category" value={listingForm.category} onChange={updateListingForm}>
               {marketplaceCategoryEntries.map(([value, category]) => <option key={value} value={value}>{category.label}</option>)}
             </select></label>
-            <label>Listing title<input className="dashboard-input" name="title" value={listingForm.title} onChange={updateListingForm} placeholder="E.g. 12.5 kg gas refill" required /></label>
+            <label>Listing title<input className="dashboard-input" name="title" maxLength="120" value={listingForm.title} onChange={updateListingForm} placeholder="E.g. 12.5 kg gas refill" required /></label>
             <label>Price (FCFA)<input className="dashboard-input" name="price" type="number" min="100" step="1" value={listingForm.price} onChange={updateListingForm} required /></label>
-            <label>Price unit<input className="dashboard-input" name="unit" value={listingForm.unit} onChange={updateListingForm} placeholder="cylinder, item, visit…" required /></label>
-            <label>Service area<input className="dashboard-input" name="serviceArea" value={listingForm.serviceArea} onChange={updateListingForm} placeholder={serviceAreaPlaceholder} required /></label>
-            <label>Fulfilment time<input className="dashboard-input" name="turnaround" value={listingForm.turnaround} onChange={updateListingForm} placeholder="E.g. 45–90 minutes" /></label>
-            <label className="marketplace-form-wide">{getMarketplaceCategory(listingForm.category).listingPrompt}<input className="dashboard-input" name="options" value={listingForm.options} onChange={updateListingForm} placeholder="E.g. 6 kg, 12.5 kg, 50 kg" /></label>
-            <label className="marketplace-form-wide">Description<textarea className="dashboard-input dashboard-textarea" name="description" value={listingForm.description} onChange={updateListingForm} minLength="10" placeholder="Tell customers exactly what is included." required /></label>
+            <label>Price unit<input className="dashboard-input" name="unit" maxLength="40" value={listingForm.unit} onChange={updateListingForm} placeholder="cylinder, item, visit…" required /></label>
+            <label>Service area<input className="dashboard-input" name="serviceArea" maxLength="240" value={listingForm.serviceArea} onChange={updateListingForm} placeholder={serviceAreaPlaceholder} required /></label>
+            <label>Fulfilment time<input className="dashboard-input" name="turnaround" maxLength="120" value={listingForm.turnaround} onChange={updateListingForm} placeholder="E.g. 45–90 minutes" /></label>
+            <label className="marketplace-form-wide">{getMarketplaceCategory(listingForm.category).listingPrompt}<input className="dashboard-input" name="options" maxLength="500" value={listingForm.options} onChange={updateListingForm} placeholder="E.g. 6 kg, 12.5 kg, 50 kg" /></label>
+            <label className="marketplace-form-wide">Description<textarea className="dashboard-input dashboard-textarea" name="description" maxLength="2000" value={listingForm.description} onChange={updateListingForm} minLength="10" placeholder="Tell customers exactly what is included." required /></label>
             {getMarketplaceCategory(listingForm.category).kind === 'product' && <>
               <label className="marketplace-check"><input name="stockTracked" type="checkbox" checked={listingForm.stockTracked} onChange={updateListingForm} /> Track stock</label>
               {listingForm.stockTracked && <label>Stock available<input className="dashboard-input" name="stockQuantity" type="number" min="0" step="1" value={listingForm.stockQuantity} onChange={updateListingForm} /></label>}
