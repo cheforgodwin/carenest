@@ -1,6 +1,7 @@
 import { FieldValue } from 'firebase-admin/firestore'
 import { getAdminDb } from './_firebaseAdmin.js'
 import { getFapshiBaseUrl, getFapshiConfig, readJsonResponse } from './_fapshi.js'
+import { handleCors } from './_cors.js'
 
 const webhookLimits = globalThis.__careNestWebhookLimits || new Map()
 globalThis.__careNestWebhookLimits = webhookLimits
@@ -32,6 +33,7 @@ async function verifyWithFapshi(transactionId) {
 }
 
 export default async function handler(req, res) {
+  if (handleCors(req, res)) return
   if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed.' })
 
   if (!enforceRateLimit(req)) return sendJson(res, 429, { error: 'Too many webhook requests.' })

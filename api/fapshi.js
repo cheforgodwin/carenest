@@ -2,6 +2,7 @@ import { FieldValue } from 'firebase-admin/firestore'
 import { randomUUID } from 'node:crypto'
 import { getAdminDb, requireAuthenticatedUser } from './_firebaseAdmin.js'
 import { getFapshiBaseUrl, getFapshiConfig, readJsonResponse } from './_fapshi.js'
+import { handleCors } from './_cors.js'
 
 function ensureResponseHelpers(res) {
   if (typeof res.status !== 'function') res.status = function (code) { this.statusCode = code; return this }
@@ -15,6 +16,7 @@ function ensureResponseHelpers(res) {
 
 export default async function handler(req, res) {
   ensureResponseHelpers(res)
+  if (handleCors(req, res)) return
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST')
     return res.status(405).json({ error: 'Method not allowed. Use POST.' })
@@ -124,7 +126,8 @@ export default async function handler(req, res) {
       updatedAt: FieldValue.serverTimestamp(),
     })
 
-    return res.status(200).json({ status: result.status || 'PENDING', transId: transactionId, message: result.message || 'Payment request sent.' })
+    res.setHeader('Cache-Control', 'no-store')
+    return res.status(202).json({ accepted: true, message: 'Payment request sent. Await server verification.' })
   } catch (error) {
     const status = Number(error.statusCode || 500)
     return res.status(status).json({ error: status < 500 ? error.message : 'The payment service is temporarily unavailable.' })

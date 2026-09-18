@@ -1,3 +1,4 @@
+import { handleCors } from './_cors.js'
 const supportedLocales = new Set(['en', 'fr'])
 const limits = globalThis.__careNestTranslationLimits || new Map()
 const cache = globalThis.__careNestTranslationCache || new Map()
@@ -49,6 +50,7 @@ function validate(body) {
 
 export default async function handler(req, res) {
   setupResponse(res)
+  if (handleCors(req, res)) return
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST')
     return res.status(405).json({ error: 'Method not allowed.' })

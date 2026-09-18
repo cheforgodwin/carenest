@@ -1125,3 +1125,37 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Keep wide dashboard content inside its own panel instead of widening the page. */
+.dashboard-page,
+.dashboard-main,
+.dashboard-panel,
+.dashboard-panel-header,
+.dashboard-tools,
+.metric-grid {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.dashboard-page { width: 100%; overflow-x: clip; }
+.dashboard-main { overflow-x: hidden; }
+.dashboard-main > * { min-width: 0; max-width: 100%; }
+.dashboard-panel {
+  width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+.dashboard-table { max-width: 100%; }
+.dashboard-table th,
+.dashboard-table td { overflow-wrap: anywhere; word-break: normal; }
+
+@media (max-width: 768px) {
+  .dashboard-page { overflow-x: clip; }
+  .dashboard-panel { max-width: calc(100vw - 32px); }
+  .dashboard-table { min-width: 560px; }
+  .admin-requests-table { min-width: 0; }
+}
+
+@media (max-width: 480px) {
+  .dashboard-panel { max-width: calc(100vw - 24px); }
+}

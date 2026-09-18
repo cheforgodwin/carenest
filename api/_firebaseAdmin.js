@@ -16,7 +16,7 @@ export const getAdminDb = () => getFirestore(getAdminApp())
 
 export async function requireAuthenticatedUser(req) {
   const match = String(req.headers?.authorization || '').match(/^Bearer\s+(.+)$/i)
-  if (!match) {
+  if (!match || match[1].length > 8192) {
     const error = new Error('Authentication is required.')
     error.statusCode = 401
     throw error

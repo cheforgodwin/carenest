@@ -36,6 +36,7 @@ import { formatMarketplaceAmount, getMarketplaceCategory } from '../../config/ma
 import Logo from '../../components/Logo'
 import { createMarketplaceServiceRequest, createRequestId, createServiceRequest, submitCustomerComplaint, subscribeToCustomerOrders } from '../../firebase/orderService'
 import { postJson } from '../../utils/networkUtils'
+import { inputLimits, sanitizeText } from '../../utils/securityUtils'
 import { subscribeToActiveListings } from '../../firebase/marketplaceService'
 import { createProviderApplication, subscribeToMyProviderApplications } from '../../firebase/providerApplicationService'
 import './CustomerAppPage.css'
@@ -309,7 +310,7 @@ function CustomerAppPage() {
 
   function updateApplicationForm(event) {
     const { name, value } = event.target
-    setApplicationForm((current) => ({ ...current, [name]: value }))
+    setApplicationForm((current) => ({ ...current, [name]: sanitizeText(value, inputLimits.description) }))
     setApplicationStatus({ loading: false, error: '', message: '' })
   }
 
@@ -327,11 +328,12 @@ function CustomerAppPage() {
 
   function updateForm(event) {
     const { name, value } = event.target
+    const safeValue = sanitizeText(value, name === 'note' ? inputLimits.note : inputLimits.address)
     setForms((current) => ({
       ...current,
       [currentServiceType]: {
         ...current[currentServiceType],
-        [name]: value,
+        [name]: safeValue,
       },
     }))
     setRequestMessage('')
@@ -395,15 +397,9 @@ function CustomerAppPage() {
         return
       }
       try {
-        const result = await postJson('/api/payments', {
+        await postJson('/api/payments', {
           firestoreId: createdOrder.firestoreId,
         })
-        const providerStatus = String(result?.status || '').toUpperCase()
-        nextOrder.paymentStatus = providerStatus === 'SUCCESSFUL' ? 'Submitted' : 'Pending'
-        nextOrder.paymentProviderStatus = providerStatus || 'PENDING'
-        nextOrder.paymentReference = result?.reference || result?.transId || nextOrder.paymentReference
-        nextOrder.paymentReceiptTransactionId = result?.transactionId || result?.transId || nextOrder.paymentReceiptTransactionId
-        nextOrder.paymentReceiptText = result?.message ? String(result.message) : JSON.stringify(result)
       } catch (error) {
         setRecentOrder(createdOrder)
         setRequestError(`Order ${nextOrder.id} was saved, but payment could not start: ${error.message} Do not submit a second order.`)
@@ -417,17 +413,14 @@ function CustomerAppPage() {
       ...current,
       [currentServiceType]: createEmptyForm(currentServiceType),
     }))
-    setPaymentSuccess({
-      id: nextOrder.id,
-      amount: nextOrder.amount,
-      confirmed: String(nextOrder.paymentProviderStatus).toUpperCase() === 'SUCCESSFUL',
-    })
+    setPaymentSuccess({ id: nextOrder.id, amount: nextOrder.amount })
     setIsSubmitting(false)
   }
 
   function updateMarketplaceForm(event) {
     const { name, value } = event.target
-    setMarketplaceForm((current) => ({ ...current, [name]: value }))
+    const safeValue = sanitizeText(value, name === 'note' ? inputLimits.note : inputLimits.address)
+    setMarketplaceForm((current) => ({ ...current, [name]: safeValue }))
     setRequestError('')
   }
 
@@ -497,22 +490,12 @@ function CustomerAppPage() {
     }
 
     try {
-      const result = await postJson('/api/payments', {
-        firestoreId: createdOrder.firestoreId,
-      })
-      const providerStatus = String(result?.status || '').toUpperCase()
-      nextOrder.paymentStatus = providerStatus === 'SUCCESSFUL' ? 'Submitted' : 'Pending'
-      nextOrder.paymentProviderStatus = providerStatus || 'PENDING'
-      nextOrder.paymentReference = result?.reference || result?.transId || ''
-      nextOrder.paymentReceiptTransactionId = result?.transactionId || result?.transId || ''
-      nextOrder.paymentReceiptText = result?.message ? String(result.message) : JSON.stringify(result)
+      await postJson('/api/payments', {
+          firestoreId: createdOrder.firestoreId,
+        })
 
       setRecentOrder(createdOrder)
-      setPaymentSuccess({
-        id: nextOrder.id,
-        amount: nextOrder.amount,
-        confirmed: providerStatus === 'SUCCESSFUL',
-      })
+      setPaymentSuccess({ id: nextOrder.id, amount: nextOrder.amount })
     } catch (error) {
       setRecentOrder(createdOrder)
       setRequestError('Order ' + nextOrder.id + ' was saved, but payment could not start: ' + error.message + ' Do not submit a second order.')
@@ -912,10 +895,8 @@ function CustomerAppPage() {
             <section className="payment-success-modal" role="dialog" aria-modal="true" aria-labelledby="payment-success-title">
               <button className="payment-success-close" type="button" onClick={() => setPaymentSuccess(null)} aria-label="Close payment confirmation"><FiX /></button>
               <span className="payment-success-icon"><FiCheck /></span>
-              <h2 id="payment-success-title">{paymentSuccess.confirmed ? 'Payment successful' : 'Payment request created'}</h2>
-              <p>{paymentSuccess.confirmed
-                ? `Your ${formatAmount(paymentSuccess.amount)} payment has been received and your request is confirmed.`
-                : 'Approve the Mobile Money prompt on your phone. Your order will update automatically once payment is confirmed.'}</p>
+              <h2 id="payment-success-title">Payment request sent</h2>
+              <p>Approve the Mobile Money prompt on your phone. CareNest will show Paid only after the payment provider is verified by our server.</p>
               <small>Request {paymentSuccess.id}</small>
               <button type="button" onClick={() => { setPaymentSuccess(null); navigate(`/dashboard/customer/orders/${paymentSuccess.id}`) }}>View order</button>
             </section>
