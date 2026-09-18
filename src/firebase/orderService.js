@@ -100,7 +100,9 @@ function normalizePaymentSmsReceipt(docSnapshot) {
 }
 
 export function createRequestId() {
-  return `CN-${String(Date.now()).slice(-6)}`
+  const randomPart = globalThis.crypto?.randomUUID?.().replace(/-/g, '').slice(0, 12)
+    || Math.random().toString(36).slice(2, 14)
+  return `CN-${Date.now().toString(36).toUpperCase()}-${randomPart.toUpperCase()}`
 }
 
 function getExpectedAmount(order) {
@@ -192,12 +194,9 @@ export function subscribeToCustomerOrders(customerUid, onNext, onError) {
   )
 }
 
-export function subscribeToOpenProviderOrders(onNext, onError) {
-  return onSnapshot(
-    query(ordersRef, where('status', '==', 'Pending')),
-    (snapshot) => onNext(snapshot.docs.map(normalizeOrder)),
-    onError,
-  )
+export function subscribeToOpenProviderOrders(onNext) {
+  onNext([])
+  return () => {}
 }
 
 export function subscribeToProviderOrders(providerUid, onNext, onError) {
@@ -209,21 +208,9 @@ export function subscribeToProviderOrders(providerUid, onNext, onError) {
   )
 }
 
-export function subscribeToOpenRiderDeliveries(onNext, onError) {
-  return onSnapshot(
-    query(
-      ordersRef,
-      where('serviceType', '==', 'delivery'),
-      where('status', '==', 'Out for Delivery'),
-    ),
-    (snapshot) => {
-      const orders = snapshot.docs
-        .map(normalizeOrder)
-        .sort((a, b) => (b.createdAtDate?.getTime() || 0) - (a.createdAtDate?.getTime() || 0))
-      onNext(orders)
-    },
-    onError,
-  )
+export function subscribeToOpenRiderDeliveries(onNext) {
+  onNext([])
+  return () => {}
 }
 
 export function subscribeToRiderOrders(riderUid, onNext, onError) {

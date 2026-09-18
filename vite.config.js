@@ -3,11 +3,30 @@ import react from '@vitejs/plugin-react'
 import fs from 'fs'
 import path from 'path'
 import fapshiHandler from './api/fapshi.js'
+import translateHandler from './api/translate.js'
 
 function fapshiDevApi() {
   return {
     name: 'carenest-fapshi-dev-api',
     configureServer(server) {
+      server.middlewares.use('/api/translate', (req, res) => {
+        const chunks = []
+        req.on('data', (chunk) => chunks.push(chunk))
+        req.on('end', async () => {
+          try {
+            req.body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {}
+          } catch {
+            req.body = {}
+          }
+          try {
+            await translateHandler(req, res)
+          } catch {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: 'Translation development API error.' }))
+          }
+        })
+      })
       server.middlewares.use('/api/payments', (req, res) => {
         const chunks = []
 

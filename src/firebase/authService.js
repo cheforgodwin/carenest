@@ -1,6 +1,6 @@
 import {
   createUserWithEmailAndPassword,
-  browserSessionPersistence,
+  browserLocalPersistence,
   signInWithEmailAndPassword,
   signOut,
   setPersistence,
@@ -10,6 +10,7 @@ import {
 } from 'firebase/auth'
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { phoneCountryCode } from '../config/businessConfig'
+import { normalizeEmail, validateEmail, validateLoginCredentials, validateSignupFields } from '../auth/authValidation.js'
 import { auth, db } from './firebaseConfig'
 import { isValidCameroonPhone as isValidCameroonPhoneUtil, normalizePhoneNumber } from './phoneUtils'
 
@@ -24,11 +25,8 @@ export function isValidCameroonPhone(phone) {
 }
 
 export function validateSignupProfile(profile) {
-  if (profile.name.trim().length < 2) throw new Error('Enter your full name.')
-  if (!isValidCameroonPhone(profile.phone)) throw new Error('Enter a valid Cameroon number, for example +237 6XX XXX XXX.')
-  if (profile.password.length < 8 || !/[A-Za-z]/.test(profile.password) || !/\d/.test(profile.password)) {
-    throw new Error('Use at least 8 characters with both letters and numbers.')
-  }
+  const validationError = validateSignupFields(profile, isValidCameroonPhone)
+  if (validationError) throw new Error(validationError)
 }
 
 export function normalizeRole(role) {
@@ -36,7 +34,7 @@ export function normalizeRole(role) {
 }
 
 export function createUserIdentifier(profile) {
-  const email = profile.email.trim().toLowerCase()
+  const email = normalizeEmail(profile.email)
   const name = profile.name.trim().toLowerCase().replace(/\s+/g, '-')
   const phone = formatPhoneNumber(profile.phone).replace(/\D/g, '')
   return `${email}_${name}_${phone}`
@@ -84,10 +82,10 @@ export async function getUserProfile(uid) {
 
 export async function signUpWithProfile(profile) {
   validateSignupProfile(profile)
-  await setPersistence(auth, browserSessionPersistence)
+  await setPersistence(auth, browserLocalPersistence)
   const credential = await createUserWithEmailAndPassword(
     auth,
-    profile.email.trim(),
+    normalizeEmail(profile.email),
     profile.password,
   )
   await updateProfile(credential.user, { displayName: profile.name.trim() })
@@ -97,8 +95,10 @@ export async function signUpWithProfile(profile) {
 }
 
 export async function loginWithEmail(email, password) {
-  await setPersistence(auth, browserSessionPersistence)
-  const credential = await signInWithEmailAndPassword(auth, email.trim(), password)
+  const validationError = validateLoginCredentials({ email, password })
+  if (validationError) throw new Error(validationError)
+  await setPersistence(auth, browserLocalPersistence)
+  const credential = await signInWithEmailAndPassword(auth, normalizeEmail(email), password)
   return getUserProfile(credential.user.uid)
 }
 
@@ -107,7 +107,9 @@ export function logout() {
 }
 
 export function requestPasswordReset(email) {
-  return sendPasswordResetEmail(auth, email.trim())
+  const validationError = validateEmail(email)
+  if (validationError) throw new Error(validationError)
+  return sendPasswordResetEmail(auth, normalizeEmail(email))
 }
 
 export function requestEmailVerification(user) {

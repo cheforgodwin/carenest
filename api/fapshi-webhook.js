@@ -1,6 +1,9 @@
-import { cert, getApps, initializeApp } from 'firebase-admin/app'
-import { FieldValue, getFirestore } from 'firebase-admin/firestore'
-import { timingSafeEqual } from 'node:crypto'
+import { FieldValue } from 'firebase-admin/firestore'
+import { getAdminDb } from './_firebaseAdmin.js'
+import { getFapshiBaseUrl, getFapshiConfig, readJsonResponse } from './_fapshi.js'
+
+const webhookLimits = globalThis.__careNestWebhookLimits || new Map()
+globalThis.__careNestWebhookLimits = webhookLimits
 
 function sendJson(res, status, body) {
   res.statusCode = status
@@ -8,89 +11,87 @@ function sendJson(res, status, body) {
   res.end(JSON.stringify(body))
 }
 
-function isExpectedSecret(received, expected) {
-  if (!received || !expected) return false
-  const receivedBuffer = Buffer.from(received)
-  const expectedBuffer = Buffer.from(expected)
-  return receivedBuffer.length === expectedBuffer.length && timingSafeEqual(receivedBuffer, expectedBuffer)
-}
-
-function getDb() {
-  const rawServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_JSON
-  if (!rawServiceAccount) throw new Error('Missing FIREBASE_SERVICE_ACCOUNT_JSON.')
-  const serviceAccount = JSON.parse(rawServiceAccount)
-  const app = getApps()[0] || initializeApp({ credential: cert(serviceAccount) })
-  return getFirestore(app)
+function enforceRateLimit(req) {
+  const address = String(req.headers?.['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').split(',')[0]
+  const now = Date.now()
+  const state = webhookLimits.get(address)
+  if (!state || now - state.startedAt >= 60_000) webhookLimits.set(address, { startedAt: now, count: 1 })
+  else if (state.count >= 60) return false
+  else state.count += 1
+  return true
 }
 
 async function verifyWithFapshi(transactionId) {
-  const mode = String(process.env.FAPSHI_MODE || 'sandbox').trim()
-  const apiUrl = mode === 'live'
-    ? String(process.env.FAPSHI_LIVE_API_URL || '').trim()
-    : String(process.env.FAPSHI_SANDBOX_API_URL || '').trim()
-  const apiUser = mode === 'live'
-    ? String(process.env.FAPSHI_LIVE_API_USER || '').trim()
-    : String(process.env.FAPSHI_SANDBOX_API_USER || '').trim()
-  const apiKey = mode === 'live'
-    ? String(process.env.FAPSHI_LIVE_SECRET_KEY || '').trim()
-    : String(process.env.FAPSHI_SANDBOX_SECRET_KEY || '').trim()
-
-  if (!apiUrl || !apiUser || !apiKey) throw new Error('Missing Fapshi API configuration.')
-  const statusUrl = `${apiUrl.replace(/\/initiate-pay\/?$/, '').replace(/\/$/, '')}/payment-status/${encodeURIComponent(transactionId)}`
-  const response = await fetch(statusUrl, { headers: { apiuser: apiUser, apikey: apiKey } })
-  const text = await response.text()
-  let payment = {}
-  try { payment = text ? JSON.parse(text) : {} } catch { payment = { message: text } }
-  if (!response.ok) throw new Error(payment.message || `Fapshi status lookup failed (${response.status}).`)
+  const { apiUrl, apiUser, apiKey } = getFapshiConfig()
+  const response = await fetch(getFapshiBaseUrl(apiUrl) + '/payment-status/' + encodeURIComponent(transactionId), {
+    headers: { apiuser: apiUser, apikey: apiKey },
+  })
+  const payment = await readJsonResponse(response)
+  if (!response.ok) throw new Error(payment.message || 'Fapshi status lookup failed.')
   return payment
 }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed.' })
 
-  const expectedSecret = String(process.env.FAPSHI_WEBHOOK_SECRET || '')
-  const receivedSecret = String(req.headers['x-wh-secret'] || '')
-  if (!isExpectedSecret(receivedSecret, expectedSecret)) return sendJson(res, 401, { error: 'Invalid webhook secret.' })
+  if (!enforceRateLimit(req)) return sendJson(res, 429, { error: 'Too many webhook requests.' })
 
   try {
-    const webhookPayment = req.body || {}
-    const transId = String(webhookPayment.transId || '')
-    if (!transId) return sendJson(res, 400, { error: 'Missing Fapshi transaction ID.' })
+    const callback = req.body || {}
+    const callbackTransactionId = String(callback.transId || callback.transactionId || '').trim()
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(callbackTransactionId)) return sendJson(res, 400, { error: 'Invalid Fapshi transaction ID.' })
 
-    const payment = await verifyWithFapshi(transId)
-    if (!['SUCCESSFUL', 'FAILED', 'EXPIRED'].includes(payment.status)) {
-      return sendJson(res, 202, { received: true, status: payment.status || 'PENDING' })
+    const payment = await verifyWithFapshi(callbackTransactionId)
+    const verifiedTransactionId = String(payment.transId || payment.transactionId || '').trim()
+    if (!verifiedTransactionId || verifiedTransactionId !== callbackTransactionId) {
+      return sendJson(res, 400, { error: 'Transaction verification mismatch.' })
     }
 
-    const orderId = String(payment.externalId || webhookPayment.externalId || '')
-    if (!orderId) return sendJson(res, 400, { error: 'Missing CareNest order ID.' })
-
-    const db = getDb()
-    const snapshot = await db.collection('serviceRequests').where('id', '==', orderId).limit(1).get()
-    if (snapshot.empty) return sendJson(res, 404, { error: 'Matching CareNest order not found.' })
-
-    const order = snapshot.docs[0]
-    if (Number(order.data().amount) !== Number(payment.amount)) {
-      return sendJson(res, 400, { error: 'Payment amount does not match the order.' })
+    const expectedWebhook = String(process.env.FAPSHI_WEBHOOK_URL || '').trim().replace(/\/$/, '')
+    const verifiedWebhook = String(payment.webhook || '').trim().replace(/\/$/, '')
+    if (expectedWebhook && verifiedWebhook && verifiedWebhook !== expectedWebhook) {
+      return sendJson(res, 400, { error: 'Payment belongs to a different webhook.' })
     }
 
-    const paymentStatus = payment.status === 'SUCCESSFUL' ? 'Paid' : 'Failed'
-    await order.ref.update({
+    const providerStatus = String(payment.status || '').toUpperCase()
+    if (!['SUCCESSFUL', 'FAILED', 'EXPIRED'].includes(providerStatus)) {
+      return sendJson(res, 202, { received: true, status: providerStatus || 'PENDING' })
+    }
+
+    const firestoreId = String(payment.externalId || '').trim()
+    if (!firestoreId || firestoreId.includes('/')) return sendJson(res, 400, { error: 'Invalid CareNest order binding.' })
+
+    const db = getAdminDb()
+    const orderRef = db.collection('serviceRequests').doc(firestoreId)
+    const snapshot = await orderRef.get()
+    if (!snapshot.exists) return sendJson(res, 404, { error: 'Matching CareNest order not found.' })
+
+    const order = snapshot.data()
+    if (String(order.paymentReference || '') !== verifiedTransactionId
+      || String(order.paymentReceiptTransactionId || '') !== verifiedTransactionId
+      || String(payment.userId || '') !== String(order.customerUid || '')
+      || Number(order.amount) !== Number(payment.amount)) {
+      return sendJson(res, 400, { error: 'Payment does not match the bound order.' })
+    }
+
+    const paymentStatus = providerStatus === 'SUCCESSFUL' ? 'Paid' : 'Failed'
+    if (order.paymentStatus === 'Paid' && paymentStatus !== 'Paid') {
+      return sendJson(res, 409, { error: 'A confirmed payment cannot be downgraded.' })
+    }
+
+    await orderRef.update({
       paymentStatus,
-      paymentReference: payment.transId || transId,
-      paymentReceiptTransactionId: payment.transId || transId,
-      paymentProviderStatus: payment.status,
-      paymentProvider: 'Fapshi',
+      paymentProviderStatus: providerStatus,
       paymentConfirmedAt: payment.dateConfirmed || null,
       paymentVerifiedAt: FieldValue.serverTimestamp(),
       paymentVerifiedBy: 'fapshi-webhook',
       paymentWebhookReceivedAt: FieldValue.serverTimestamp(),
-      paymentReceiptText: payment.message || webhookPayment.message || `Fapshi ${payment.status}`,
+      paidAt: paymentStatus === 'Paid' ? FieldValue.serverTimestamp() : null,
       updatedAt: FieldValue.serverTimestamp(),
     })
 
-    return sendJson(res, 200, { received: true, orderId, paymentStatus })
-  } catch (error) {
-    return sendJson(res, 500, { error: 'Unable to verify Fapshi payment.', details: String(error.message || error) })
+    return sendJson(res, 200, { received: true, orderId: order.id || firestoreId, paymentStatus })
+  } catch {
+    return sendJson(res, 500, { error: 'Unable to verify Fapshi payment.' })
   }
 }

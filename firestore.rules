@@ -139,7 +139,8 @@ service cloud.firestore {
       allow create: if (
           ownsUserDoc(userId)
           && request.resource.data.uid == request.auth.uid
-          && request.resource.data.accountType in ['customer', 'provider', 'rider']
+          && request.resource.data.accountType == 'customer'
+          && request.resource.data.email == request.auth.token.email
         );
 
       allow get: if ownsUserDoc(userId) || isAdmin();
@@ -182,7 +183,9 @@ service cloud.firestore {
         && request.resource.data.phone.matches('^\\+2376[0-9]{8}$')
         && request.resource.data.identityVerified == false
         && request.resource.data.payoutPhoneVerified == false
-        && request.resource.data.status == 'Pending';
+        && request.resource.data.status == 'Pending'
+        && request.resource.data.role in ['provider', 'rider']
+        && request.resource.data.email == request.auth.token.email;
 
       allow get: if signedIn()
         && (isAdmin() || applicationId == request.auth.uid);
@@ -197,6 +200,8 @@ service cloud.firestore {
           && resource.data.userUid == request.auth.uid
           && request.resource.data.userUid == request.auth.uid
           && request.resource.data.status == 'Pending'
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.email == resource.data.email
           && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
             'reviewerUid',
             'reviewedAt',
@@ -279,7 +284,7 @@ service cloud.firestore {
         && request.resource.data.customerUid == request.auth.uid
         && request.resource.data.status == 'Pending'
         && request.resource.data.currentStep == 0
-        && request.resource.data.paymentStatus in ['Pending', 'Submitted']
+        && request.resource.data.paymentStatus == 'Pending'
         && validPaymentMethod(request.resource.data.paymentMethod)
         && (
           (
@@ -300,40 +305,12 @@ service cloud.firestore {
           || validMarketplaceOrder()
         );
 
-      allow get: if signedIn()
+      allow get, list: if signedIn()
         && (
           isAdmin()
           || resource.data.get('customerUid', '') == request.auth.uid
           || resource.data.get('providerUid', '') == request.auth.uid
-          || (
-            isRider()
-            && (
-              resource.data.get('riderUid', '') == request.auth.uid
-              || (
-                resource.data.serviceType == 'delivery'
-                && resource.data.status == 'Out for Delivery'
-              )
-            )
-          )
-          || (isProvider() && resource.data.status == 'Pending' && resource.data.get('providerUid', '') == '')
-        );
-
-      allow list: if signedIn()
-        && (
-          isAdmin()
-          || resource.data.get('customerUid', '') == request.auth.uid
-          || resource.data.get('providerUid', '') == request.auth.uid
-          || (
-            isRider()
-            && (
-              resource.data.get('riderUid', '') == request.auth.uid
-              || (
-                resource.data.serviceType == 'delivery'
-                && resource.data.status == 'Out for Delivery'
-              )
-            )
-          )
-          || (isProvider() && resource.data.status == 'Pending' && resource.data.get('providerUid', '') == '')
+          || resource.data.get('riderUid', '') == request.auth.uid
         );
 
       allow update: if (
@@ -390,18 +367,6 @@ service cloud.firestore {
                 'status', 'currentStep', 'completionProofText', 'completedAt', 'updatedAt'
               ])
             )
-            || (
-              !('providerUid' in resource.data)
-              && resource.data.status == 'Pending'
-              && request.resource.data.providerUid == request.auth.uid
-              && request.resource.data.status == 'Assigned'
-              && request.resource.data.currentStep == 1
-              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                'providerUid', 'providerName', 'providerEmail', 'providerPhone',
-                'providerPayoutMethod', 'providerPayoutPhone',
-                'status', 'currentStep', 'assignedAt', 'updatedAt'
-              ])
-            )
           )
         )
         || (
@@ -442,17 +407,6 @@ service cloud.firestore {
           && request.resource.data.serviceSpeed == resource.data.serviceSpeed
           && request.resource.data.paymentMethod == resource.data.paymentMethod
           && (
-            (
-              resource.data.status == 'Out for Delivery'
-              && resource.data.get('riderUid', '') == ''
-              && request.resource.data.riderUid == request.auth.uid
-              && request.resource.data.riderStatus == 'Accepted'
-              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                'riderUid', 'riderName', 'riderPhone', 'riderStatus',
-                'riderAssignedAt', 'updatedAt'
-              ])
-            )
-            || (
               resource.data.get('riderUid', '') == request.auth.uid
               && request.resource.data.riderUid == request.auth.uid
               && validRiderStatus(request.resource.data.riderStatus)
@@ -475,7 +429,6 @@ service cloud.firestore {
                 )
               )
             )
-          )
         );
 
       allow delete: if isAdmin();

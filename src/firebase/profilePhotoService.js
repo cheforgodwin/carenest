@@ -89,14 +89,15 @@ async function uploadImageToStorage(user, file, pathPrefix) {
   if (file.size > maximumPhotoSize) throw new Error('Your photo must be smaller than 5 MB.')
 
   const compressedBlob = await createCompressedImageBlob(file)
-  const storageRef = ref(storage, `${pathPrefix}/${user.uid}-${Date.now()}.jpg`)
+  const uniqueName = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const storageRef = ref(storage, `${pathPrefix}/${user.uid}/${uniqueName}.jpg`)
   await uploadBytes(storageRef, compressedBlob, { contentType: 'image/jpeg' })
   return getDownloadURL(storageRef)
 }
 
 export async function uploadCustomerProfilePhoto(user, file) {
   try {
-    const photoURL = await uploadImageToStorage(user, file, 'profile-photos')
+    const photoURL = await uploadImageToStorage(user, file, 'profilePhotos')
 
     await updateDoc(doc(db, 'users', user.uid), {
       photoURL,
@@ -112,7 +113,7 @@ export async function uploadCustomerProfilePhoto(user, file) {
 
 export async function uploadProviderBusinessPhoto(user, file) {
   try {
-    const businessPhotoURL = await uploadImageToStorage(user, file, 'business-photos')
+    const businessPhotoURL = await uploadImageToStorage(user, file, 'providerPhotos')
 
     await updateDoc(doc(db, 'users', user.uid), {
       businessPhotoURL,

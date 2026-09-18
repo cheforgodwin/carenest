@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { I18nContext } from './I18nContextStore.js'
 import { defaultLocale, localeStorageKey, supportedLocales, staticEnglishMessages, translationKeys } from './translationData.js'
 import { detectSystemLocale, translateText, translateMessages, getCachedTranslations } from './translationService.js'
+import AutoTranslate from './AutoTranslate.jsx'
 
 function getInitialLocale() {
   if (typeof window === 'undefined') return defaultLocale
@@ -112,6 +113,6 @@ export function I18nProvider({ children }) {
     error,
   }), [locale, updateLocale, translateMessage, dictionary, loading, error, translations])
 
-  return <I18nContext.Provider value={contextValue}>{children}</I18nContext.Provider>
+  return <I18nContext.Provider value={contextValue}><AutoTranslate locale={locale} />{children}</I18nContext.Provider>
 }
 

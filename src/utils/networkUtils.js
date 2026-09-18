@@ -1,22 +1,26 @@
-export async function postJson(url, body, { timeoutMs = 30000 } = {}) {
-  if (!navigator.onLine) {
-    throw new Error('You are offline. Reconnect before making a payment.')
-  }
+import { auth } from '../firebase/firebaseConfig'
+
+export async function postJson(url, body, { timeoutMs = 30000, authenticated = true } = {}) {
+  if (!navigator.onLine) throw new Error('You are offline. Reconnect before making a payment.')
 
   const controller = new AbortController()
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
 
   try {
+    const token = authenticated ? await auth.currentUser?.getIdToken() : ''
+    if (authenticated && !token) throw new Error('Please sign in again before continuing.')
+
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: 'Bearer ' + token } : {}),
+      },
       body: JSON.stringify(body),
       signal: controller.signal,
     })
     const result = await response.json().catch(() => null)
-    if (!response.ok) {
-      throw new Error(result?.error || 'The service could not complete your request.')
-    }
+    if (!response.ok) throw new Error(result?.error || 'The service could not complete your request.')
     return result
   } catch (error) {
     if (error.name === 'AbortError') {

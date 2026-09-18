@@ -22,6 +22,7 @@ import {
   FiZap,
 } from 'react-icons/fi'
 import { useAuth } from '../../auth/useAuth'
+import { useI18n } from '../../i18n/useI18n.jsx'
 import {
   defaultCustomerAddress,
   defaultCustomerCity,
@@ -119,9 +120,9 @@ const serviceSlugs = Object.keys(serviceConfig)
 
 const formatAmount = (amount) => `${Number(amount || 0).toLocaleString()} FCFA`
 
-const formatPlacedAt = (order) => {
+const formatPlacedAt = (order, locale = 'en') => {
   if (order?.createdAtDate) {
-    return order.createdAtDate.toLocaleString('en-GB', {
+    return order.createdAtDate.toLocaleString(locale === 'fr' ? 'fr-FR' : 'en-GB', {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
@@ -132,29 +133,30 @@ const formatPlacedAt = (order) => {
   return order?.placedAt || 'Just now'
 }
 
-const formatPickupDate = (date) => {
+const formatPickupDate = (date, locale = 'en') => {
   if (!date) return 'Not selected'
-  return new Date(`${date}T00:00:00`).toLocaleDateString('en-GB', {
+  return new Date(`${date}T00:00:00`).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-GB', {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
   })
 }
 
-const formatPickupTime = (time) => {
+const formatPickupTime = (time, locale = 'en') => {
   if (!time) return 'Not selected'
+  if (locale === 'fr') return time
   const [hourValue, minute] = time.split(':').map(Number)
   const suffix = hourValue >= 12 ? 'PM' : 'AM'
   const hour = hourValue % 12 || 12
   return `${hour}:${String(minute).padStart(2, '0')} ${suffix}`
 }
 
-const getTimeline = (order) => timelineSteps.map((step, index) => {
+const getTimeline = (order, locale) => timelineSteps.map((step, index) => {
   const status = index < order.currentStep ? 'done' : index === order.currentStep ? 'active' : 'pending'
   const detail = index === 0
-    ? formatPlacedAt(order)
+    ? formatPlacedAt(order, locale)
     : index === 1
-      ? `${formatPickupDate(order.pickupDate)}, ${formatPickupTime(order.pickupTime)}`
+      ? `${formatPickupDate(order.pickupDate, locale)}, ${formatPickupTime(order.pickupTime, locale)}`
       : status === 'active'
         ? 'In Progress'
         : status === 'done'
@@ -186,6 +188,7 @@ const addresses = availableServiceAddresses
 
 function CustomerAppPage() {
   const { profile, user } = useAuth()
+  const { locale } = useI18n()
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const isServices = pathname.includes('/services')
@@ -393,18 +396,7 @@ function CustomerAppPage() {
       }
       try {
         const result = await postJson('/api/payments', {
-          type: 'direct_payment_request',
-          order: {
-            id: nextOrder.id,
-            firestoreId: createdOrder.firestoreId,
-            amount: nextOrder.amount,
-            customerName: nextOrder.customerName,
-            customerEmail: nextOrder.customerEmail,
-            customerPhone: nextOrder.customerPhone,
-            service: nextOrder.service,
-            serviceType: nextOrder.serviceType,
-            paymentMethod: nextOrder.paymentMethod,
-          },
+          firestoreId: createdOrder.firestoreId,
         })
         const providerStatus = String(result?.status || '').toUpperCase()
         nextOrder.paymentStatus = providerStatus === 'SUCCESSFUL' ? 'Submitted' : 'Pending'
@@ -506,8 +498,7 @@ function CustomerAppPage() {
 
     try {
       const result = await postJson('/api/payments', {
-        type: 'direct_payment_request',
-        order: { ...nextOrder, firestoreId: createdOrder.firestoreId },
+        firestoreId: createdOrder.firestoreId,
       })
       const providerStatus = String(result?.status || '').toUpperCase()
       nextOrder.paymentStatus = providerStatus === 'SUCCESSFUL' ? 'Submitted' : 'Pending'
@@ -602,7 +593,7 @@ function CustomerAppPage() {
                   <div className="order-icon"><FiShoppingBag /></div>
                   <div className="order-summary">
                     <strong>{activeOrder.service} Order - {activeOrder.id}</strong>
-                    <p>Pickup: {formatPickupDate(activeOrder.pickupDate)}, {formatPickupTime(activeOrder.pickupTime)}</p>
+                    <p>Pickup: {formatPickupDate(activeOrder.pickupDate, locale)}, {formatPickupTime(activeOrder.pickupTime, locale)}</p>
                     <p><b>Details:</b> {activeOrder.note || activeOrder.itemSummary || activeOrder.clothesType}</p>
                   </div>
                   <span>{activeOrder.status}</span>
@@ -619,7 +610,7 @@ function CustomerAppPage() {
                     <strong>{order.id}</strong>
                     <span>{order.service}</span>
                     <b>{order.status}</b>
-                    <small>{formatPlacedAt(order)}<br />{formatAmount(order.amount)}</small>
+                    <small>{formatPlacedAt(order, locale)}<br />{formatAmount(order.amount)}</small>
                   </Link>
                 ))}
                 {completedOrders.length === 0 && <p className="dashboard-muted-empty">Your completed services will appear here.</p>}
@@ -852,7 +843,7 @@ function CustomerAppPage() {
                   {orders.map((order) => (
                     <Link className="order-card" to={`/dashboard/customer/orders/${order.id}`} key={order.firestoreId || order.id}>
                       <div className="order-icon">{order.serviceType === 'delivery' ? <FiPackage /> : order.serviceType === 'cleaning' ? <FiTool /> : <FiShoppingBag />}</div>
-                      <div className="order-summary"><strong>{order.service} · {order.id}</strong><p>{formatPlacedAt(order)}</p><p>{formatAmount(order.amount)}</p></div>
+                      <div className="order-summary"><strong>{order.service} · {order.id}</strong><p>{formatPlacedAt(order, locale)}</p><p>{formatAmount(order.amount)}</p></div>
                       <span>{order.status}</span>
                     </Link>
                   ))}
@@ -870,10 +861,10 @@ function CustomerAppPage() {
                 {requestMessage && <p className="booking-confirmation" role="status"><FiCheck /> {requestMessage}</p>}
                 <div className="tracking-hero">
                   <div className="order-machine"><FiShoppingBag /></div>
-                  <div><h2>{viewedOrder.service} Order</h2><strong>{viewedOrder.id}</strong><p>Placed on {formatPlacedAt(viewedOrder)}</p><span>{viewedOrder.status}</span></div>
+                  <div><h2>{viewedOrder.service} Order</h2><strong>{viewedOrder.id}</strong><p>Placed on {formatPlacedAt(viewedOrder, locale)}</p><span>{viewedOrder.status}</span></div>
                 </div>
                 <div className="tracking-steps">
-                  {getTimeline(viewedOrder).map(([step, detail, status]) => (
+                  {getTimeline(viewedOrder, locale).map(([step, detail, status]) => (
                     <div className={`track-row ${status}`} key={step}><span>{status !== 'pending' && <FiCheck />}</span><div><strong>{step}</strong><p>{detail}</p></div></div>
                   ))}
                 </div>
@@ -881,7 +872,7 @@ function CustomerAppPage() {
               <aside className="tracking-aside">
                 <h2>Order summary</h2>
                 <div><span>Service</span><strong>{viewedOrder.service}</strong></div>
-                <div><span>Pickup</span><strong>{formatPickupDate(viewedOrder.pickupDate)}, {formatPickupTime(viewedOrder.pickupTime)}</strong></div>
+                <div><span>Pickup</span><strong>{formatPickupDate(viewedOrder.pickupDate, locale)}, {formatPickupTime(viewedOrder.pickupTime, locale)}</strong></div>
                 <div><span>Details</span><strong>{viewedOrder.note || viewedOrder.itemSummary || viewedOrder.clothesType}</strong></div>
                 <div><span>Payment</span><strong>Mobile Money - {viewedOrder.paymentStatus || 'Pending'}</strong></div>
                 {viewedOrder.paymentReceiverNumber && <div><span>Paid to</span><strong>{viewedOrder.paymentReceiverNumber}</strong></div>}

@@ -1,7 +1,7 @@
 export const defaultLocale = 'en'
 export const supportedLocales = ['en', 'fr']
 export const localeStorageKey = 'carenest_locale'
-export const translationCacheKey = 'carenest_translation_cache_v1'
+export const translationCacheKey = 'carenest_translation_cache_v4'
 
 export const staticEnglishMessages = {
   'navbar.services': 'Services',
@@ -51,6 +51,7 @@ export const staticEnglishMessages = {
   'login.button.openAdminDashboard': 'Open admin dashboard',
   'login.button.forgotPassword': 'Forgot password?',
   'login.link.createAccount': 'Create an account',
+  'login.link.newTo': 'New to CareNest?',
   'login.message.resetSent': 'If an account uses this email, a password-reset message has been sent.',
   'login.error.enterEmail': 'Enter your email address first.',
   'login.error.notFound': 'Your account profile was not found. Please contact CareNest support.',

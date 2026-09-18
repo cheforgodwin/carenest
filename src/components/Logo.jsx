@@ -24,7 +24,7 @@ function Logo({ to = '/', compact = false, className = '' }) {
         </svg>
       </span>
       <span className="cn-logo-copy">
-        <strong>Care<span>Nest</span></strong>
+        <strong data-no-translate>Care<span>Nest</span></strong>
         <small>Your home, cared for.</small>
       </span>
     </Link>

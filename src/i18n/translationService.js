@@ -1,6 +1,6 @@
 import { translationCacheKey, supportedLocales } from './translationData.js'
 
-const GOOGLE_TRANSLATE_ENDPOINT = 'https://translation.googleapis.com/language/translate/v2'
+const TRANSLATION_ENDPOINT = '/api/translate'
 const localePattern = /^([a-z]{2})(?:-[A-Z]{2})?$/
 
 function getStorage() {
@@ -28,7 +28,7 @@ function setStoredCache(cache) {
   try {
     getStorage().setItem(translationCacheKey, JSON.stringify(cache))
   } catch {
-    // ignore storage errors
+    // Translation still works if a browser denies or exhausts local storage.
   }
 }
 
@@ -42,67 +42,49 @@ export function getCachedTranslations(locale) {
   const cache = getStoredCache()
   return Object.entries(cache).reduce((translations, [cacheKey, value]) => {
     const [cachedLocale, messageKey] = cacheKey.split('::')
-    if (cachedLocale === normalized && messageKey) {
-      translations[messageKey] = value
-    }
+    if (cachedLocale === normalized && messageKey) translations[messageKey] = value
     return translations
   }, {})
 }
 
 export async function translateMessages(entries, targetLocale) {
   const locale = getTargetLocale(targetLocale)
-  if (locale === 'en') {
-    return entries.reduce((result, entry) => ({ ...result, [entry.key]: entry.text }), {})
-  }
+  if (locale === 'en') return entries.reduce((result, entry) => ({ ...result, [entry.key]: entry.text }), {})
 
   const cache = getStoredCache()
   const result = {}
   const missingEntries = []
-
   entries.forEach((entry) => {
     const cacheKey = `${locale}::${entry.key}`
-    if (cache[cacheKey]) {
-      result[entry.key] = cache[cacheKey]
-    } else {
-      missingEntries.push(entry)
-    }
+    if (cache[cacheKey]) result[entry.key] = cache[cacheKey]
+    else missingEntries.push(entry)
   })
+  if (!missingEntries.length) return result
 
-  if (missingEntries.length === 0) return result
+  for (let offset = 0; offset < missingEntries.length; offset += 50) {
+    const batch = missingEntries.slice(offset, offset + 50)
+    const response = await fetch(TRANSLATION_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        texts: batch.map((entry) => entry.text),
+        sourceLocale: 'en',
+        targetLocale: locale,
+      }),
+    })
+    const data = await response.json().catch(() => null)
+    if (!response.ok) throw new Error(data?.error || 'Translation request failed.')
 
-  const apiKey = import.meta.env.VITE_GOOGLE_CLOUD_TRANSLATION_API_KEY || globalThis.process?.env?.VITE_GOOGLE_CLOUD_TRANSLATION_API_KEY
-  if (!apiKey) {
-    throw new Error('Missing VITE_GOOGLE_CLOUD_TRANSLATION_API_KEY')
+    const translations = Array.isArray(data?.translations) ? data.translations : []
+    if (translations.length !== batch.length) throw new Error('Translation response was incomplete.')
+    batch.forEach((entry, index) => {
+      const translatedText = String(translations[index] || '')
+      if (translatedText) {
+        cache[`${locale}::${entry.key}`] = translatedText
+        result[entry.key] = translatedText
+      }
+    })
   }
-
-  const response = await fetch(`${GOOGLE_TRANSLATE_ENDPOINT}?key=${encodeURIComponent(apiKey)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      q: missingEntries.map((entry) => entry.text),
-      source: 'en',
-      target: locale,
-      format: 'text',
-    }),
-  })
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => null)
-    throw new Error(error?.error?.message || 'Google Translate API request failed')
-  }
-
-  const data = await response.json()
-  const translations = data?.data?.translations || []
-
-  missingEntries.forEach((entry, index) => {
-    const translatedText = translations[index]?.translatedText
-    if (translatedText) {
-      const cacheKey = `${locale}::${entry.key}`
-      cache[cacheKey] = translatedText
-      result[entry.key] = translatedText
-    }
-  })
-
   setStoredCache(cache)
   return result
 }

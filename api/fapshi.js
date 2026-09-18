@@ -1,31 +1,15 @@
+import { FieldValue } from 'firebase-admin/firestore'
+import { randomUUID } from 'node:crypto'
+import { getAdminDb, requireAuthenticatedUser } from './_firebaseAdmin.js'
+import { getFapshiBaseUrl, getFapshiConfig, readJsonResponse } from './_fapshi.js'
+
 function ensureResponseHelpers(res) {
-  if (typeof res.status !== 'function') {
-    res.status = function (code) {
-      this.statusCode = code
-      return this
-    }
+  if (typeof res.status !== 'function') res.status = function (code) { this.statusCode = code; return this }
+  if (typeof res.json !== 'function') res.json = function (payload) {
+    this.setHeader('Content-Type', 'application/json')
+    this.end(JSON.stringify(payload))
+    return this
   }
-
-  if (typeof res.json !== 'function') {
-    res.json = function (payload) {
-      this.setHeader('Content-Type', 'application/json')
-      this.end(typeof payload === 'string' ? payload : JSON.stringify(payload))
-      return this
-    }
-  }
-
-  if (typeof res.send !== 'function') {
-    res.send = function (payload) {
-      if (typeof payload === 'object') {
-        this.setHeader('Content-Type', 'application/json')
-        this.end(JSON.stringify(payload))
-      } else {
-        this.end(String(payload))
-      }
-      return this
-    }
-  }
-
   return res
 }
 
@@ -36,77 +20,113 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' })
   }
 
-  const mode = String(process.env.FAPSHI_MODE || 'sandbox').trim()
-  const sandboxUrl = String(process.env.FAPSHI_SANDBOX_API_URL || '').trim()
-  const sandboxUser = String(process.env.FAPSHI_SANDBOX_API_USER || '').trim()
-  const sandboxKey = String(process.env.FAPSHI_SANDBOX_SECRET_KEY || '').trim()
-  const liveUrl = String(process.env.FAPSHI_LIVE_API_URL || '').trim()
-  const liveUser = String(process.env.FAPSHI_LIVE_API_USER || '').trim()
-  const liveKey = String(process.env.FAPSHI_LIVE_SECRET_KEY || '').trim()
-
-  const apiUrl = mode === 'live' ? liveUrl : sandboxUrl
-  const apiUser = mode === 'live' ? liveUser : sandboxUser
-  const apiKey = mode === 'live' ? liveKey : sandboxKey
-
-  if (!apiUrl || !apiUser || !apiKey) {
-    return res.status(500).json({
-      error: 'Missing FAPSHI configuration. Set FAPSHI_MODE and the corresponding API URL, API user, and API key on the server.',
-      mode,
-    })
-  }
-
-  const payload = req.body || {}
-  const order = payload.order || {}
-  const paymentFlow = String(process.env.FAPSHI_PAYMENT_FLOW || 'direct').trim().toLowerCase()
-  const isDirectPayment = paymentFlow === 'direct' && payload.type === 'direct_payment_request'
-  const paymentUrl = isDirectPayment
-    ? `${apiUrl.replace(/\/initiate-pay\/?$/, '').replace(/\/$/, '')}/direct-pay`
-    : apiUrl
-  const phone = String(order.customerPhone || payload.phone || '').replace(/\D/g, '').replace(/^237/, '')
-  if (isDirectPayment && !phone) {
-    return res.status(400).json({ error: 'A customer Mobile Money number is required for direct payment.' })
-  }
-  const fapshiPayload = {
-    amount: order.amount || payload.amount || 0,
-    email: order.customerEmail || payload.email || '',
-    userId: order.customerUid || payload.userId || order.id || '',
-    externalId: order.id || payload.externalId || '',
-    message: order.service ? `CareNest ${order.service} request ${order.id}` : payload.message || 'CareNest service request',
-    ...(isDirectPayment ? { phone, name: order.customerName || payload.customerName || '' } : {}),
-  }
-
   try {
-    const response = await fetch(paymentUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apiuser: apiUser,
-        apikey: apiKey,
-      },
-      body: JSON.stringify(fapshiPayload),
-    })
-
-    const data = await response.text()
-    let parsed = {}
-    try {
-      parsed = data ? JSON.parse(data) : {}
-    } catch {
-      parsed = { message: data }
+    const user = await requireAuthenticatedUser(req)
+    const firestoreId = String(req.body?.firestoreId || req.body?.order?.firestoreId || '').trim()
+    if (!firestoreId || firestoreId.length > 128 || firestoreId.includes('/')) {
+      return res.status(400).json({ error: 'A valid order identifier is required.' })
     }
 
-    if (!response.ok) {
-      return res.status(response.status).json({
-        error: parsed.message || 'Unable to start the Mobile Money payment.',
-        status: response.status,
-        details: parsed,
+    const db = getAdminDb()
+    const orderRef = db.collection('serviceRequests').doc(firestoreId)
+    const snapshot = await orderRef.get()
+    if (!snapshot.exists) return res.status(404).json({ error: 'Order not found.' })
+
+    const order = snapshot.data()
+    if (order.customerUid !== user.uid) return res.status(403).json({ error: 'You do not own this order.' })
+    if (!Number.isInteger(order.amount) || order.amount < 100) return res.status(409).json({ error: 'The order amount is invalid.' })
+    if (order.paymentStatus === 'Paid') return res.status(409).json({ error: 'This order has already been paid.' })
+    if (order.paymentReference && ['Pending', 'Submitted'].includes(order.paymentStatus)) {
+      return res.status(409).json({ error: 'A payment is already in progress for this order.' })
+    }
+
+    const now = Date.now()
+    const rateRef = db.collection('paymentRateLimits').doc(user.uid)
+    await db.runTransaction(async (transaction) => {
+      const rateSnapshot = await transaction.get(rateRef)
+      const state = rateSnapshot.data() || {}
+      const inWindow = now - Number(state.windowStartedAt || 0) < 60000
+      const attempts = inWindow ? Number(state.attempts || 0) : 0
+      if (attempts >= 5) {
+        const error = new Error('Too many payment attempts. Wait one minute and try again.')
+        error.statusCode = 429
+        throw error
+      }
+      transaction.set(rateRef, {
+        uid: user.uid,
+        attempts: attempts + 1,
+        windowStartedAt: inWindow ? state.windowStartedAt : now,
+        updatedAt: FieldValue.serverTimestamp(),
       })
+    })
+
+    const initiationId = randomUUID()
+    await db.runTransaction(async (transaction) => {
+      const latestSnapshot = await transaction.get(orderRef)
+      if (!latestSnapshot.exists) {
+        const error = new Error('Order not found.')
+        error.statusCode = 404
+        throw error
+      }
+      const latest = latestSnapshot.data()
+      if (latest.customerUid !== user.uid) {
+        const error = new Error('You do not own this order.')
+        error.statusCode = 403
+        throw error
+      }
+      if (latest.paymentStatus === 'Paid' || latest.paymentReference || (latest.paymentInitiationState === 'Starting' && now - Number(latest.paymentInitiationStartedAtMs || now) < 10 * 60 * 1000)) {
+        const error = new Error('A payment is already complete or in progress for this order.')
+        error.statusCode = 409
+        throw error
+      }
+      transaction.update(orderRef, {
+        paymentInitiationId: initiationId,
+        paymentInitiationState: 'Starting',
+        paymentInitiationStartedAtMs: now,
+        paymentInitiatedBy: user.uid,
+        updatedAt: FieldValue.serverTimestamp(),
+      })
+    })
+    const phone = String(order.customerPhone || '').replace(/\D/g, '').replace(/^237/, '')
+    if (!/^6\d{8}$/.test(phone)) return res.status(400).json({ error: 'The order needs a valid Cameroon Mobile Money number.' })
+
+    const { apiUrl, apiUser, apiKey } = getFapshiConfig()
+    const direct = String(process.env.FAPSHI_PAYMENT_FLOW || 'direct').trim().toLowerCase() === 'direct'
+    const response = await fetch(direct ? getFapshiBaseUrl(apiUrl) + '/direct-pay' : apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apiuser: apiUser, apikey: apiKey },
+      body: JSON.stringify({
+        amount: order.amount,
+        email: order.customerEmail || user.email || '',
+        userId: user.uid,
+        externalId: firestoreId,
+        message: 'CareNest order ' + String(order.id || firestoreId).slice(0, 80),
+        ...(direct ? { phone, name: String(order.customerName || user.name || 'Customer').slice(0, 100) } : {}),
+      }),
+    })
+    const result = await readJsonResponse(response)
+    if (!response.ok) {
+      await orderRef.update({ paymentInitiationState: 'Failed', updatedAt: FieldValue.serverTimestamp() })
+      return res.status(response.status).json({ error: result.message || 'Unable to start the Mobile Money payment.' })
     }
 
-    return res.status(200).json(parsed)
-  } catch (error) {
-    return res.status(500).json({
-      error: 'The payment service is temporarily unavailable.',
-      details: String(error),
+    const transactionId = String(result.transId || result.transactionId || result.reference || '').trim()
+    if (!transactionId) return res.status(502).json({ error: 'The payment provider did not return a transaction identifier.' })
+
+    await orderRef.update({
+      paymentStatus: 'Submitted',
+      paymentProvider: 'Fapshi',
+      paymentProviderStatus: String(result.status || 'PENDING').toUpperCase(),
+      paymentReference: transactionId,
+      paymentReceiptTransactionId: transactionId,
+      paymentInitiationState: 'Submitted',
+      paymentInitiatedBy: user.uid,
+      updatedAt: FieldValue.serverTimestamp(),
     })
+
+    return res.status(200).json({ status: result.status || 'PENDING', transId: transactionId, message: result.message || 'Payment request sent.' })
+  } catch (error) {
+    const status = Number(error.statusCode || 500)
+    return res.status(status).json({ error: status < 500 ? error.message : 'The payment service is temporarily unavailable.' })
   }
 }

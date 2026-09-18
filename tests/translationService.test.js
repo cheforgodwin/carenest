@@ -34,7 +34,6 @@ describe('translationService', () => {
       value: { languages: ['fr-FR'], language: 'fr-FR' },
     })
     globalThis.fetch = vi.fn()
-    process.env.VITE_GOOGLE_CLOUD_TRANSLATION_API_KEY = 'test'
   })
 
   afterEach(() => {
@@ -52,12 +51,12 @@ describe('translationService', () => {
   it('caches translations in localStorage', async () => {
     globalThis.fetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ data: { translations: [{ translatedText: 'Bonjour' }] } }),
+      json: async () => ({ translations: ['Bonjour'] }),
     })
 
     const result = await translateText('hello.greeting', 'Hello', 'fr')
     expect(result).toBe('Bonjour')
-    const cacheEntry = JSON.parse(globalThis.localStorage.getItem('carenest_translation_cache_v1'))
+    const cacheEntry = JSON.parse(globalThis.localStorage.getItem('carenest_translation_cache_v4'))
     expect(cacheEntry['fr::hello.greeting']).toBe('Bonjour')
 
     const second = await translateText('hello.greeting', 'Hello', 'fr')
