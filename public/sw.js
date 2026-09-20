@@ -1,5 +1,5 @@
-const CACHE_NAME = 'carenest-shell-v1'
-const SHELL_FILES = ['/manifest.webmanifest', '/favicon.svg', '/logo.svg']
+const CACHE_NAME = 'carenest-shell-v2'
+const SHELL_FILES = ['/manifest.webmanifest', '/app-origin.js', '/favicon.svg', '/logo.svg']
 
 async function cacheAppShell() {
   const cache = await caches.open(CACHE_NAME)
@@ -30,6 +30,12 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url)
 
   if (request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return
+
+  // Revalidate installation settings after deployment.
+  if (url.pathname === '/app-origin.js' || url.pathname === '/manifest.webmanifest') {
+    event.respondWith(fetch(request, { cache: 'no-cache' }).catch(() => caches.match(request)))
+    return
+  }
 
   if (request.mode === 'navigate') {
     event.respondWith(

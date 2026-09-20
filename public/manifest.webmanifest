@@ -1,16 +1,23 @@
 {
-  "id": "/",
+  "id": "https://carenest237.com/",
   "name": "CareNest",
   "short_name": "CareNest",
   "description": "Trusted laundry, cleaning, delivery, and home services.",
-  "start_url": "/",
-  "scope": "/",
+  "start_url": "https://carenest237.com/",
+  "scope": "https://carenest237.com/",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone"],
+  "display_override": [
+    "window-controls-overlay",
+    "standalone"
+  ],
   "orientation": "any",
   "background_color": "#ffffff",
   "theme_color": "#075d38",
-  "categories": ["lifestyle", "shopping", "utilities"],
+  "categories": [
+    "lifestyle",
+    "shopping",
+    "utilities"
+  ],
   "icons": [
     {
       "src": "/icon-192.png",

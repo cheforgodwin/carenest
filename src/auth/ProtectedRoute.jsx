@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { getDashboardPath } from '../firebase/authService'
 import { useAuth } from './useAuth'
@@ -18,7 +19,7 @@ function ProtectedRoute({ children, role }) {
     return <Navigate to={getDashboardPath(profile.accountType)} replace />
   }
 
-  return children
+  return <Fragment key={user.uid}>{children}</Fragment>
 }
 
 export default ProtectedRoute

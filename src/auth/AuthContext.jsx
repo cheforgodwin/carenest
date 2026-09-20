@@ -23,6 +23,8 @@ export function AuthProvider({ children }) {
 
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       unsubscribeProfile()
+      setProfile(null)
+      setError('')
       setUser(firebaseUser)
       if (!firebaseUser) {
         setProfile(null)
@@ -32,11 +34,13 @@ export function AuthProvider({ children }) {
 
       setLoading(true)
       unsubscribeProfile = onSnapshot(doc(db, 'users', firebaseUser.uid), (snapshot) => {
+        if (auth.currentUser?.uid !== firebaseUser.uid) return
         const profileData = snapshot.exists() ? snapshot.data() : null
         setProfile(profileData)
         setError('')
         setLoading(false)
       }, () => {
+        if (auth.currentUser?.uid !== firebaseUser.uid) return
         setProfile(null)
         setError('We could not load your account. Check your connection and try again.')
         setLoading(false)

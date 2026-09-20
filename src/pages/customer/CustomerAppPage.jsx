@@ -355,6 +355,10 @@ function CustomerAppPage() {
       setRequestError('Please select an address, date, and time.')
       return
     }
+    if (!/^6\d{8}$/.test(String(form.paymentPhone || profile?.phone || '').replace(/\D/g, '').replace(/^237/, ''))) {
+      setRequestError('Enter a valid Cameroon Mobile Money number before saving the order.')
+      return
+    }
     if (isSubmitting) return
     setIsSubmitting(true)
     setRequestError('')
@@ -402,7 +406,8 @@ function CustomerAppPage() {
         })
       } catch (error) {
         setRecentOrder(createdOrder)
-        setRequestError(`Order ${nextOrder.id} was saved, but payment could not start: ${error.message} Do not submit a second order.`)
+        setRequestError(`Your order was saved. Payment could not start: ${error.message} Use Retry payment below for this same order.`)
+        navigate(`/dashboard/customer/orders/${createdOrder.id}`)
         setIsSubmitting(false)
         return
       }
@@ -445,7 +450,7 @@ function CustomerAppPage() {
       return
     }
     const customerPhone = marketplaceForm.paymentPhone || profile?.phone || ''
-    if (!customerPhone) {
+    if (!/^6\d{8}$/.test(String(customerPhone).replace(/\D/g, '').replace(/^237/, ''))) {
       setRequestError('Enter the Mobile Money number that should receive the payment prompt.')
       return
     }
@@ -498,7 +503,8 @@ function CustomerAppPage() {
       setPaymentSuccess({ id: nextOrder.id, amount: nextOrder.amount })
     } catch (error) {
       setRecentOrder(createdOrder)
-      setRequestError('Order ' + nextOrder.id + ' was saved, but payment could not start: ' + error.message + ' Do not submit a second order.')
+      setRequestError('Your order was saved. Payment could not start: ' + error.message + ' Use Retry payment below for this same order.')
+      navigate(`/dashboard/customer/orders/${createdOrder.id}`)
     } finally {
       setIsSubmitting(false)
     }
@@ -842,7 +848,7 @@ function CustomerAppPage() {
                     <Link className="order-card" to={`/dashboard/customer/orders/${order.id}`} key={order.firestoreId || order.id}>
                       <div className="order-icon">{order.serviceType === 'delivery' ? <FiPackage /> : order.serviceType === 'cleaning' ? <FiTool /> : <FiShoppingBag />}</div>
                       <div className="order-summary"><strong>{order.service} · {order.id}</strong><p>{formatPlacedAt(order, locale)}</p><p>{formatAmount(order.amount)}</p></div>
-                      <span>{order.status}</span>
+                      <span>{order.status}<br />Payment: {order.paymentStatus || 'Pending'}</span>
                     </Link>
                   ))}
                 </div>
@@ -873,6 +879,8 @@ function CustomerAppPage() {
                 <div><span>Pickup</span><strong>{formatPickupDate(viewedOrder.pickupDate, locale)}, {formatPickupTime(viewedOrder.pickupTime, locale)}</strong></div>
                 <div><span>Details</span><strong>{viewedOrder.note || viewedOrder.itemSummary || viewedOrder.clothesType}</strong></div>
                 <div><span>Payment</span><strong>Mobile Money - {viewedOrder.paymentStatus || 'Pending'}</strong></div>
+                {!viewedOrder.paymentReference && ['Pending', 'Failed'].includes(viewedOrder.paymentStatus || 'Pending') && <p>Your order is saved. Select Retry payment to receive a Mobile Money prompt for this order, then approve it on your phone.</p>}
+                {viewedOrder.paymentReference && viewedOrder.paymentStatus !== 'Paid' && <p>A payment request already exists. Check your phone for the Mobile Money prompt. If it failed or you received no prompt, contact CareNest with this order number before paying again.</p>}
                 {requestError && <p className="request-error" role="alert">{requestError}</p>}
                 {['Pending', 'Failed'].includes(viewedOrder.paymentStatus || 'Pending') && !viewedOrder.paymentReference && <button className="payment-retry-button" type="button" disabled={isSubmitting} onClick={retryOrderPayment}>{isSubmitting ? 'Starting payment…' : 'Retry payment'}</button>}
                 {viewedOrder.paymentReceiverNumber && <div><span>Paid to</span><strong>{viewedOrder.paymentReceiverNumber}</strong></div>}

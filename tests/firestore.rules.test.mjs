@@ -2,7 +2,7 @@ import { after, before, beforeEach, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing'
-import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore'
 
 let env
 const projectId = 'demo-carenest'
@@ -250,4 +250,38 @@ test('only the payment server can approve payments and admins can pay eligible p
     status: 'Completed', currentStep: 5, paymentStatus: 'Paid',
   }))
   await assertSucceeds(updateDoc(order, { payoutStatus: 'Paid' }))
+})
+
+test('customers cannot browse, modify, delete, or impersonate another customer', async () => {
+  await seed()
+  const db = env.authenticatedContext('customer-b', { email: 'b@example.com' }).firestore()
+  await assertFails(getDoc(doc(db, 'users/customer-a')))
+  await assertFails(getDocs(collection(db, 'users')))
+  await assertFails(updateDoc(doc(db, 'users/customer-a'), { name: 'Forged' }))
+  await assertFails(getDocs(collection(db, 'serviceRequests')))
+  await assertFails(getDocs(query(collection(db, 'serviceRequests'), where('customerUid', '==', 'customer-a'))))
+  await assertSucceeds(getDocs(query(collection(db, 'serviceRequests'), where('customerUid', '==', 'customer-b'))))
+  await assertFails(updateDoc(doc(db, 'serviceRequests/order-a'), { customerNote: 'Forged' }))
+  await assertFails(deleteDoc(doc(db, 'serviceRequests/order-a')))
+  await assertFails(setDoc(doc(db, 'serviceRequests/forged-owner'), baseOrder))
+})
+
+test('a customer assigned as staff cannot read another customer order', async () => {
+  await seed()
+  await env.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'serviceRequests/order-a'), { providerUid: 'customer-b', riderUid: 'customer-b' })
+  })
+  await assertFails(getDoc(doc(env.authenticatedContext('customer-b').firestore(), 'serviceRequests/order-a')))
+})
+
+test('customers cannot read another application or private payment records', async () => {
+  await seed()
+  await env.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'providerApplications/customer-a'), { userUid: 'customer-a' })
+    await setDoc(doc(context.firestore(), 'paymentSmsReceipts/receipt-a'), { customerUid: 'customer-a' })
+  })
+  const db = env.authenticatedContext('customer-b').firestore()
+  await assertFails(getDoc(doc(db, 'providerApplications/customer-a')))
+  await assertFails(getDoc(doc(db, 'paymentSmsReceipts/receipt-a')))
+  await assertFails(getDoc(doc(db, 'paymentRateLimits/customer-a')))
 })
