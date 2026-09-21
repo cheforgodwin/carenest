@@ -2949,10 +2949,17 @@
   .mobile-content-home {
     display: flex;
     flex-direction: column;
+    flex-wrap: nowrap;
     align-items: stretch;
   }
   .home-primary,
-  .home-secondary { display: flex; width: 100%; }
+  .home-secondary { display: flex; flex: 0 0 auto; width: 100%; }
+  .mobile-content-home > .app-header { flex: 0 0 auto; width: 100%; margin-bottom: 0; gap: 10px; }
+  .app-header .icon-button { flex: 0 0 38px; }
+  .app-header .cn-logo { min-width: 0; max-width: calc(100% - 96px); }
+  .app-header .cn-logo-copy { min-width: 0; }
+  .app-header .cn-logo-copy small { white-space: normal; overflow-wrap: anywhere; }
+  .customer-greeting h1 { overflow-wrap: anywhere; }
   .customer-greeting { order: 0; }
   .mobile-hero { order: 1; }
   .home-secondary { order: 2; }
@@ -2975,3 +2982,6 @@
   cursor: wait;
   opacity: .65;
 }
+
+.completion-confirmation { padding: 16px; border: 1px solid #bcdcca; border-radius: 12px; background: #ecf7f0; }
+.completion-confirmation a { display: block; margin-top: 12px; color: #075d38; font-weight: 700; }

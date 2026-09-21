@@ -27,7 +27,7 @@ import { useAuth } from '../../auth/useAuth'
 import DashboardShell from './DashboardShell'
 import { useEffect } from 'react'
 
-const statusOptions = ['Pending', 'Assigned', 'In Progress', 'Quality Check', 'Out for Delivery', 'Completed', 'Complaint', 'Cancelled']
+const statusOptions = ['Pending', 'Assigned', 'In Progress', 'Quality Check', 'Out for Delivery', 'Awaiting confirmation', 'Completed', 'Complaint', 'Cancelled']
 
 function formatAmount(amount) {
   return `${Number(amount || 0).toLocaleString()} FCFA`
@@ -305,7 +305,7 @@ function AdminDashboardPage() {
     setError('')
     setMessage('')
     if (['Paid', 'Partial'].includes(payoutStatus) && !isPayoutReady(order)) {
-      setError('Only completed and paid jobs can be marked as provider paid.')
+      setError('Only paid jobs confirmed complete by the customer can be marked as provider paid.')
       return
     }
     const payoutAmount = payoutStatus === 'Partial'
@@ -691,7 +691,7 @@ function AdminDashboardPage() {
           <div className="dashboard-panel-header">
             <div>
               <h2>Sunday provider payouts</h2>
-              <p>Pay providers manually every Sunday for jobs that are completed and already paid by the customer.</p>
+              <p>Pay providers manually every Sunday for paid jobs whose completion the customer has confirmed.</p>
             </div>
             <div className="dashboard-tools">
               <input className="dashboard-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search payouts" />

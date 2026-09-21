@@ -13,7 +13,7 @@ import {
   where,
 } from 'firebase/firestore'
 import { servicePrices } from '../config/businessConfig'
-import { db } from './firebaseConfig'
+import { auth, db } from './firebaseConfig'
 import { assertTextLength, inputLimits, sanitizeTrimmedText } from '../utils/securityUtils'
 
 const ordersRef = collection(db, 'serviceRequests')
@@ -26,6 +26,7 @@ export const statusSteps = {
   'In Progress': 2,
   'Quality Check': 3,
   'Out for Delivery': 4,
+  'Awaiting confirmation': 4,
   Completed: 5,
   Complaint: 2,
   Cancelled: 0,
@@ -47,9 +48,12 @@ export function calculatePlatformFee(amount) {
 
 export function isPayoutReady(order) {
   return order?.status === 'Completed' && order?.paymentStatus === 'Paid'
+    && Boolean(order.customerUid) && order.completionConfirmedBy === order.customerUid
+    && Boolean(order.completionConfirmedAt) && order.payoutStatus !== 'Held'
 }
 
 export function getPayoutStatus(order) {
+  if (order?.payoutStatus === 'Ready' && !isPayoutReady(order)) return 'Unpaid'
   if (order?.payoutStatus) return order.payoutStatus
   if (['Complaint', 'Cancelled'].includes(order?.status) || ['Failed', 'Refunded'].includes(order?.paymentStatus)) {
     return 'Held'
@@ -268,8 +272,10 @@ export function updateRiderDeliveryStatus(firestoreId, riderStatus) {
     updatedAt: serverTimestamp(),
   }
   if (riderStatus === 'Delivered') {
-    payload.status = 'Completed'
-    payload.currentStep = statusSteps.Completed
+    payload.status = 'Awaiting confirmation'
+    payload.currentStep = statusSteps['Awaiting confirmation']
+    payload.completionRequestedBy = auth.currentUser?.uid || ''
+    payload.completionRequestedAt = serverTimestamp()
     payload.deliveredAt = serverTimestamp()
   }
   return updateDoc(doc(db, 'serviceRequests', firestoreId), payload)
@@ -308,6 +314,18 @@ export function updateServiceRequestStatus(firestoreId, status) {
   return updateDoc(doc(db, 'serviceRequests', firestoreId), payload)
 }
 
+export function confirmCustomerCompletion(firestoreId) {
+  if (!auth.currentUser) throw new Error('Please sign in again.')
+  return updateDoc(doc(db, 'serviceRequests', firestoreId), {
+    status: 'Completed',
+    currentStep: statusSteps.Completed,
+    completionConfirmedBy: auth.currentUser.uid,
+    completionConfirmedAt: serverTimestamp(),
+    completedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
 export function submitCustomerComplaint(firestoreId, complaintText) {
   const cleanText = assertTextLength(complaintText, { field: 'Complaint', min: 10, max: inputLimits.description })
   if (cleanText.length < 10) {
@@ -337,7 +355,10 @@ export function updateProviderJobStatus(firestoreId, status, proofText = '') {
       throw new Error('Add a short completion note before marking this job completed.')
     }
     payload.completionProofText = cleanProof
-    payload.completedAt = serverTimestamp()
+    payload.status = 'Awaiting confirmation'
+    payload.currentStep = statusSteps['Awaiting confirmation']
+    payload.completionRequestedBy = auth.currentUser?.uid || ''
+    payload.completionRequestedAt = serverTimestamp()
   }
 
   return updateDoc(doc(db, 'serviceRequests', firestoreId), payload)

@@ -34,7 +34,7 @@ import {
 } from '../../config/businessConfig'
 import { formatMarketplaceAmount, getMarketplaceCategory } from '../../config/marketplaceConfig'
 import Logo from '../../components/Logo'
-import { createMarketplaceServiceRequest, createRequestId, createServiceRequest, submitCustomerComplaint, subscribeToCustomerOrders } from '../../firebase/orderService'
+import { confirmCustomerCompletion, createMarketplaceServiceRequest, createRequestId, createServiceRequest, submitCustomerComplaint, subscribeToCustomerOrders } from '../../firebase/orderService'
 import { postJson } from '../../utils/networkUtils'
 import { inputLimits, sanitizeText } from '../../utils/securityUtils'
 import { subscribeToActiveListings } from '../../firebase/marketplaceService'
@@ -163,7 +163,7 @@ const getTimeline = (order, locale) => timelineSteps.map((step, index) => {
         : status === 'done'
           ? 'Completed'
           : 'Pending'
-  return [step, detail, status]
+  return [order.status === 'Awaiting confirmation' && index === 4 ? 'Awaiting your confirmation' : step, detail, status]
 })
 
 const createEmptyForm = (serviceType = 'laundry') => {
@@ -519,6 +519,21 @@ function CustomerAppPage() {
       setPaymentSuccess({ id: viewedOrder.id, amount: viewedOrder.amount })
     } catch (error) {
       setRequestError('Payment could not start: ' + error.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function confirmCompletion() {
+    if (!viewedOrder?.firestoreId || isSubmitting) return
+    if (!window.confirm('Only confirm if the service is complete or you have received your delivery. This makes the provider eligible for payout after payment is verified.')) return
+    setIsSubmitting(true)
+    setRequestError('')
+    try {
+      await confirmCustomerCompletion(viewedOrder.firestoreId)
+      setRequestMessage('Thank you. You confirmed that this order was completed.')
+    } catch (error) {
+      setRequestError(error.message)
     } finally {
       setIsSubmitting(false)
     }
@@ -888,9 +903,16 @@ function CustomerAppPage() {
                 {viewedOrder.paymentReceiptText && <div><span>Payment message</span><strong>{viewedOrder.paymentReceiptText}</strong></div>}
                 <div><span>Amount</span><strong>{formatAmount(viewedOrder.amount)}</strong></div>
                 {viewedOrder.providerName && <div><span>Provider</span><strong>{viewedOrder.providerName} · Verified</strong></div>}
+                {['Awaiting confirmation', 'Completed'].includes(viewedOrder.status) && !viewedOrder.completionConfirmedBy && <section className="completion-confirmation">
+                  <h3>Was your order completed?</h3>
+                  <p>The provider or rider reported completion. Confirm only if you received the service or delivery. Their payout stays blocked until you confirm.</p>
+                  <button className="payment-retry-button" type="button" disabled={isSubmitting} onClick={confirmCompletion}>{isSubmitting ? 'Confirming...' : 'Yes, confirm completion'}</button>
+                  <a href="#order-complaint">No, report a problem</a>
+                </section>}
+                {viewedOrder.completionConfirmedBy && <p>You confirmed completion of this order.</p>}
                 {viewedOrder.completionProofText && <div><span>Completion note</span><strong>{viewedOrder.completionProofText}</strong></div>}
                 {viewedOrder.status !== 'Complaint' && !['Cancelled'].includes(viewedOrder.status) && (
-                  <form className="customer-complaint-form" onSubmit={submitComplaint}>
+                  <form id="order-complaint" className="customer-complaint-form" onSubmit={submitComplaint}>
                     <label>Report a problem<textarea maxLength="2000" value={complaintText} onChange={(event) => setComplaintText(event.target.value)} placeholder="Describe what went wrong with this service." /></label>
                     {complaintStatus.error && <small className="error" role="alert">{complaintStatus.error}</small>}
                     {complaintStatus.message && <small role="status">{complaintStatus.message}</small>}

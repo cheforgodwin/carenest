@@ -60,6 +60,7 @@ service cloud.firestore {
         'In Progress',
         'Quality Check',
         'Out for Delivery',
+        'Awaiting confirmation',
         'Completed',
         'Complaint',
         'Cancelled'
@@ -84,6 +85,7 @@ service cloud.firestore {
         || (status == 'In Progress' && step == 2)
         || (status == 'Quality Check' && step == 3)
         || (status == 'Out for Delivery' && step == 4)
+        || (status == 'Awaiting confirmation' && step == 4)
         || (status == 'Completed' && step == 5)
         || (status == 'Complaint' && step == 2)
         || (status == 'Cancelled' && step == 0);
@@ -295,6 +297,7 @@ service cloud.firestore {
         && request.resource.data.status == 'Pending'
         && request.resource.data.currentStep == 0
         && request.resource.data.paymentStatus == 'Pending'
+        && !request.resource.data.keys().hasAny(['completionConfirmedBy', 'completionConfirmedAt', 'completionRequestedBy', 'completionRequestedAt', 'completedAt', 'deliveredAt'])
         && request.resource.data.get('customerName', '').size() <= 80
         && request.resource.data.get('customerPhone', '').size() <= 20
         && request.resource.data.get('address', '').size() <= 240
@@ -327,8 +330,8 @@ service cloud.firestore {
           || (isRider() && resource.data.get('riderUid', '') == request.auth.uid)
         );
 
-      allow update: if (
-          isAdmin()
+      function adminCanUpdateOrder() {
+        return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['completionConfirmedBy', 'completionConfirmedAt'])
           && validStatus(request.resource.data.status)
           && validStepForStatus(request.resource.data.status, request.resource.data.currentStep)
           && validPaymentStatus(request.resource.data.paymentStatus)
@@ -341,10 +344,12 @@ service cloud.firestore {
             || (
               validPayoutStatus(request.resource.data.payoutStatus)
               && (
-                !(request.resource.data.payoutStatus in ['Paid', 'Partial'])
+                !(request.resource.data.payoutStatus in ['Ready', 'Paid', 'Partial'])
                 || (
                   request.resource.data.status == 'Completed'
                   && request.resource.data.paymentStatus == 'Paid'
+                  && resource.data.get('completionConfirmedBy', '') == resource.data.customerUid
+                  && resource.data.get('completionConfirmedAt', null) is timestamp
                 )
               )
             )
@@ -354,9 +359,12 @@ service cloud.firestore {
           && request.resource.data.amount == resource.data.amount
           && request.resource.data.serviceType == resource.data.serviceType
           && request.resource.data.itemSummary == resource.data.itemSummary
-          && request.resource.data.serviceSpeed == resource.data.serviceSpeed
-        ) || (
-          isProvider()
+          && request.resource.data.serviceSpeed == resource.data.serviceSpeed;
+      }
+
+      function providerCanUpdateOrder() {
+        return !(resource.data.status in ['Complaint', 'Cancelled', 'Completed', 'Awaiting confirmation'])
+          && request.resource.data.status != 'Completed'
           && validStatus(request.resource.data.status)
           && validStepForStatus(request.resource.data.status, request.resource.data.currentStep)
           && request.resource.data.customerUid == resource.data.customerUid
@@ -371,27 +379,41 @@ service cloud.firestore {
             (
               resource.data.providerUid == request.auth.uid
               && (
-                request.resource.data.status != 'Completed'
+                request.resource.data.status != 'Awaiting confirmation'
                 || (
                   request.resource.data.completionProofText is string
                   && request.resource.data.completionProofText.size() >= 8
                   && request.resource.data.completionProofText.size() <= 1000
+                  && request.resource.data.completionRequestedBy == request.auth.uid
+                  && request.resource.data.completionRequestedAt == request.time
                 )
               )
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                'status', 'currentStep', 'completionProofText', 'completedAt', 'updatedAt'
+                'status', 'currentStep', 'completionProofText', 'completionRequestedBy', 'completionRequestedAt', 'updatedAt'
               ])
             )
-          )
-        )
-        || (
-          isCustomer()
-          && resource.data.customerUid == request.auth.uid
+          );
+      }
+
+      function customerCanUpdateOrder() {
+        return resource.data.customerUid == request.auth.uid
           && request.resource.data.customerUid == resource.data.customerUid
           && (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly([
               'customerNote', 'updatedAt'
             ])
+            || (
+              resource.data.status in ['Awaiting confirmation', 'Completed']
+              && resource.data.get('completionConfirmedBy', '') == ''
+              && request.resource.data.status == 'Completed'
+              && request.resource.data.currentStep == 5
+              && request.resource.data.completionConfirmedBy == request.auth.uid
+              && request.resource.data.completionConfirmedAt == request.time
+              && request.resource.data.completedAt == request.time
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                'status', 'currentStep', 'completionConfirmedBy', 'completionConfirmedAt', 'completedAt', 'updatedAt'
+              ])
+            )
             || (
               request.resource.data.status == 'Complaint'
               && request.resource.data.currentStep == 2
@@ -409,10 +431,11 @@ service cloud.firestore {
                 'updatedAt'
               ])
             )
-          )
-        )
-        || (
-          isRider()
+          );
+      }
+
+      function riderCanUpdateOrder() {
+        return !(resource.data.status in ['Complaint', 'Cancelled', 'Completed', 'Awaiting confirmation'])
           && resource.data.serviceType == 'delivery'
           && request.resource.data.customerUid == resource.data.customerUid
           && request.resource.data.customerEmail == resource.data.customerEmail
@@ -437,15 +460,28 @@ service cloud.firestore {
                 )
                 || (
                   request.resource.data.riderStatus == 'Delivered'
-                  && request.resource.data.status == 'Completed'
-                  && request.resource.data.currentStep == 5
+                  && request.resource.data.status == 'Awaiting confirmation'
+                  && request.resource.data.currentStep == 4
+                  && request.resource.data.completionRequestedBy == request.auth.uid
+                  && request.resource.data.completionRequestedAt == request.time
                   && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                    'riderStatus', 'status', 'currentStep', 'deliveredAt', 'updatedAt'
+                    'riderStatus', 'status', 'currentStep', 'deliveredAt', 'completionRequestedBy', 'completionRequestedAt', 'updatedAt'
                   ])
                 )
               )
-            )
-        );
+            );
+      }
+
+      function canUpdateOrder() {
+        let accountRole = role();
+        return accountRole == 'admin' ? adminCanUpdateOrder()
+          : accountRole == 'provider' ? providerCanUpdateOrder()
+          : accountRole == 'customer' ? customerCanUpdateOrder()
+          : accountRole == 'rider' ? riderCanUpdateOrder()
+          : false;
+      }
+
+      allow update: if signedIn() && canUpdateOrder();
 
       allow delete: if isAdmin();
     }

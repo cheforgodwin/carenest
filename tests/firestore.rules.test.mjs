@@ -2,7 +2,7 @@ import { after, before, beforeEach, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing'
-import { collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
 
 let env
 const projectId = 'demo-carenest'
@@ -131,7 +131,7 @@ test('riders can access only assigned deliveries and update their own progress',
   await assertSucceeds(updateDoc(doc(rider, 'serviceRequests/delivery-a'), { riderStatus: 'Picked up', updatedAt: new Date() }))
   await assertFails(updateDoc(doc(rider, 'serviceRequests/delivery-a'), { amount: 1, updatedAt: new Date() }))
   await assertSucceeds(updateDoc(doc(rider, 'serviceRequests/delivery-a'), {
-    riderStatus: 'Delivered', status: 'Completed', currentStep: 5, deliveredAt: new Date(), updatedAt: new Date(),
+    riderStatus: 'Delivered', status: 'Awaiting confirmation', currentStep: 4, deliveredAt: new Date(), completionRequestedBy: 'rider-a', completionRequestedAt: serverTimestamp(), updatedAt: new Date(),
   }))
 })
 test('marketplace orders use the published listing price and stock', async () => {
@@ -216,10 +216,10 @@ test('a provider needs completion proof and cannot change payout state', async (
   }))
   const order = doc(env.authenticatedContext('provider-a', verified).firestore(), 'serviceRequests/order-a')
   await assertFails(updateDoc(order, {
-    status: 'Completed', currentStep: 5, completionProofText: 'short', completedAt: new Date(), updatedAt: new Date(),
+    status: 'Awaiting confirmation', currentStep: 4, completionProofText: 'short', completionRequestedBy: 'provider-a', completionRequestedAt: serverTimestamp(), updatedAt: new Date(),
   }))
   await assertSucceeds(updateDoc(order, {
-    status: 'Completed', currentStep: 5, completionProofText: 'Delivered to the customer.', completedAt: new Date(), updatedAt: new Date(),
+    status: 'Awaiting confirmation', currentStep: 4, completionProofText: 'Delivered to the customer.', completionRequestedBy: 'provider-a', completionRequestedAt: serverTimestamp(), updatedAt: new Date(),
   }))
   await assertFails(updateDoc(order, { payoutStatus: 'Paid' }))
 })
@@ -247,7 +247,7 @@ test('only the payment server can approve payments and admins can pay eligible p
   await assertFails(updateDoc(order, { payoutStatus: 'Paid' }))
 
   await env.withSecurityRulesDisabled(async (context) => updateDoc(doc(context.firestore(), 'serviceRequests/order-a'), {
-    status: 'Completed', currentStep: 5, paymentStatus: 'Paid',
+    status: 'Completed', currentStep: 5, paymentStatus: 'Paid', completionConfirmedBy: 'customer-a', completionConfirmedAt: new Date(),
   }))
   await assertSucceeds(updateDoc(order, { payoutStatus: 'Paid' }))
 })
@@ -284,4 +284,61 @@ test('customers cannot read another application or private payment records', asy
   await assertFails(getDoc(doc(db, 'providerApplications/customer-a')))
   await assertFails(getDoc(doc(db, 'paymentSmsReceipts/receipt-a')))
   await assertFails(getDoc(doc(db, 'paymentRateLimits/customer-a')))
+})
+
+async function seedCompletionClaim() {
+  await seed()
+  await env.withSecurityRulesDisabled(async (context) => updateDoc(doc(context.firestore(), 'serviceRequests/order-a'), {
+    providerUid: 'provider-a', status: 'Awaiting confirmation', currentStep: 4, paymentStatus: 'Paid',
+    completionRequestedBy: 'provider-a', completionRequestedAt: new Date(),
+  }))
+}
+function confirmation(uid = 'customer-a') {
+  return { status: 'Completed', currentStep: 5, completionConfirmedBy: uid, completionConfirmedAt: serverTimestamp(), completedAt: serverTimestamp(), updatedAt: serverTimestamp() }
+}
+
+test('only the owning customer can confirm a completion claim, then payout becomes eligible', async () => {
+  await seedCompletionClaim()
+  for (const uid of ['provider-a', 'rider-a', 'customer-b', 'admin-a']) {
+    await assertFails(updateDoc(doc(env.authenticatedContext(uid).firestore(), 'serviceRequests/order-a'), confirmation()))
+  }
+  const adminOrder = doc(env.authenticatedContext('admin-a').firestore(), 'serviceRequests/order-a')
+  await assertFails(updateDoc(adminOrder, { payoutStatus: 'Paid' }))
+  await assertFails(updateDoc(adminOrder, { status: 'Completed', currentStep: 5, payoutStatus: 'Ready' }))
+  await assertSucceeds(updateDoc(doc(env.authenticatedContext('customer-a').firestore(), 'serviceRequests/order-a'), confirmation()))
+  await assertSucceeds(updateDoc(adminOrder, { payoutStatus: 'Paid' }))
+})
+
+test('workers cannot fabricate final completion or override a complaint', async () => {
+  await seedCompletionClaim()
+  const provider = doc(env.authenticatedContext('provider-a').firestore(), 'serviceRequests/order-a')
+  await assertFails(updateDoc(provider, { status: 'Completed', currentStep: 5, completedAt: serverTimestamp() }))
+  const customer = doc(env.authenticatedContext('customer-a').firestore(), 'serviceRequests/order-a')
+  await assertSucceeds(updateDoc(customer, {
+    status: 'Complaint', currentStep: 2, payoutStatus: 'Held', complaintText: 'The delivery never arrived at my address.',
+    complaintSubmittedAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  }))
+  await assertFails(updateDoc(provider, { status: 'In Progress', currentStep: 2 }))
+  await assertFails(updateDoc(customer, confirmation()))
+  const adminOrder = doc(env.authenticatedContext('admin-a').firestore(), 'serviceRequests/order-a')
+  await assertFails(updateDoc(adminOrder, { payoutStatus: 'Paid' }))
+})
+
+test('customers cannot pre-confirm a new booking or confirm an unfinished booking', async () => {
+  await seed()
+  const customerDb = env.authenticatedContext('customer-a', { email: 'a@example.com' }).firestore()
+  await assertFails(setDoc(doc(customerDb, 'serviceRequests/forged-confirmation'), {
+    ...baseOrder, completionConfirmedBy: 'customer-a', completionConfirmedAt: serverTimestamp(),
+  }))
+  await assertFails(updateDoc(doc(customerDb, 'serviceRequests/order-a'), confirmation()))
+})
+
+test('a rider cannot directly finalize delivery or forge customer confirmation', async () => {
+  await seed()
+  await env.withSecurityRulesDisabled(async (context) => updateDoc(doc(context.firestore(), 'serviceRequests/order-a'), {
+    serviceType: 'delivery', riderUid: 'rider-a', status: 'Out for Delivery', currentStep: 4,
+  }))
+  const rider = doc(env.authenticatedContext('rider-a').firestore(), 'serviceRequests/order-a')
+  await assertFails(updateDoc(rider, { riderStatus: 'Delivered', status: 'Completed', currentStep: 5, deliveredAt: serverTimestamp() }))
+  await assertFails(updateDoc(rider, confirmation()))
 })

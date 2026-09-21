@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import fs from 'fs'
+import { createHash } from 'node:crypto'
 import path from 'path'
 import fapshiHandler from './api/fapshi.js'
 import translateHandler from './api/translate.js'
@@ -51,6 +52,17 @@ function fapshiDevApi() {
   }
 }
 
+function versionedServiceWorker() {
+  return {
+    name: 'versioned-service-worker',
+    writeBundle(output, bundle) {
+      const source = fs.readFileSync('public/sw.js', 'utf8')
+      const version = createHash('sha256').update(source + Object.keys(bundle).sort().join('|')).digest('hex').slice(0, 16)
+      fs.writeFileSync(path.join(output.dir || 'dist', 'sw.js'), source.replaceAll('__BUILD_ID__', version))
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -58,7 +70,7 @@ export default defineConfig(({ mode }) => {
   const appVersion = env.VITE_APP_VERSION || process.env.npm_package_version || '0.0.0'
 
   return {
-    plugins: [react(), fapshiDevApi()],
+    plugins: [react(), fapshiDevApi(), versionedServiceWorker()],
     define: {
       __APP_VERSION__: JSON.stringify(appVersion),
     },

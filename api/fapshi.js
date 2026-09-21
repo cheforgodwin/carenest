@@ -42,6 +42,12 @@ export default async function handler(req, res) {
       return res.status(409).json({ error: 'A payment is already in progress for this order.' })
     }
 
+    const phone = String(order.customerPhone || '').replace(/\D/g, '').replace(/^237/, '')
+    if (!/^6\d{8}$/.test(phone)) return res.status(400).json({ error: 'The order needs a valid Cameroon Mobile Money number.' })
+
+    const { apiUrl, apiUser, apiKey } = getFapshiConfig()
+    const direct = String(process.env.FAPSHI_PAYMENT_FLOW || 'direct').trim().toLowerCase() === 'direct'
+
     const now = Date.now()
     const rateRef = db.collection('paymentRateLimits').doc(user.uid)
     await db.runTransaction(async (transaction) => {
@@ -89,14 +95,10 @@ export default async function handler(req, res) {
         updatedAt: FieldValue.serverTimestamp(),
       })
     })
-    const phone = String(order.customerPhone || '').replace(/\D/g, '').replace(/^237/, '')
-    if (!/^6\d{8}$/.test(phone)) return res.status(400).json({ error: 'The order needs a valid Cameroon Mobile Money number.' })
-
-    const { apiUrl, apiUser, apiKey } = getFapshiConfig()
-    const direct = String(process.env.FAPSHI_PAYMENT_FLOW || 'direct').trim().toLowerCase() === 'direct'
     const response = await fetch(direct ? getFapshiBaseUrl(apiUrl) + '/direct-pay' : apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apiuser: apiUser, apikey: apiKey },
+      redirect: 'error',
       body: JSON.stringify({
         amount: order.amount,
         email: order.customerEmail || user.email || '',
@@ -109,6 +111,15 @@ export default async function handler(req, res) {
     const result = await readJsonResponse(response)
     if (!response.ok) {
       await orderRef.update({ paymentInitiationState: 'Failed', updatedAt: FieldValue.serverTimestamp() })
+      const authenticationFailed = [401, 403].includes(response.status)
+        || /(?:invalid|missing|incorrect).*(?:api.?user|api.?key|credentials?)/i.test(String(result.message || ''))
+      if (authenticationFailed) {
+        console.error('payment_provider_auth_failed', { provider: 'fapshi', httpStatus: response.status })
+        return res.status(503).json({
+          code: 'PAYMENT_PROVIDER_AUTH_FAILED',
+          error: 'Mobile Money payments are temporarily unavailable. Your order is saved. Please contact CareNest support before retrying.',
+        })
+      }
       return res.status(response.status).json({ error: result.message || 'Unable to start the Mobile Money payment.' })
     }
 
@@ -129,6 +140,13 @@ export default async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-store')
     return res.status(202).json({ accepted: true, message: 'Payment request sent. Await server verification.' })
   } catch (error) {
+    if (error.code === 'PAYMENT_CONFIGURATION_ERROR') {
+      console.error('payment_configuration_error', { reason: error.message })
+      return res.status(503).json({
+        code: error.code,
+        error: 'Mobile Money payments are temporarily unavailable. Your order is saved. Please contact CareNest support before retrying.',
+      })
+    }
     const status = Number(error.statusCode || 500)
     return res.status(status).json({ error: status < 500 ? error.message : 'The payment service is temporarily unavailable.' })
   }

@@ -95,7 +95,7 @@ function RiderDashboardPage() {
     setMessage('')
     try {
       await updateRiderDeliveryStatus(order.firestoreId, status)
-      setMessage(`${order.id} marked ${status.toLowerCase()}.`)
+      setMessage(status === 'Delivered' ? 'Delivery reported. Waiting for the customer to confirm receipt.' : `${order.id} marked ${status.toLowerCase()}.`)
     } catch (nextError) {
       setError(nextError.message)
     }
@@ -158,13 +158,13 @@ function RiderDashboardPage() {
                   <td>{order.address}</td>
                   <td>{order.pickupDate || order.pickupTime ? `${order.pickupDate || ''}${order.pickupTime ? ` ${order.pickupTime}` : ''}` : 'Not set'}</td>
                   <td>
-                    {activeView === 'deliveries' ? (
+                    {activeView === 'deliveries' && !['Awaiting confirmation', 'Completed', 'Complaint', 'Cancelled'].includes(order.status) ? (
                       <div className="table-action-row">
                         <button className="table-action" type="button" onClick={() => updateStatus(order, 'Picked up')}>Picked up</button>
                         <button className="table-action" type="button" onClick={() => updateStatus(order, 'Delivered')}>Delivered</button>
                       </div>
                     ) : (
-                      <span>{order.status === 'Completed' ? 'Done' : '—'}</span>
+                      <span>{order.status === 'Completed' ? 'Confirmed' : order.status}</span>
                     )}
                   </td>
                 </tr>

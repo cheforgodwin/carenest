@@ -1,6 +1,6 @@
 {
   "installCommand": "npm ci",
-  "buildCommand": "npm run build",
+  "buildCommand": "node scripts/verify-payment-build.mjs && npm run build",
   "outputDirectory": "dist",
   "routes": [
     {

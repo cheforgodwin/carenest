@@ -21,7 +21,7 @@ import {
 
 import DashboardShell from './DashboardShell'
 
-const providerStatuses = ['Pending', 'Assigned', 'In Progress', 'Quality Check', 'Out for Delivery', 'Completed']
+const providerStatuses = ['Pending', 'Assigned', 'In Progress', 'Quality Check', 'Out for Delivery', 'Awaiting confirmation', 'Completed']
 
 const emptyListing = {
   category: 'gas', title: '', description: '', price: '', unit: 'cylinder', serviceArea: '',
@@ -127,11 +127,11 @@ function ProviderDashboardPage() {
     setMessage('')
     try {
       const proofText = status === 'Completed'
-        ? window.prompt('Add a short completion note before this job becomes payable on Sunday.', order.completionProofText || '')
+        ? window.prompt('Describe the completed work. The customer must confirm before this job becomes payable.', order.completionProofText || '')
         : ''
       if (status === 'Completed' && proofText === null) return
       await updateProviderJobStatus(order.firestoreId, status, proofText || '')
-      setMessage(`${order.id} moved to ${status}.`)
+      setMessage(status === 'Completed' ? 'Completion sent to the customer for confirmation. Payout is not yet available.' : `${order.id} moved to ${status}.`)
     } catch (nextError) {
       setError(nextError.message)
     }
@@ -212,7 +212,7 @@ function ProviderDashboardPage() {
           <div className="dashboard-panel-header">
             <div>
               <h2>{activeView === 'jobs' ? 'Jobs' : 'Recent activity'}</h2>
-              <p>{activeView === 'jobs' ? 'Accept available jobs or update work already assigned to you. Provider pay is released weekly on Sunday for completed and paid jobs.' : 'Available customer requests, active jobs, and Sunday payout work.'}</p>
+              <p>{activeView === 'jobs' ? 'Accept available jobs or update work already assigned to you. Provider pay is released weekly on Sunday for paid jobs confirmed complete by the customer.' : 'Available customer requests, active jobs, and Sunday payout work.'}</p>
             </div>
             <input className="dashboard-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search jobs" />
           </div>
@@ -235,8 +235,8 @@ function ProviderDashboardPage() {
                         {!order.providerUid ? (
                           <button className="table-action" type="button" onClick={() => acceptJob(order)}>Accept</button>
                         ) : assignedToMe ? (
-                          <select className="dashboard-select" value={order.status} onChange={(event) => updateStatus(order, event.target.value)}>
-                            {providerStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
+                          <select className="dashboard-select" value={order.status} disabled={['Awaiting confirmation', 'Completed', 'Complaint', 'Cancelled'].includes(order.status)} onChange={(event) => updateStatus(order, event.target.value)}>
+                            {providerStatuses.map((status) => <option key={status} value={status} disabled={status === 'Awaiting confirmation'}>{status === 'Completed' && order.status !== 'Completed' ? 'Request completion confirmation' : status}</option>)}
                           </select>
                         ) : <span className="dashboard-muted">Assigned</span>}
                       </td>

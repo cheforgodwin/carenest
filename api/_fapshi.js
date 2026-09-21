@@ -1,11 +1,24 @@
+function configurationError(message) {
+  return Object.assign(new Error(message), { code: 'PAYMENT_CONFIGURATION_ERROR', statusCode: 503 })
+}
+
 export function getFapshiConfig() {
   const mode = String(process.env.FAPSHI_MODE || 'sandbox').trim().toLowerCase()
-  if (!['sandbox', 'live'].includes(mode)) throw new Error('FAPSHI_MODE must be sandbox or live.')
-  const apiUrl = mode === 'live' ? String(process.env.FAPSHI_LIVE_API_URL || '').trim() : String(process.env.FAPSHI_SANDBOX_API_URL || '').trim()
-  const apiUser = mode === 'live' ? String(process.env.FAPSHI_LIVE_API_USER || '').trim() : String(process.env.FAPSHI_SANDBOX_API_USER || '').trim()
-  const apiKey = mode === 'live' ? String(process.env.FAPSHI_LIVE_SECRET_KEY || '').trim() : String(process.env.FAPSHI_SANDBOX_SECRET_KEY || '').trim()
-  if (!apiUrl || !apiUser || !apiKey) throw new Error('Missing Fapshi configuration.')
-  return { apiUrl, apiUser, apiKey }
+  if (!['sandbox', 'live'].includes(mode)) throw configurationError('FAPSHI_MODE must be sandbox or live.')
+  const prefix = mode === 'live' ? 'FAPSHI_LIVE' : 'FAPSHI_SANDBOX'
+  const origin = mode === 'live' ? 'https://live.fapshi.com' : 'https://sandbox.fapshi.com'
+  const configuredUrl = String(process.env[prefix + '_API_URL'] || origin + '/initiate-pay').trim()
+  let url
+  try { url = new URL(configuredUrl) } catch { throw configurationError('Invalid Fapshi API URL.') }
+  if (url.origin !== origin || url.username || url.password || url.search || url.hash || !['/', '/initiate-pay', '/initiate-pay/'].includes(url.pathname)) {
+    throw configurationError('Fapshi API URL does not match the selected payment environment.')
+  }
+  const apiUser = String(process.env[prefix + '_API_USER'] || '').trim()
+  const apiKey = String(process.env[prefix + '_SECRET_KEY'] || '').trim()
+  if ([apiUser, apiKey].some((value) => !value || /^(your[-_]|replace|change[-_]?me|<)/i.test(value) || /[\s"']/.test(value))) {
+    throw configurationError('Fapshi credentials are missing or contain placeholder values.')
+  }
+  return { apiUrl: origin + '/initiate-pay', apiUser, apiKey }
 }
 
 export const getFapshiBaseUrl = (url) => url.replace(/\/initiate-pay\/?$/, '').replace(/\/$/, '')
