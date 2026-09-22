@@ -1,4 +1,5 @@
 .finance-view {
+    min-width: 0;
     display: grid;
     gap: 20px;
 }
@@ -100,6 +101,7 @@
 }
 
 .finance-attention-banner {
+    display: block;
     padding: 14px 18px;
     margin-bottom: 16px;
     border-radius: 10px;
@@ -125,3 +127,5 @@
         grid-template-columns: 1fr;
     }
 }
+.finance-view > section { min-width: 0; }
+.finance-detail { scroll-margin-top: 24px; }

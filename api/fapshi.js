@@ -98,6 +98,7 @@ export default async function handler(req, res) {
       if (latest.amount !== order.amount || latest.customerPhone !== order.customerPhone || ['Cancelled', 'Complaint', 'Completed'].includes(latest.status)) throw paymentError('The order changed. Reload it before paying.')
       const policy = (await transaction.get(db.collection('financialSettings').doc('current'))).data()
       const snapshot = latest.financialSnapshot || financialSnapshot(latest, policy)
+      if (snapshot.amount !== latest.amount) throw paymentError('The order amount no longer matches its saved allocation. Contact support before paying.')
       const environment = apiUrl.includes('sandbox.fapshi.com') ? 'sandbox' : 'live'
       transaction.set(db.collection('financialEntries').doc(entryId('attempt', initiationId)), financialEntry({ ...latest, paymentEnvironment: environment }, firestoreId, 'payment_attempt', { amount: latest.amount, reference: initiationId, status: 'Starting' }))
       transaction.update(orderRef, {

@@ -56,12 +56,14 @@ export function orderFinance(order) {
   }
 }
 
-export function attentionItems(orders) {
+export function attentionItems(orders, now = Date.now()) {
   const items = []
   for (const order of orders) {
     const f = orderFinance(order)
     const add = (reason, message) => items.push({ id: order.firestoreId + ':' + reason + ':' + (order.paymentReference || order.paymentInitiationId || ''), orderId: order.firestoreId, label: order.id, reason, message })
-    if (['Unknown', 'Starting'].includes(order.paymentInitiationState)) add('payment-unknown', 'Payment outcome needs checking before another charge.')
+    if (order.paymentInitiationState === 'Unknown' || (order.paymentInitiationState === 'Starting' && now - (order.paymentInitiationStartedAtMs || 0) >= 90000)) add('payment-unknown', 'Payment outcome needs checking before another charge.')
+    if (order.paymentStatus === 'Submitted' && now - (order.paymentInitiationStartedAtMs || 0) >= 300000) add('payment-pending', 'Payment is still pending. Verify its status before taking action.')
+    if (f.paid && !order.paymentEnvironment) add('environment', 'Historical payment environment needs verification before settlement.')
     if (order.paymentStatus === 'Failed' || order.paymentInitiationState === 'Failed') add('payment-failed', 'Payment failed or was refused. Review the saved order.')
     if (order.refundStatus === 'Requested') add('refund', 'Refund requested; settlement is on hold.')
     if (order.disputeStatus === 'Open' || order.status === 'Complaint') add('complaint', 'Customer complaint needs a decision.')

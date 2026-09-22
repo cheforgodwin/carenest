@@ -1,0 +1,46 @@
+.admin-notification-list { display: grid; gap: 12px; }
+.admin-notification { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; background: #f4f9f6; border: 1px solid #dceee3; border-radius: 12px; }
+.admin-notification > div { min-width: 0; }
+.admin-notification p { margin: 8px 0 0; overflow-wrap: anywhere; }
+.admin-notification a { flex-shrink: 0; text-align: center; text-decoration: none; }
+.admin-dashboard .finance-view { min-width: 0; }
+.admin-dashboard .dashboard-panel { scroll-margin-top: 12px; }
+@media (max-width: 768px) {
+  .admin-dashboard .dashboard-main { width: 100%; min-width: 0; }
+  .admin-dashboard .dashboard-top { flex-wrap: wrap; }
+  .admin-dashboard .dashboard-top h1 { font-size: clamp(23px, 6vw, 30px); overflow-wrap: anywhere; }
+  .admin-dashboard .dashboard-actions, .admin-dashboard .dashboard-tools { flex-wrap: wrap; width: 100%; gap: 10px; }
+  .admin-dashboard .dashboard-user { min-width: 0; overflow-wrap: anywhere; }
+  .admin-dashboard .metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-dashboard .metric-card { min-width: 0; padding: 12px; }
+  .admin-dashboard .metric-card strong { font-size: clamp(17px, 4.8vw, 24px); overflow-wrap: anywhere; }
+  .admin-dashboard .dashboard-panel { max-width: 100%; overflow: visible; }
+  .admin-dashboard .dashboard-panel-header { flex-direction: column; }
+  .admin-dashboard .dashboard-panel-header > *, .admin-dashboard .dashboard-search { width: 100%; min-width: 0; }
+  .admin-dashboard button, .admin-dashboard .table-action, .admin-dashboard .dashboard-actions a { min-height: 44px; white-space: normal; }
+  .admin-dashboard input:not([type=checkbox]), .admin-dashboard select, .admin-dashboard textarea { font-size: 16px; min-height: 44px; max-width: 100%; width: 100%; min-width: 0; }
+  .admin-dashboard input[type=checkbox] { width: 22px; height: 22px; flex-shrink: 0; }
+  .admin-dashboard .dashboard-table { display: block; width: 100%; min-width: 0; }
+  .admin-dashboard .dashboard-table thead { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+  .admin-dashboard .dashboard-table tbody { display: grid; grid-template-columns: 1fr; gap: 16px; width: 100%; }
+  .admin-dashboard .dashboard-table tr { display: block; min-width: 0; padding: 10px 12px; border: 1px solid #dceee3; border-radius: 12px; background: #fbfdfb; }
+  .admin-dashboard .dashboard-table td,
+  .admin-dashboard .dashboard-table td:nth-child(2n),
+  .admin-dashboard .dashboard-table td:nth-child(5n) { display: block; width: 100%; min-width: 0; padding: 10px 0; border-bottom: 1px solid #e7efe9; overflow-wrap: anywhere; text-align: left; }
+  .admin-dashboard .dashboard-table td:last-child { border-bottom: 0; }
+  .admin-dashboard .dashboard-table td::before { content: attr(data-label); display: block; width: auto; margin-bottom: 5px; color: #466454; font-size: 12px; font-weight: 800; text-transform: uppercase; }
+  .admin-dashboard .dashboard-table td > * { max-width: 100%; }
+  .admin-dashboard .dashboard-table td label { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+  .admin-dashboard .table-action-row { flex-wrap: wrap; }
+  .admin-dashboard .table-action-row > *, .admin-dashboard .dashboard-tools > * { flex: 1 1 140px; min-width: 0; }
+  .admin-dashboard .finance-table-wrap { overflow: visible; }
+  .admin-dashboard .finance-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-dashboard .finance-summary article { padding: 12px; min-width: 0; }
+  .admin-dashboard .finance-summary strong { font-size: 18px; overflow-wrap: anywhere; }
+  .admin-dashboard .finance-filters { grid-template-columns: 1fr; }
+  .admin-dashboard .finance-alert, .admin-notification { flex-direction: column; align-items: stretch; }
+  .admin-dashboard .finance-alert button, .admin-notification a { width: 100%; }
+  .admin-dashboard .marketplace-listing-grid, .admin-dashboard .dashboard-card-grid { grid-template-columns: 1fr; }
+  .admin-dashboard .admin-listing-heading { flex-wrap: wrap; }
+  .admin-dashboard .finance-attention-banner { overflow-wrap: anywhere; }
+}

@@ -10,6 +10,7 @@ const icons = { bookings: FiBriefcase, dashboard: FiGrid, payments: FiCreditCard
 
 function DashboardShell({
   title,
+  className = '',
   subtitle,
   action,
   metrics = [],
@@ -40,7 +41,7 @@ function DashboardShell({
   }
 
   return (
-    <main className={`dashboard-page ${isMenuOpen ? 'dashboard-menu-open' : ''}`}>
+    <main className={`dashboard-page ${className} ${isMenuOpen ? 'dashboard-menu-open' : ''}`}>
       <button
         className="dashboard-menu-backdrop"
         type="button"
@@ -106,9 +107,9 @@ function DashboardShell({
               <strong>{profile?.name || 'CareNest user'}</strong>
               <span>{profile?.accountType || 'account'}</span>
             </div>
-            {action?.onClick
+            {action && (action.onClick
               ? <button className="dashboard-action-button" type="button" onClick={action.onClick}><FiPlus />{action.label}</button>
-              : <Link to={action.href}><FiPlus />{action.label}</Link>}
+              : <Link to={action.href}><FiPlus />{action.label}</Link>)}
             <button type="button" onClick={handleLogout}><FiLogOut />Logout</button>
           </div>
         </header>

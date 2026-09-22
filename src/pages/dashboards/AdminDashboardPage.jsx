@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { FiDownload } from 'react-icons/fi'
 import {
   adminAssignServiceRequest,
@@ -25,6 +25,7 @@ import FinancePanel from '../../components/finance/FinancePanel'
 import { useFinanceAlerts } from '../../components/finance/useFinanceAlerts'
 import { financeTotals, csvCell } from '../../utils/finance'
 import { useEffect } from 'react'
+import './AdminMobile.css'
 
 const statusOptions = ['Pending', 'Assigned', 'In Progress', 'Quality Check', 'Out for Delivery', 'Awaiting confirmation', 'Completed', 'Complaint', 'Cancelled']
 
@@ -349,6 +350,7 @@ function AdminDashboardPage() {
   }
   const nav = [
     { label: 'Overview', to: '/dashboard/admin?view=overview', icon: 'dashboard' },
+    { label: `Notifications (${financeAlerts.alerts.length})`, to: '/dashboard/admin?view=notifications', icon: 'payments' },
     { label: 'Users', to: '/dashboard/admin?view=users', icon: 'users' },
     { label: 'Requests', to: '/dashboard/admin?view=requests', icon: 'bookings' },
     { label: 'SMS receipts', to: '/dashboard/admin?view=payments', icon: 'payments' },
@@ -360,17 +362,30 @@ function AdminDashboardPage() {
 
   return (
     <DashboardShell
+      className="admin-dashboard"
       title="Operations Dashboard"
       subtitle="Monitor bookings, users, providers, payments, and support."
-      action={['finance', 'payouts'].includes(activeView) ? undefined : { label: 'Export', onClick: exportData }}
+      action={['finance', 'payouts', 'notifications'].includes(activeView) ? undefined : { label: 'Export', onClick: exportData }}
       nav={nav}
       metrics={metrics}
     >
-      {financeAlerts.alerts.length > 0 && <a className="finance-attention-banner" href="/dashboard/admin?view=finance#finance-attention">{financeAlerts.alerts.length} transaction item(s) need your attention. Review payments, refunds and payouts.</a>}
+      {financeAlerts.alerts.length > 0 && <Link className="finance-attention-banner" to="/dashboard/admin?view=notifications" aria-live="polite">{financeAlerts.alerts.length} transaction item(s) need your attention. Review payments, refunds and payouts.</Link>}
       {error && <p className="dashboard-error">{error}</p>}
       {message && <p className="dashboard-success">{message}</p>}
 
-      {activeView === 'overview' && (
+      {activeView === 'notifications' && <section className="dashboard-panel admin-notifications">
+        <div className="dashboard-panel-header"><div><h2>Notifications</h2><p>Transactions needing your attention, available whenever you open CareNest on your phone.</p></div>
+          <button type="button" className="dashboard-action-button" disabled={financeAlerts.permission === 'unsupported' || financeAlerts.permission === 'denied'} onClick={financeAlerts.enableNotifications}>Enable browser alerts</button></div>
+        <p className="finance-note">In-app notifications work without browser permission. Optional browser alerts require this dashboard to remain open. {financeAlerts.permission === 'denied' ? 'Browser alerts are blocked in your browser settings.' : ''}</p>
+        <p role="status">{loading ? 'Loading notifications...' : `${financeAlerts.alerts.length} item(s) need attention.`}</p>
+        <div className="admin-notification-list">{financeAlerts.alerts.map((alert) => <article className="admin-notification" key={alert.id}>
+          <div><strong>{alert.label || 'Transaction review'}</strong><p>{alert.message}</p></div>
+          <Link className="table-action" to={'/dashboard/admin?view=finance&order=' + encodeURIComponent(alert.orderId)}>Review transaction</Link>
+        </article>)}</div>
+        {!loading && !financeAlerts.alerts.length && <p className="dashboard-empty">You are up to date. New transaction issues will appear here automatically.</p>}
+      </section>}
+
+      {activeView === 'overview'  && (
         <section className="dashboard-panel">
           <div className="dashboard-panel-header">
             <div>
@@ -385,12 +400,12 @@ function AdminDashboardPage() {
               <tbody>
                 {orders.slice(0, 8).map((order) => (
                   <tr key={order.firestoreId}>
-                    <td>{order.id}</td>
-                    <td>{order.customerName || 'Customer'}</td>
-                    <td><span className={`status-chip ${normalizeStatus(order.status)}`}>{order.status}</span></td>
-                    <td>{order.service}</td>
-                    <td>{formatAmount(order.amount)}</td>
-                    <td>{formatDate(order.createdAtDate)}</td>
+                    <td data-label="Order">{order.id}</td>
+                    <td data-label="Customer">{order.customerName || 'Customer'}</td>
+                    <td data-label="Status"><span className={`status-chip ${normalizeStatus(order.status)}`}>{order.status}</span></td>
+                    <td data-label="Service">{order.service}</td>
+                    <td data-label="Amount">{formatAmount(order.amount)}</td>
+                    <td data-label="Created">{formatDate(order.createdAtDate)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -414,12 +429,12 @@ function AdminDashboardPage() {
               <tbody>
                 {filteredUsers.map((user) => (
                   <tr key={user.uid || user.firestoreId}>
-                    <td>{user.name || 'Unnamed user'}</td>
-                    <td>{user.email}</td>
-                    <td>{user.phone || 'Not provided'}</td>
-                    <td>{user.emailVerified ? 'Email verified' : 'Email pending'}{user.providerVerified ? ' · Provider verified' : ''}</td>
-                    <td><span className="status-chip completed">{user.accountType}</span></td>
-                    <td>{formatDate(user.createdAtDate)}</td>
+                    <td data-label="Name">{user.name || 'Unnamed user'}</td>
+                    <td data-label="Email">{user.email}</td>
+                    <td data-label="Phone">{user.phone || 'Not provided'}</td>
+                    <td data-label="Verification">{user.emailVerified ? 'Email verified' : 'Email pending'}{user.providerVerified ? ' · Provider verified' : ''}</td>
+                    <td data-label="Role"><span className="status-chip completed">{user.accountType}</span></td>
+                    <td data-label="Joined">{formatDate(user.createdAtDate)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -589,17 +604,17 @@ function AdminDashboardPage() {
               <tbody>
                 {applications.map((application) => (
                   <tr key={application.firestoreId}>
-                    <td>{application.name}</td>
-                    <td>{application.email}</td>
-                    <td>{application.phone}</td>
-                    <td>{application.services}</td>
-                    <td>{application.area}</td>
-                    <td>
+                    <td data-label="Name">{application.name}</td>
+                    <td data-label="Email">{application.email}</td>
+                    <td data-label="Phone">{application.phone}</td>
+                    <td data-label="Services">{application.services}</td>
+                    <td data-label="Area">{application.area}</td>
+                    <td data-label="Verification">
                       <label><input type="checkbox" checked={Boolean(application.identityVerified)} onChange={(event) => setProviderCheck(application, 'identityVerified', event.target.checked)} /> Identity reviewed</label>
                       <label><input type="checkbox" checked={Boolean(application.payoutPhoneVerified)} onChange={(event) => setProviderCheck(application, 'payoutPhoneVerified', event.target.checked)} /> Payout phone confirmed</label>
                     </td>
-                    <td><span className={`status-chip ${normalizeStatus(application.status)}`}>{application.status}</span></td>
-                    <td>
+                    <td data-label="Status"><span className={`status-chip ${normalizeStatus(application.status)}`}>{application.status}</span></td>
+                    <td data-label="Action">
                       {application.status === 'Pending' ? (
                         <div className="dashboard-tools">
                           <button className="table-action" type="button" disabled={!application.identityVerified || !application.payoutPhoneVerified} onClick={() => reviewApplication(application, 'Approved')}>Approve</button>
@@ -633,14 +648,14 @@ function AdminDashboardPage() {
               <tbody>
                 {filteredPaymentReceipts.map((receipt) => (
                   <tr key={receipt.firestoreId}>
-                    <td>{receipt.paymentMethod || receipt.provider}</td>
-                    <td>{formatAmount(receipt.amount)}</td>
-                    <td>{receipt.senderPhone || 'Not found'}</td>
-                    <td>{receipt.transactionId || 'Not found'}</td>
-                    <td><span className={`status-chip ${normalizeStatus(receipt.matchStatus)}`}>{receipt.matchStatus}</span></td>
-                    <td>{receipt.matchedOrderId || 'Needs review'}</td>
-                    <td>{receipt.matchReason || 'Verified automatically'}</td>
-                    <td>{formatDate(receipt.receivedAtDate || receipt.createdAtDate)}</td>
+                    <td data-label="Provider">{receipt.paymentMethod || receipt.provider}</td>
+                    <td data-label="Amount">{formatAmount(receipt.amount)}</td>
+                    <td data-label="Sender">{receipt.senderPhone || 'Not found'}</td>
+                    <td data-label="Transaction">{receipt.transactionId || 'Not found'}</td>
+                    <td data-label="Status"><span className={`status-chip ${normalizeStatus(receipt.matchStatus)}`}>{receipt.matchStatus}</span></td>
+                    <td data-label="Order">{receipt.matchedOrderId || 'Needs review'}</td>
+                    <td data-label="Reason">{receipt.matchReason || 'Verified automatically'}</td>
+                    <td data-label="Received">{formatDate(receipt.receivedAtDate || receipt.createdAtDate)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -649,7 +664,7 @@ function AdminDashboardPage() {
         </section>
       )}
 
-      {['finance', 'payouts'].includes(activeView) && <FinancePanel orders={orders} {...financeAlerts} />}
+      {['finance', 'payouts'].includes(activeView) && <FinancePanel key={searchParams.get('order') || 'all'} initialSelected={searchParams.get('order') || ''} orders={orders} {...financeAlerts} />}
 
       {activeView === 'settings' && (
         <section className="dashboard-card-grid">

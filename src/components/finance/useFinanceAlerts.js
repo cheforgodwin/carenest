@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { attentionItems } from '../../utils/finance'
 
 export function useFinanceAlerts(orders, uid) {
-  const alerts = useMemo(() => attentionItems(orders), [orders])
+  const [now, setNow] = useState(Date.now)
+  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30000); return () => window.clearInterval(timer) }, [])
+  const alerts = useMemo(() => attentionItems(orders, now), [orders, now])
   const previous = useRef(null)
   const [permission, setPermission] = useState(() => typeof Notification === 'undefined' ? 'unsupported' : Notification.permission)
   useEffect(() => {
