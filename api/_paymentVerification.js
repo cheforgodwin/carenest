@@ -1,4 +1,6 @@
 import { FieldValue } from 'firebase-admin/firestore'
+import { providerFee } from '../src/utils/finance.js'
+import { entryId, financialEntry } from './_finance.js'
 import { getFapshiBaseUrl, getFapshiConfig, readJsonResponse } from './_fapshi.js'
 
 export function paymentError(message, statusCode = 409) {
@@ -25,7 +27,7 @@ export async function fetchVerifiedPayment(transactionId) {
   const verifiedWebhook = String(payment.webhook || '').trim().replace(/\/$/, '')
   if (expectedWebhook && verifiedWebhook && expectedWebhook !== verifiedWebhook) throw paymentError('Payment belongs to a different webhook.', 400)
   if (payment.transType && payment.transType !== 'Collection') throw paymentError('Payment is not a collection.', 400)
-  return payment
+  return { ...payment, verifiedEnvironment: getFapshiConfig().apiUrl.includes('sandbox') ? 'sandbox' : 'live' }
 }
 
 // All reads and writes share one transaction, including late callbacks and polling.
@@ -50,22 +52,33 @@ export async function applyVerifiedPayment(db, payment, source, expectedOrderId 
       || !Number.isInteger(order.amount) || Number(payment.amount) !== order.amount) {
       throw paymentError('Payment does not match the bound order.', 400)
     }
-    if (['Paid', 'Refunded'].includes(order.paymentStatus)) {
+    if (order.paymentEnvironment && payment.verifiedEnvironment && order.paymentEnvironment !== payment.verifiedEnvironment) throw paymentError('Payment environment mismatch.', 400)
+    const verifiedOrder = { ...order, ...(payment.verifiedEnvironment ? { paymentEnvironment: payment.verifiedEnvironment } : {}) }
+    const enrichEnvironment = !order.paymentEnvironment && Boolean(payment.verifiedEnvironment)
+    if (['Paid', 'Refunded'].includes(order.paymentStatus) && providerStatus !== 'SUCCESSFUL') {
       return { received: true, orderId: order.id || firestoreId, paymentStatus: order.paymentStatus }
     }
-    const paymentStatus = providerStatus === 'SUCCESSFUL' ? 'Paid'
+    const paymentStatus = order.paymentStatus === 'Refunded' ? 'Refunded' : providerStatus === 'SUCCESSFUL' ? 'Paid'
       : ['FAILED', 'EXPIRED'].includes(providerStatus) ? 'Failed' : 'Submitted'
-    // A delayed pending response cannot replace a verified terminal result.
-    if (bound && order.paymentVerifiedAt && (order.paymentProviderStatus === providerStatus
-      || (order.paymentStatus === 'Failed' && paymentStatus === 'Submitted'))) {
-      return { received: true, orderId: order.id || firestoreId, paymentStatus: order.paymentStatus }
-    }
+    const fee = providerStatus === 'SUCCESSFUL' ? providerFee(payment) : { amount: null }
+    const eventRef = db.collection('financialEntries').doc(entryId('collection', firestoreId, reference, providerStatus))
+    const event = await transaction.get(eventRef)
+    const feeKnown = Number.isSafeInteger(order.paymentFinancials?.fapshiFee)
+    const enrichFee = !feeKnown && fee.amount !== null
+    if (feeKnown && fee.amount !== null && order.paymentFinancials.fapshiFee !== fee.amount) throw paymentError('Provider fee changed. Manual reconciliation is required.')
+    if (bound && order.paymentVerifiedAt && order.paymentStatus === 'Failed' && paymentStatus === 'Submitted') return { received: true, orderId: order.id || firestoreId, paymentStatus: order.paymentStatus }
+    if (event.exists && !enrichFee && !enrichEnvironment) return { received: true, orderId: order.id || firestoreId, paymentStatus: order.paymentStatus }
+    if (!event.exists) transaction.set(eventRef, financialEntry(verifiedOrder, firestoreId, 'collection', { reference, amount: order.amount, status: providerStatus, fapshiFee: fee.amount, source }))
+    if (enrichFee) transaction.set(db.collection('financialEntries').doc(entryId('fee', firestoreId, reference)), financialEntry(verifiedOrder, firestoreId, 'fapshi_fee', { reference, amount: fee.amount, status: 'Verified', source }))
+    const paymentFinancials = feeKnown ? order.paymentFinancials : { fapshiFee: fee.amount, revenue: fee.revenue ?? null, feePercent: fee.percent ?? null, feeSource: fee.amount === null ? 'unknown' : 'provider-revenue' }
     transaction.update(orderRef, {
+      paymentFinancials,
+      ...(payment.verifiedEnvironment ? { paymentEnvironment: payment.verifiedEnvironment } : {}),
       paymentReference: reference, paymentReceiptTransactionId: reference,
       paymentProvider: 'Fapshi', paymentInitiationState: 'Submitted', paymentStatus,
       paymentProviderStatus: providerStatus, paymentConfirmedAt: payment.dateConfirmed || null,
       paymentVerifiedAt: FieldValue.serverTimestamp(), paymentVerifiedBy: source,
-      ...(paymentStatus === 'Paid' ? { paidAt: FieldValue.serverTimestamp() } : {}),
+      ...(paymentStatus === 'Paid' && !order.paidAt ? { paidAt: FieldValue.serverTimestamp() } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     })
     return { received: true, orderId: order.id || firestoreId, paymentStatus }
@@ -78,14 +91,14 @@ export async function reconcileOrderPayment(db, orderRef, firestoreId, userUid) 
     if (!snapshot.exists) throw paymentError('Order not found.', 404)
     const current = snapshot.data()
     if (current.customerUid !== userUid) throw paymentError('You do not own this order.', 403)
-    if (['Paid', 'Refunded'].includes(current.paymentStatus)) return current
+    if (['Paid', 'Refunded'].includes(current.paymentStatus) && Number.isSafeInteger(current.paymentFinancials?.fapshiFee)) return current
     if (Date.now() - Number(current.paymentLastCheckedAtMs || 0) < 15000) {
       throw paymentError('Please wait 15 seconds before checking the payment again.', 429)
     }
     transaction.update(orderRef, { paymentLastCheckedAtMs: Date.now() })
     return current
   })
-  if (['Paid', 'Refunded'].includes(order.paymentStatus)) return { paymentStatus: order.paymentStatus }
+  if (['Paid', 'Refunded'].includes(order.paymentStatus) && Number.isSafeInteger(order.paymentFinancials?.fapshiFee)) return { paymentStatus: order.paymentStatus }
   let reference = order.paymentReference
   if (!reference && ['Starting', 'Unknown'].includes(order.paymentInitiationState)) {
     const query = new URLSearchParams({ amt: String(order.amount), limit: '100', sort: 'desc' })

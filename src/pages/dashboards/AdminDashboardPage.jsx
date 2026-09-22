@@ -4,16 +4,11 @@ import { FiDownload } from 'react-icons/fi'
 import {
   adminAssignServiceRequest,
   adminClearServiceRequestProvider,
-  calculatePlatformFee,
-  calculateProviderEarning,
-  isPayoutReady,
-  payoutStatuses,
   subscribeToAllOrders,
   subscribeToPaymentSmsReceipts,
   subscribeToUsers,
   requestOrderRefund,
   assignServiceRequestToRider,
-  updateProviderPayoutStatus,
   updateServiceRequestStatus,
 } from '../../firebase/orderService'
 import {
@@ -26,6 +21,9 @@ import { getMarketplaceCategory, marketplaceCategoryEntries } from '../../config
 import { adminSetListingVisibility, subscribeToAllListings } from '../../firebase/marketplaceService'
 import { useAuth } from '../../auth/useAuth'
 import DashboardShell from './DashboardShell'
+import FinancePanel from '../../components/finance/FinancePanel'
+import { useFinanceAlerts } from '../../components/finance/useFinanceAlerts'
+import { financeTotals, csvCell } from '../../utils/finance'
 import { useEffect } from 'react'
 
 const statusOptions = ['Pending', 'Assigned', 'In Progress', 'Quality Check', 'Out for Delivery', 'Awaiting confirmation', 'Completed', 'Complaint', 'Cancelled']
@@ -49,7 +47,7 @@ function normalizeStatus(status) {
 
 function downloadCsv(filename, rows) {
   const csv = rows
-    .map((row) => row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(','))
+    .map((row) => row.map(csvCell).join(','))
     .join('\n')
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
@@ -115,6 +113,9 @@ function AdminDashboardPage() {
     }
   }, [])
 
+  const financeAlerts = useFinanceAlerts(orders, user?.uid)
+  const finances = financeTotals(orders.filter((order) => order.paymentEnvironment === 'live'))
+
   const todayKey = new Date().toDateString()
   const providers = users.filter((user) => user.accountType === 'provider')
   const riders = users.filter((user) => user.accountType === 'rider')
@@ -123,11 +124,8 @@ function AdminDashboardPage() {
   const completedOrders = orders.filter((order) => order.status === 'Completed')
   const openOrders = orders.filter((order) => !['Completed', 'Cancelled'].includes(order.status))
   const complaints = orders.filter((order) => order.status === 'Complaint')
-  const readyPayoutOrders = orders.filter((order) => isPayoutReady(order) && order.payoutStatus !== 'Paid' && order.payoutStatus !== 'Held')
   const pendingApplications = applications.filter((application) => application.status === 'Pending')
   const reviewPaymentReceipts = paymentReceipts.filter((receipt) => receipt.matchStatus === 'needs_review')
-  const revenue = completedOrders.reduce((total, order) => total + Number(order.amount || 0), 0)
-  const pendingProviderPayouts = readyPayoutOrders.reduce((total, order) => total + Number(order.providerPayoutAmount ?? order.providerEarning ?? calculateProviderEarning(order.amount)), 0)
   const bookingsToday = orders.filter((order) => order.createdAtDate?.toDateString() === todayKey).length
 
   const metrics = [
@@ -137,11 +135,11 @@ function AdminDashboardPage() {
     ['Providers', String(providers.length)],
     ['Listings', String(listings.length)],
     ['Riders', String(riders.length)],
-    ['Revenue', formatAmount(revenue)],
+    ['Live customer collections', formatAmount(finances.collected)],
     ['Open requests', String(openOrders.length)],
     ['Applications', String(pendingApplications.length)],
     ['Payment reviews', String(reviewPaymentReceipts.length)],
-    ['Sunday payouts', formatAmount(pendingProviderPayouts)],
+    ['CareNest earned (confirmed)', formatAmount(finances.platform)],
   ]
 
   const filteredOrders = useMemo(() => {
@@ -190,23 +188,6 @@ function AdminDashboardPage() {
     })
   }, [paymentReceipts, query])
 
-  const filteredPayoutOrders = useMemo(() => {
-    const needle = query.trim().toLowerCase()
-    return orders.filter((order) => {
-      const shouldShow = order.providerUid && (isPayoutReady(order) || ['Paid', 'Partial', 'Held'].includes(order.payoutStatus))
-      const haystack = [
-        order.id,
-        order.providerName,
-        order.providerEmail,
-        order.providerPhone,
-        order.customerName,
-        order.service,
-        order.payoutStatus,
-      ].join(' ').toLowerCase()
-      return shouldShow && (!needle || haystack.includes(needle))
-    })
-  }, [orders, query])
-
   const filteredListings = useMemo(() => {
     const needle = query.trim().toLowerCase()
     return listings.filter((listing) => {
@@ -234,24 +215,6 @@ function AdminDashboardPage() {
           receipt.matchedOrderId,
           receipt.matchReason,
           formatDate(receipt.receivedAtDate || receipt.createdAtDate),
-        ]),
-      ])
-      return
-    }
-
-    if (activeView === 'payouts') {
-      downloadCsv('carenest-provider-sunday-payouts.csv', [
-        ['Order', 'Provider', 'Phone', 'Customer paid', 'Provider earning', 'CareNest fee', 'Payout status', 'Schedule', 'Paid at'],
-        ...filteredPayoutOrders.map((order) => [
-          order.id,
-          order.providerName,
-          order.providerPayoutPhone || order.providerPhone,
-          order.amount,
-          order.providerPayoutAmount ?? order.providerEarning ?? calculateProviderEarning(order.amount),
-          order.platformFee ?? calculatePlatformFee(order.amount),
-          order.payoutStatus,
-          order.payoutSchedule || 'Weekly Sunday',
-          formatDate(order.payoutPaidAtDate),
         ]),
       ])
       return
@@ -312,25 +275,6 @@ function AdminDashboardPage() {
       await assignServiceRequestToRider(order.firestoreId, rider)
       setMessage('Rider assigned. Pickup must be recorded before delivery.')
     } catch (nextError) { setError(nextError.message) }
-  }
-
-  async function updatePayout(order, payoutStatus, note = '') {
-    setError('')
-    setMessage('')
-    if (['Paid', 'Partial'].includes(payoutStatus) && !isPayoutReady(order)) {
-      setError('Only paid jobs confirmed complete by the customer can be marked as provider paid.')
-      return
-    }
-    const payoutAmount = payoutStatus === 'Partial'
-      ? window.prompt('Enter the partial provider payout amount in FCFA.', String(order.providerPayoutAmount ?? order.providerEarning ?? calculateProviderEarning(order.amount)))
-      : null
-    if (payoutStatus === 'Partial' && payoutAmount === null) return
-    try {
-      await updateProviderPayoutStatus(order.firestoreId, payoutStatus, user.uid, note || `Provider payout marked ${payoutStatus.toLowerCase()} by admin.`, payoutAmount)
-      setMessage(`${order.id} provider payout marked as ${payoutStatus.toLowerCase()}.`)
-    } catch (nextError) {
-      setError(nextError.message)
-    }
   }
 
   async function assignProvider(order) {
@@ -407,8 +351,8 @@ function AdminDashboardPage() {
     { label: 'Overview', to: '/dashboard/admin?view=overview', icon: 'dashboard' },
     { label: 'Users', to: '/dashboard/admin?view=users', icon: 'users' },
     { label: 'Requests', to: '/dashboard/admin?view=requests', icon: 'bookings' },
-    { label: 'Payments', to: '/dashboard/admin?view=payments', icon: 'payments' },
-    { label: 'Payouts', to: '/dashboard/admin?view=payouts', icon: 'payments' },
+    { label: 'SMS receipts', to: '/dashboard/admin?view=payments', icon: 'payments' },
+    { label: 'Transactions & earnings', to: '/dashboard/admin?view=finance', icon: 'payments' },
     { label: 'Applications', to: '/dashboard/admin?view=applications', icon: 'users' },
     { label: 'Marketplace', to: '/dashboard/admin?view=marketplace', icon: 'bookings' },
     { label: 'Settings', to: '/dashboard/admin?view=settings', icon: 'settings' },
@@ -418,10 +362,11 @@ function AdminDashboardPage() {
     <DashboardShell
       title="Operations Dashboard"
       subtitle="Monitor bookings, users, providers, payments, and support."
-      action={{ label: 'Export', onClick: exportData }}
+      action={['finance', 'payouts'].includes(activeView) ? undefined : { label: 'Export', onClick: exportData }}
       nav={nav}
       metrics={metrics}
     >
+      {financeAlerts.alerts.length > 0 && <a className="finance-attention-banner" href="/dashboard/admin?view=finance#finance-attention">{financeAlerts.alerts.length} transaction item(s) need your attention. Review payments, refunds and payouts.</a>}
       {error && <p className="dashboard-error">{error}</p>}
       {message && <p className="dashboard-success">{message}</p>}
 
@@ -675,7 +620,7 @@ function AdminDashboardPage() {
           <div className="dashboard-panel-header">
             <div>
               <h2>SMS payment receipts</h2>
-              <p>Review payment messages from the owner phone. Ambiguous receipts stay here until you confirm the right order in Requests.</p>
+              <p>Review payment messages from the owner phone. Messages are supporting evidence; collections must be verified with Fapshi in Transactions & earnings.</p>
             </div>
             <div className="dashboard-tools">
               <input className="dashboard-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search payment SMS" />
@@ -704,49 +649,7 @@ function AdminDashboardPage() {
         </section>
       )}
 
-      {activeView === 'payouts' && (
-        <section className="dashboard-panel">
-          <div className="dashboard-panel-header">
-            <div>
-              <h2>Sunday provider payouts</h2>
-              <p>Pay providers manually every Sunday for paid jobs whose completion the customer has confirmed.</p>
-            </div>
-            <div className="dashboard-tools">
-              <input className="dashboard-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search payouts" />
-              <button className="dashboard-action-button" type="button" onClick={exportData}><FiDownload />Export</button>
-            </div>
-          </div>
-          {filteredPayoutOrders.length > 0 ? (
-            <table className="dashboard-table">
-              <thead><tr><th>Order</th><th>Provider</th><th>Payout phone</th><th>Customer paid</th><th>Provider pay</th><th>CareNest fee</th><th>Status</th><th>Action</th></tr></thead>
-              <tbody>
-                {filteredPayoutOrders.map((order) => (
-                  <tr key={order.firestoreId}>
-                    <td>{order.id}</td>
-                    <td>{order.providerName || 'Provider'}</td>
-                    <td>{order.providerPayoutPhone || order.providerPhone || 'Not provided'}</td>
-                    <td>{formatAmount(order.amount)}</td>
-                    <td>{formatAmount(order.providerPayoutAmount ?? order.providerEarning ?? calculateProviderEarning(order.amount))}</td>
-                    <td>{formatAmount(order.platformFee ?? calculatePlatformFee(order.amount))}</td>
-                    <td><span className={`status-chip ${normalizeStatus(order.payoutStatus)}`}>{order.payoutStatus}</span><small className="dashboard-muted">Weekly Sunday</small></td>
-                    <td>
-                      <select className="dashboard-select" value={order.payoutStatus || 'Unpaid'} onChange={(event) => updatePayout(order, event.target.value)}>
-                        {payoutStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
-                      </select>
-                      <div className="table-action-row">
-                        <button className="table-action" type="button" onClick={() => updatePayout(order, 'Paid', 'Provider paid during Sunday payout.')}>Mark paid</button>
-                        <button className="table-action secondary" type="button" onClick={() => updatePayout(order, 'Partial', 'Partial provider payout approved after review.')}>Partial</button>
-                        <button className="table-action danger" type="button" onClick={() => updatePayout(order, 'Held', 'Provider payout held for review.')}>Hold</button>
-                      </div>
-                      {order.payoutNote && <small className="dashboard-muted">{order.payoutNote}</small>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : <p className="dashboard-empty">No provider payouts are ready yet.</p>}
-        </section>
-      )}
+      {['finance', 'payouts'].includes(activeView) && <FinancePanel orders={orders} {...financeAlerts} />}
 
       {activeView === 'settings' && (
         <section className="dashboard-card-grid">

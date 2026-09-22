@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto'
 import { getAdminDb, requireAuthenticatedUser } from './_firebaseAdmin.js'
 import { getFapshiBaseUrl, getFapshiConfig, readJsonResponse } from './_fapshi.js'
 import { reconcileOrderPayment, paymentError } from './_paymentVerification.js'
+import { financialSnapshot } from '../src/utils/finance.js'
+import { entryId, financialEntry } from './_finance.js'
 import { handleCors } from './_cors.js'
 
 function ensureResponseHelpers(res) {
@@ -94,7 +96,13 @@ export default async function handler(req, res) {
         throw error
       }
       if (latest.amount !== order.amount || latest.customerPhone !== order.customerPhone || ['Cancelled', 'Complaint', 'Completed'].includes(latest.status)) throw paymentError('The order changed. Reload it before paying.')
+      const policy = (await transaction.get(db.collection('financialSettings').doc('current'))).data()
+      const snapshot = latest.financialSnapshot || financialSnapshot(latest, policy)
+      const environment = apiUrl.includes('sandbox.fapshi.com') ? 'sandbox' : 'live'
+      transaction.set(db.collection('financialEntries').doc(entryId('attempt', initiationId)), financialEntry({ ...latest, paymentEnvironment: environment }, firestoreId, 'payment_attempt', { amount: latest.amount, reference: initiationId, status: 'Starting' }))
       transaction.update(orderRef, {
+        financialSnapshot: snapshot,
+        paymentEnvironment: environment,
         paymentInitiationId: initiationId,
         paymentInitiationState: 'Starting',
         paymentInitiationStartedAtMs: now,
@@ -105,6 +113,7 @@ export default async function handler(req, res) {
     const updateAttempt = (payload) => db.runTransaction(async (transaction) => {
       const current = (await transaction.get(orderRef)).data()
       if (current?.paymentInitiationId !== initiationId || current.paymentReference || ['Paid', 'Refunded'].includes(current.paymentStatus)) return
+      transaction.set(db.collection('financialEntries').doc(entryId('attempt', initiationId, payload.paymentInitiationState)), financialEntry(current, firestoreId, 'payment_attempt', { amount: current.amount, reference: initiationId, status: payload.paymentInitiationState }))
       transaction.update(orderRef, { ...payload, updatedAt: FieldValue.serverTimestamp() })
     })
     let response

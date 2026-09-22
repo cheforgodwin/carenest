@@ -1,6 +1,6 @@
 # Payment reliability and fulfilment changes ? 22 September 2026
 
-Prepared locally; deployment is separate. The Fapshi approval email remains a draft pending the owner's review.
+Deployed to production on 22 September 2026. The Fapshi approval email was sent on 22 September 2026 after owner review and approval. Vercel deployment: dpl_B5BuGmkfFdD64921DcmZrMmXwYqo, promoted to https://carenest237.com.
 
 ## Payment handling
 
@@ -20,7 +20,7 @@ Admins cannot forge payment verification, replace payment references or skip wor
 
 ## Remaining launch work
 
-Deploy frontend, API and Firestore rules together after review. Existing Paid records without server verification metadata cannot advance until verified. Review any old records with inconsistent status before launch; do not synthesize payment evidence.
+Frontend, API and Firestore rules were deployed together after owner approval. Existing Paid records without server verification metadata cannot advance until verified. Review any old records with inconsistent status before launch; do not synthesize payment evidence.
 
 Automated refund execution, a complete immutable financial ledger, settlement evidence, automated payouts and dispute-resolution procedures remain separate work. No live charges, payouts or production database writes were performed for this change.
 
@@ -34,3 +34,7 @@ References:
 ## Validation
 
 71 Vitest tests and 3 phone utility tests passed. All 29 Firestore emulator rule tests passed. Full lint and final focused lint passed. Production build passed. Firebase CLI startup stalled, so rules tests used the cached Firestore emulator directly on 127.0.0.1:8080 with project demo-carenest.
+
+## Production verification
+
+The published Firestore ruleset dbddb0f6-617e-41e4-b355-906c372ad514 exactly matches the tested local rules. Unauthenticated initiation and verification requests returned HTTP 401. A malformed webhook returned HTTP 400 before provider lookup. Public homepage, privacy and terms pages display the approved email and WhatsApp contacts. Browser/API check artifacts are under .task-release-20260922/. No live charge was initiated. Fapshi activation remains subject to provider review.

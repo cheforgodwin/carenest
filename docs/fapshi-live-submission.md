@@ -1,6 +1,6 @@
 ﻿# Fapshi Live collections approval request
 
-Updated 22 September 2026. Gmail draft updated; not sent.
+Sent 22 September 2026 to support@fapshi.com after owner review and approval. Gmail message ID: 1a0ca4e1a9f33366; thread ID: 1a0c1fb23a0bfeab.
 
 To: support@fapshi.com
 Subject: CareNest237 - Live Direct Pay collections activation and HTTP 403 review

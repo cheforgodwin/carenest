@@ -4,12 +4,21 @@ import fs from 'fs'
 import { createHash } from 'node:crypto'
 import path from 'path'
 import fapshiHandler from './api/fapshi.js'
+import financeHandler from './api/finance.js'
 import translateHandler from './api/translate.js'
 
 function fapshiDevApi() {
   return {
     name: 'carenest-fapshi-dev-api',
     configureServer(server) {
+      server.middlewares.use('/api/finance', (req, res) => {
+        const chunks = []
+        req.on('data', (chunk) => chunks.push(chunk))
+        req.on('end', async () => {
+          try { req.body = JSON.parse(Buffer.concat(chunks).toString() || '{}') } catch { req.body = {} }
+          await financeHandler(req, res)
+        })
+      })
       server.middlewares.use('/api/translate', (req, res) => {
         const chunks = []
         req.on('data', (chunk) => chunks.push(chunk))

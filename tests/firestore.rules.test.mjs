@@ -240,7 +240,7 @@ test('a customer can submit a valid complaint but cannot forge its payout outcom
   await assertFails(updateDoc(order, { payoutStatus: 'Paid' }))
 })
 
-test('only the payment server can approve payments and admins can pay eligible payouts', async () => {
+test('payments and transfer totals require server verification even for admins', async () => {
   await seed()
   const order = doc(env.authenticatedContext('admin-a').firestore(), 'serviceRequests/order-a')
   await assertFails(updateDoc(order, { paymentStatus: 'Paid' }))
@@ -251,7 +251,7 @@ test('only the payment server can approve payments and admins can pay eligible p
   await env.withSecurityRulesDisabled(async (context) => updateDoc(doc(context.firestore(), 'serviceRequests/order-a'), {
     ...verifiedPayment, status: 'Completed', currentStep: 5, completionConfirmedBy: 'customer-a', completionConfirmedAt: new Date(),
   }))
-  await assertSucceeds(updateDoc(order, { payoutStatus: 'Paid' }))
+  await assertFails(updateDoc(order, { payoutStatus: 'Paid' }))
 })
 
 test('customers cannot browse, modify, delete, or impersonate another customer', async () => {
@@ -308,7 +308,7 @@ test('only the owning customer can confirm a completion claim, then payout becom
   await assertFails(updateDoc(adminOrder, { payoutStatus: 'Paid' }))
   await assertFails(updateDoc(adminOrder, { status: 'Completed', currentStep: 5, payoutStatus: 'Ready' }))
   await assertSucceeds(updateDoc(doc(env.authenticatedContext('customer-a').firestore(), 'serviceRequests/order-a'), confirmation()))
-  await assertSucceeds(updateDoc(adminOrder, { payoutStatus: 'Paid' }))
+  await assertFails(updateDoc(adminOrder, { payoutStatus: 'Paid' }))
 })
 
 test('workers cannot fabricate final completion or override a complaint', async () => {
@@ -404,4 +404,27 @@ test('customers cannot seed forged payment recovery or acceptance metadata', asy
   for (const patch of [{ paymentInitiationState: 'Unknown', paymentInitiatedBy: 'customer-a' }, { paymentVerifiedAt: serverTimestamp() }, { providerAcceptedBy: 'provider-a' }, { paymentReference: 'tx-forged' }]) {
     await assertFails(setDoc(doc(db, 'serviceRequests/forged'), { ...baseOrder, ...patch }))
   }
+})
+
+test('finance records are admin-readable and server-write-only', async () => {
+  await seed()
+  for (const name of ['financialEntries', 'financialSettings', 'financialPolicyVersions']) {
+    await env.withSecurityRulesDisabled(async (context) => setDoc(doc(context.firestore(), name + '/example'), { amount: 1500 }))
+    for (const uid of ['customer-a', 'provider-a', 'rider-a']) await assertFails(getDoc(doc(env.authenticatedContext(uid).firestore(), name + '/example')))
+    const admin = doc(env.authenticatedContext('admin-a').firestore(), name + '/example')
+    await assertSucceeds(getDoc(admin))
+    await assertFails(setDoc(admin, { amount: 0 }))
+    await assertFails(deleteDoc(admin))
+  }
+})
+test('financial balances and pricing snapshots cannot be forged or paid orders deleted', async () => {
+  await seed()
+  const customerDb = env.authenticatedContext('customer-a', { email: 'a@example.com' }).firestore()
+  const admin = doc(env.authenticatedContext('admin-a').firestore(), 'serviceRequests/order-a')
+  for (const patch of [{ financialSnapshot: { state: 'confirmed' } }, { financeTotals: { provider: 1000 } }, { paymentFinancials: { fapshiFee: 0 } }, { paymentEnvironment: 'live' }]) {
+    await assertFails(setDoc(doc(customerDb, 'serviceRequests/forged-finance'), { ...baseOrder, ...patch }))
+    await assertFails(updateDoc(admin, patch))
+  }
+  await env.withSecurityRulesDisabled(async (context) => updateDoc(doc(context.firestore(), 'serviceRequests/order-a'), verifiedPayment))
+  await assertFails(deleteDoc(admin))
 })

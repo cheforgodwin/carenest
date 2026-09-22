@@ -1,0 +1,127 @@
+.finance-view {
+    display: grid;
+    gap: 20px;
+}
+
+.finance-filters {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin: 16px 0;
+}
+
+.finance-view label {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    font-size: 14px;
+}
+
+.finance-view input,
+.finance-view select {
+    min-width: 0;
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #cbd7d0;
+    border-radius: 8px;
+    background: white;
+    color: #18352a;
+}
+
+.finance-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+}
+
+.finance-summary article {
+    display: grid;
+    gap: 8px;
+    padding: 16px;
+    background: #eef6f1;
+    border-radius: 12px;
+}
+
+.finance-summary strong {
+    font-size: 21px;
+}
+
+.finance-summary span,
+.finance-note {
+    color: #51615a;
+    font-size: 13px;
+}
+
+.finance-table-wrap {
+    overflow-x: auto;
+}
+
+.finance-view small {
+    display: block;
+    color: #65756d;
+    margin-top: 4px;
+    font-size: 12px;
+}
+
+.finance-form {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #dde6df;
+}
+
+.finance-form>button,
+.finance-alert button {
+    margin-top: 12px;
+    padding: 10px 14px;
+    border: 0;
+    border-radius: 8px;
+    background: #075d38;
+    color: white;
+    cursor: pointer;
+}
+
+.finance-view button:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+.finance-alert {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid #dde6df;
+}
+
+.finance-alert p {
+    margin: 6px 0;
+}
+
+.finance-attention-banner {
+    padding: 14px 18px;
+    margin-bottom: 16px;
+    border-radius: 10px;
+    background: #fff3d1;
+    color: #654900;
+}
+
+.finance-attention-banner a {
+    color: inherit;
+    font-weight: 600;
+}
+
+@media (max-width: 480px) {
+    .finance-summary {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .finance-summary strong {
+        font-size: 17px;
+    }
+
+    .finance-filters {
+        grid-template-columns: 1fr;
+    }
+}

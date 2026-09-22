@@ -299,7 +299,7 @@ service cloud.firestore {
         && request.resource.data.paymentStatus == 'Pending'
         && request.resource.data.get('paymentReference', '') == ''
         && request.resource.data.get('paymentReceiptTransactionId', '') == ''
-        && !request.resource.data.keys().hasAny(['paymentInitiationId', 'paymentInitiationState', 'paymentInitiationStartedAtMs', 'paymentInitiatedBy', 'paymentVerifiedAt', 'paymentVerifiedBy', 'paymentProviderStatus', 'paymentConfirmedAt', 'paidAt', 'paymentLastCheckedAtMs', 'providerAcceptedBy', 'providerAcceptedAt', 'riderUid', 'riderStatus', 'refundStatus', 'disputeStatus'])
+        && !request.resource.data.keys().hasAny(['financialSnapshot', 'paymentFinancials', 'financeTotals', 'paymentEnvironment', 'paymentInitiationId', 'paymentInitiationState', 'paymentInitiationStartedAtMs', 'paymentInitiatedBy', 'paymentVerifiedAt', 'paymentVerifiedBy', 'paymentProviderStatus', 'paymentConfirmedAt', 'paidAt', 'paymentLastCheckedAtMs', 'providerAcceptedBy', 'providerAcceptedAt', 'riderUid', 'riderStatus', 'refundStatus', 'disputeStatus'])
         && !request.resource.data.keys().hasAny(['completionConfirmedBy', 'completionConfirmedAt', 'completionRequestedBy', 'completionRequestedAt', 'completedAt', 'deliveredAt'])
         && request.resource.data.get('customerName', '').size() <= 80
         && request.resource.data.get('customerPhone', '').size() <= 20
@@ -376,12 +376,13 @@ service cloud.firestore {
             'status', 'currentStep', 'updatedAt', 'providerUid', 'providerName', 'providerEmail', 'providerPhone',
             'providerPayoutMethod', 'providerPayoutPhone', 'assignedBy', 'assignedAt',
             'riderUid', 'riderName', 'riderPhone', 'riderStatus', 'riderAssignedAt',
-            'payoutStatus', 'payoutNote', 'payoutSchedule', 'payoutReviewedBy', 'payoutReviewedAt', 'payoutHistory', 'payoutPaidAt', 'providerPayoutAmount',
+            'payoutStatus', 'payoutNote',
             'refundStatus', 'refundRequestedBy', 'refundRequestedAt', 'refundNote', 'disputeStatus'
           ])
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['refundStatus']) || (verifiedPayment() && request.resource.data.refundStatus == 'Requested' && request.resource.data.refundRequestedBy == request.auth.uid && request.resource.data.refundRequestedAt == request.time && request.resource.data.payoutStatus == 'Held'))
           && validStatus(request.resource.data.status)
           && validStepForStatus(request.resource.data.status, request.resource.data.currentStep)
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['payoutStatus']) || request.resource.data.payoutStatus == 'Held')
           && validPaymentStatus(request.resource.data.paymentStatus)
           && (
             request.resource.data.paymentStatus == resource.data.paymentStatus
@@ -538,7 +539,20 @@ service cloud.firestore {
 
       allow update: if signedIn() && canUpdateOrder();
 
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() && resource.data.get('paymentInitiationId', '') == '' && resource.data.get('paymentReference', '') == '' && resource.data.paymentStatus == 'Pending';
+    }
+
+    match /financialEntries/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    match /financialSettings/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    match /financialPolicyVersions/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     match /paymentSmsReceipts/{receiptId} {

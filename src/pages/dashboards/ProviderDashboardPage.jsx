@@ -4,9 +4,7 @@ import { useAuth } from '../../auth/useAuth'
 import { phonePlaceholder, serviceAreaPlaceholder } from '../../config/businessConfig'
 import { getMarketplaceCategory, marketplaceCategoryEntries } from '../../config/marketplaceConfig'
 import {
-  calculateProviderEarning,
   assignServiceRequestToProvider,
-  isPayoutReady,
   subscribeToOpenProviderOrders,
   subscribeToProviderOrders,
   updateProviderJobStatus,
@@ -20,6 +18,7 @@ import {
 } from '../../firebase/marketplaceService'
 
 import DashboardShell from './DashboardShell'
+import { orderFinance } from '../../utils/finance'
 
 function providerStatuses(order) {
   if (order.paymentStatus !== 'Paid' || !order.paymentVerifiedAt) return [order.status]
@@ -33,7 +32,7 @@ const emptyListing = {
 }
 
 function formatAmount(amount) {
-  return `${Number(amount || 0).toLocaleString()} FCFA`
+  return amount == null ? 'Not confirmed' : `${Number(amount).toLocaleString()} FCFA`
 }
 
 function normalizeStatus(status) {
@@ -90,8 +89,8 @@ function ProviderDashboardPage() {
   const myJobs = orders.filter((order) => order.providerUid === user.uid)
   const activeJobs = myJobs.filter((order) => !['Completed', 'Cancelled'].includes(order.status))
   const completedJobs = myJobs.filter((order) => order.status === 'Completed')
-  const readyPayoutJobs = completedJobs.filter(isPayoutReady)
-  const earnings = readyPayoutJobs.reduce((total, order) => total + Number(order.providerPayoutAmount ?? order.providerEarning ?? calculateProviderEarning(order.amount)), 0)
+  const readyPayoutJobs = completedJobs.filter((order) => order.paymentEnvironment === 'live' && orderFinance(order).earned && !orderFinance(order).legacyTransfer)
+  const earnings = readyPayoutJobs.reduce((total, order) => total + Number(orderFinance(order).providerDue || 0), 0)
   const sourceJobs = activeView === 'jobs' ? [...openJobs, ...myJobs] : [...activeJobs, ...openJobs].slice(0, 8)
   const needle = query.trim().toLowerCase()
   const visibleJobs = sourceJobs.filter((order) => {
@@ -103,7 +102,7 @@ function ProviderDashboardPage() {
     ['Open jobs', String(openJobs.length)],
     ['Active jobs', String(activeJobs.length)],
     ['Completed', String(completedJobs.length)],
-    ['Sunday payout', formatAmount(earnings)],
+    ['Confirmed outstanding', formatAmount(earnings)],
   ]
 
   async function acceptJob(order) {
@@ -233,8 +232,8 @@ function ProviderDashboardPage() {
                       <td>{order.service}</td>
                       <td><span className={`status-chip ${normalizeStatus(order.status)}`}>{order.status}</span></td>
                       <td>{getArea(order.address)}</td>
-                      <td>{formatAmount(order.providerPayoutAmount ?? order.providerEarning ?? calculateProviderEarning(order.amount))}</td>
-                      <td><span className={`status-chip ${normalizeStatus(order.payoutStatus)}`}>{order.payoutStatus || 'Unpaid'}</span></td>
+                      <td>{formatAmount(orderFinance(order).provider)}</td>
+                      <td><span className={`status-chip ${normalizeStatus(order.payoutStatus)}`}>{orderFinance(order).held ? 'Held' : orderFinance(order).providerPaid > 0 ? orderFinance(order).providerDue === 0 ? 'Paid (recorded)' : 'Partial (recorded)' : order.payoutStatus || 'Unpaid'}</span></td>
                       <td>
                         {!order.providerUid ? (
                           <button className="table-action" type="button" onClick={() => acceptJob(order)}>Accept</button>

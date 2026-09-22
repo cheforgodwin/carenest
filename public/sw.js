@@ -77,3 +77,14 @@ self.addEventListener('fetch', (event) => {
     return response || networkFirst(request, false)
   })())
 })
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const path = '/dashboard/admin?view=finance#finance-attention'
+  event.waitUntil((async () => {
+    const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    const client = clients.find((item) => new URL(item.url).origin === self.location.origin)
+    if (client) { await client.navigate(path); await client.focus() }
+    else await self.clients.openWindow(path)
+  })())
+})

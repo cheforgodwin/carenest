@@ -4,11 +4,12 @@ import { applyVerifiedPayment, fetchVerifiedPayment, reconcileOrderPayment } fro
 const payment = { transId: 'tx-a', externalId: 'order-a', userId: 'customer-a', amount: 1500, status: 'SUCCESSFUL', transType: 'Collection' }
 function fixture(patch = {}) {
   const order = { customerUid: 'customer-a', amount: 1500, paymentStatus: 'Submitted', paymentReference: 'tx-a', paymentReceiptTransactionId: 'tx-a', ...patch }
-  const ref = {}
-  const writes = vi.fn((_, update) => Object.assign(order, update))
+  const ref = 'serviceRequests/order-a'
+  const records = new Map([[ref, order]])
+  const writes = vi.fn((key, update) => Object.assign(records.get(key), update))
   let queue = Promise.resolve()
-  const db = { collection: () => ({ doc: () => ref }), runTransaction: (action) => {
-    const result = queue.then(() => action({ get: async () => ({ exists: true, data: () => ({ ...order }) }), update: writes }))
+  const db = { collection: (name) => ({ doc: (id) => name + '/' + id }), runTransaction: (action) => {
+    const result = queue.then(() => action({ get: async (key) => ({ exists: records.has(key), data: () => ({ ...records.get(key) }) }), update: writes, set: (key, value) => records.set(key, value) }))
     queue = result.catch(() => {})
     return result
   } }
@@ -82,5 +83,23 @@ describe('atomic payment verification', () => {
     provider([{ ...payment, transType: 'Payout' }, { ...payment, transId: 'other' }])
     await expect(fetchVerifiedPayment('tx-a')).rejects.toThrow('not a collection')
     await expect(fetchVerifiedPayment('tx-a')).rejects.toThrow('mismatch')
+  })
+})
+
+describe('verified finance metadata', () => {
+  it('enriches missing fees once without adding another collection', async () => {
+    const { db, order, writes } = fixture()
+    await applyVerifiedPayment(db, payment, 'fapshi-webhook')
+    expect(order.paymentFinancials.fapshiFee).toBeNull()
+    await applyVerifiedPayment(db, { ...payment, revenue: 1485, verifiedEnvironment: 'live' }, 'fapshi-poll')
+    await applyVerifiedPayment(db, { ...payment, revenue: 1485, verifiedEnvironment: 'live' }, 'fapshi-poll')
+    expect(order.paymentFinancials).toMatchObject({ fapshiFee: 15, revenue: 1485, feePercent: 1 })
+    expect(order.paymentEnvironment).toBe('live')
+    expect(writes).toHaveBeenCalledTimes(2)
+  })
+  it('rejects conflicting fees and sandbox/live substitutions', async () => {
+    const { db } = fixture({ paymentEnvironment: 'live', paymentFinancials: { fapshiFee: 15 } })
+    await expect(applyVerifiedPayment(db, { ...payment, revenue: 1400 }, 'fapshi-poll')).rejects.toThrow('fee changed')
+    await expect(applyVerifiedPayment(db, { ...payment, verifiedEnvironment: 'sandbox' }, 'fapshi-poll')).rejects.toThrow('environment mismatch')
   })
 })
