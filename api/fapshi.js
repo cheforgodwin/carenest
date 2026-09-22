@@ -2,6 +2,7 @@ import { FieldValue } from 'firebase-admin/firestore'
 import { randomUUID } from 'node:crypto'
 import { getAdminDb, requireAuthenticatedUser } from './_firebaseAdmin.js'
 import { getFapshiBaseUrl, getFapshiConfig, readJsonResponse } from './_fapshi.js'
+import { reconcileOrderPayment, paymentError } from './_paymentVerification.js'
 import { handleCors } from './_cors.js'
 
 function ensureResponseHelpers(res) {
@@ -31,13 +32,18 @@ export default async function handler(req, res) {
 
     const db = getAdminDb()
     const orderRef = db.collection('serviceRequests').doc(firestoreId)
+    if (req.body?.action === 'verify') {
+      res.setHeader('Cache-Control', 'no-store')
+      return res.status(200).json(await reconcileOrderPayment(db, orderRef, firestoreId, user.uid))
+    }
     const snapshot = await orderRef.get()
     if (!snapshot.exists) return res.status(404).json({ error: 'Order not found.' })
 
     const order = snapshot.data()
     if (order.customerUid !== user.uid) return res.status(403).json({ error: 'You do not own this order.' })
     if (!Number.isInteger(order.amount) || order.amount < 100) return res.status(409).json({ error: 'The order amount is invalid.' })
-    if (order.paymentStatus === 'Paid') return res.status(409).json({ error: 'This order has already been paid.' })
+    if (['Cancelled', 'Complaint', 'Completed'].includes(order.status)) throw paymentError('This order cannot accept a payment.')
+    if (['Paid', 'Refunded'].includes(order.paymentStatus)) return res.status(409).json({ error: 'This order has already been paid.' })
     if (order.paymentReference && ['Pending', 'Submitted'].includes(order.paymentStatus)) {
       return res.status(409).json({ error: 'A payment is already in progress for this order.' })
     }
@@ -82,11 +88,12 @@ export default async function handler(req, res) {
         error.statusCode = 403
         throw error
       }
-      if (latest.paymentStatus === 'Paid' || latest.paymentReference || (latest.paymentInitiationState === 'Starting' && now - Number(latest.paymentInitiationStartedAtMs || now) < 10 * 60 * 1000)) {
+      if (['Paid', 'Refunded'].includes(latest.paymentStatus) || latest.paymentReference || ['Starting', 'Unknown'].includes(latest.paymentInitiationState)) {
         const error = new Error('A payment is already complete or in progress for this order.')
         error.statusCode = 409
         throw error
       }
+      if (latest.amount !== order.amount || latest.customerPhone !== order.customerPhone || ['Cancelled', 'Complaint', 'Completed'].includes(latest.status)) throw paymentError('The order changed. Reload it before paying.')
       transaction.update(orderRef, {
         paymentInitiationId: initiationId,
         paymentInitiationState: 'Starting',
@@ -95,23 +102,36 @@ export default async function handler(req, res) {
         updatedAt: FieldValue.serverTimestamp(),
       })
     })
-    const response = await fetch(direct ? getFapshiBaseUrl(apiUrl) + '/direct-pay' : apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apiuser: apiUser, apikey: apiKey },
-      redirect: 'error',
-      body: JSON.stringify({
-        amount: order.amount,
-        email: order.customerEmail || user.email || '',
-        userId: user.uid,
-        externalId: firestoreId,
-        message: 'CareNest order ' + String(order.id || firestoreId).slice(0, 80),
-        ...(direct ? { phone, name: String(order.customerName || user.name || 'Customer').slice(0, 100) } : {}),
-      }),
+    const updateAttempt = (payload) => db.runTransaction(async (transaction) => {
+      const current = (await transaction.get(orderRef)).data()
+      if (current?.paymentInitiationId !== initiationId || current.paymentReference || ['Paid', 'Refunded'].includes(current.paymentStatus)) return
+      transaction.update(orderRef, { ...payload, updatedAt: FieldValue.serverTimestamp() })
     })
-    const result = await readJsonResponse(response)
+    let response
+    let result
+    try {
+      response = await fetch(direct ? getFapshiBaseUrl(apiUrl) + '/direct-pay' : apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apiuser: apiUser, apikey: apiKey },
+        redirect: 'error', signal: AbortSignal.timeout(20000),
+        body: JSON.stringify({
+          amount: order.amount,
+          email: order.customerEmail || user.email || '',
+          userId: user.uid,
+          externalId: firestoreId,
+          message: 'CareNest order ' + String(order.id || firestoreId).slice(0, 80),
+          ...(direct ? { phone, name: String(order.customerName || user.name || 'Customer').slice(0, 100) } : {}),
+        }),
+      })
+      result = await readJsonResponse(response)
+    } catch {
+      await updateAttempt({ paymentInitiationState: 'Unknown' })
+      throw paymentError('The payment outcome is unknown. Check payment status before paying again.', 503)
+    }
     if (!response.ok) {
-      await orderRef.update({ paymentInitiationState: 'Failed', updatedAt: FieldValue.serverTimestamp() })
-      const authenticationFailed = [401, 403].includes(response.status)
+      const rejected = [400, 401, 403, 404, 422].includes(response.status)
+      await updateAttempt({ paymentInitiationState: rejected ? 'Failed' : 'Unknown' })
+      const authenticationFailed = response.status === 401
         || /(?:invalid|missing|incorrect).*(?:api.?user|api.?key|credentials?)/i.test(String(result.message || ''))
       if (authenticationFailed) {
         console.error('payment_provider_auth_failed', { provider: 'fapshi', httpStatus: response.status })
@@ -120,13 +140,26 @@ export default async function handler(req, res) {
           error: 'Mobile Money payments are temporarily unavailable. Your order is saved. Please contact CareNest support before retrying.',
         })
       }
+      if (response.status === 403) {
+        console.error('payment_provider_access_denied', {
+          provider: 'fapshi', httpStatus: response.status,
+          flow: direct ? 'direct' : 'hosted',
+        })
+        return res.status(503).json({
+          code: 'PAYMENT_PROVIDER_ACCESS_DENIED',
+          error: 'The payment provider has not allowed this payment request. Your order is saved. Please contact CareNest support.',
+        })
+      }
       return res.status(response.status).json({ error: result.message || 'Unable to start the Mobile Money payment.' })
     }
 
     const transactionId = String(result.transId || result.transactionId || result.reference || '').trim()
-    if (!transactionId) return res.status(502).json({ error: 'The payment provider did not return a transaction identifier.' })
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(transactionId)) {
+      await updateAttempt({ paymentInitiationState: 'Unknown' })
+      throw paymentError('The payment outcome is unknown. Check payment status before paying again.', 502)
+    }
 
-    await orderRef.update({
+    await updateAttempt({
       paymentStatus: 'Submitted',
       paymentProvider: 'Fapshi',
       paymentProviderStatus: String(result.status || 'PENDING').toUpperCase(),
@@ -148,6 +181,6 @@ export default async function handler(req, res) {
       })
     }
     const status = Number(error.statusCode || 500)
-    return res.status(status).json({ error: status < 500 ? error.message : 'The payment service is temporarily unavailable.' })
+    return res.status(status).json({ error: error.statusCode ? error.message : 'The payment service is temporarily unavailable.' })
   }
 }

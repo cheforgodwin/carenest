@@ -160,8 +160,8 @@ function RiderDashboardPage() {
                   <td>
                     {activeView === 'deliveries' && !['Awaiting confirmation', 'Completed', 'Complaint', 'Cancelled'].includes(order.status) ? (
                       <div className="table-action-row">
-                        <button className="table-action" type="button" onClick={() => updateStatus(order, 'Picked up')}>Picked up</button>
-                        <button className="table-action" type="button" onClick={() => updateStatus(order, 'Delivered')}>Delivered</button>
+                        <button className="table-action" type="button" disabled={order.paymentStatus !== 'Paid' || order.riderStatus !== 'Accepted'} onClick={() => updateStatus(order, 'Picked up')}>Picked up</button>
+                        <button className="table-action" type="button" disabled={order.paymentStatus !== 'Paid' || order.riderStatus !== 'Picked up'} onClick={() => updateStatus(order, 'Delivered')}>Delivered</button>
                       </div>
                     ) : (
                       <span>{order.status === 'Completed' ? 'Confirmed' : order.status}</span>

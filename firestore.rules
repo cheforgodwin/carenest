@@ -297,6 +297,9 @@ service cloud.firestore {
         && request.resource.data.status == 'Pending'
         && request.resource.data.currentStep == 0
         && request.resource.data.paymentStatus == 'Pending'
+        && request.resource.data.get('paymentReference', '') == ''
+        && request.resource.data.get('paymentReceiptTransactionId', '') == ''
+        && !request.resource.data.keys().hasAny(['paymentInitiationId', 'paymentInitiationState', 'paymentInitiationStartedAtMs', 'paymentInitiatedBy', 'paymentVerifiedAt', 'paymentVerifiedBy', 'paymentProviderStatus', 'paymentConfirmedAt', 'paidAt', 'paymentLastCheckedAtMs', 'providerAcceptedBy', 'providerAcceptedAt', 'riderUid', 'riderStatus', 'refundStatus', 'disputeStatus'])
         && !request.resource.data.keys().hasAny(['completionConfirmedBy', 'completionConfirmedAt', 'completionRequestedBy', 'completionRequestedAt', 'completedAt', 'deliveredAt'])
         && request.resource.data.get('customerName', '').size() <= 80
         && request.resource.data.get('customerPhone', '').size() <= 20
@@ -330,14 +333,58 @@ service cloud.firestore {
           || (isRider() && resource.data.get('riderUid', '') == request.auth.uid)
         );
 
+      function verifiedPayment() {
+        return resource.data.paymentStatus == 'Paid'
+          && resource.data.get('paymentVerifiedAt', null) is timestamp
+          && resource.data.get('paymentVerifiedBy', '') in ['fapshi-webhook', 'fapshi-poll'];
+      }
+
+      function adminWorkflow() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        let before = resource.data.status;
+        let after = request.resource.data.status;
+        return (before == after
+          || (after in ['Complaint', 'Cancelled'] && before != 'Completed')
+          || (before == 'Pending' && after == 'Assigned' && verifiedPayment() && request.resource.data.get('providerUid', '') != '')
+          || (before == 'Assigned' && after == 'Pending' && request.resource.data.get('providerUid', '') == ''))
+          && (!changed.hasAny(['providerUid']) || (before in ['Pending', 'Assigned'] && (after == 'Pending' || verifiedPayment())))
+          && (!changed.hasAny(['providerUid']) || request.resource.data.get('providerUid', '') == '' || get(/databases/$(database)/documents/users/$(request.resource.data.providerUid)).data.accountType == 'provider')
+          && (!changed.hasAny(['riderUid', 'riderStatus']) || (
+            verifiedPayment() && before == 'Out for Delivery' && resource.data.serviceType == 'delivery'
+            && resource.data.get('riderUid', '') == '' && request.resource.data.get('riderUid', '') != ''
+            && get(/databases/$(database)/documents/users/$(request.resource.data.riderUid)).data.accountType == 'rider'
+            && request.resource.data.riderStatus == 'Accepted'
+          ));
+      }
+
+      function providerWorkflow() {
+        let before = resource.data.status;
+        let after = request.resource.data.status;
+        let accepting = (before == 'Pending' && after == 'Assigned') || (before == 'Assigned' && after == 'In Progress');
+        return verifiedPayment() && (
+          accepting
+          || (before == 'In Progress' && after == 'Quality Check')
+          || (before == 'Quality Check' && after == 'Out for Delivery')
+          || (before in ['Quality Check', 'Out for Delivery'] && after == 'Awaiting confirmation' && resource.data.serviceType != 'delivery')
+        ) && (!accepting || (request.resource.data.providerAcceptedBy == request.auth.uid && request.resource.data.providerAcceptedAt == request.time))
+          && (accepting || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['providerAcceptedBy', 'providerAcceptedAt']));
+      }
+
       function adminCanUpdateOrder() {
-        return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['completionConfirmedBy', 'completionConfirmedAt'])
+        return adminWorkflow()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'currentStep', 'updatedAt', 'providerUid', 'providerName', 'providerEmail', 'providerPhone',
+            'providerPayoutMethod', 'providerPayoutPhone', 'assignedBy', 'assignedAt',
+            'riderUid', 'riderName', 'riderPhone', 'riderStatus', 'riderAssignedAt',
+            'payoutStatus', 'payoutNote', 'payoutSchedule', 'payoutReviewedBy', 'payoutReviewedAt', 'payoutHistory', 'payoutPaidAt', 'providerPayoutAmount',
+            'refundStatus', 'refundRequestedBy', 'refundRequestedAt', 'refundNote', 'disputeStatus'
+          ])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['refundStatus']) || (verifiedPayment() && request.resource.data.refundStatus == 'Requested' && request.resource.data.refundRequestedBy == request.auth.uid && request.resource.data.refundRequestedAt == request.time && request.resource.data.payoutStatus == 'Held'))
           && validStatus(request.resource.data.status)
           && validStepForStatus(request.resource.data.status, request.resource.data.currentStep)
           && validPaymentStatus(request.resource.data.paymentStatus)
           && (
             request.resource.data.paymentStatus == resource.data.paymentStatus
-            || request.resource.data.paymentStatus in ['Pending', 'Submitted', 'Failed', 'Refunded']
           )
           && (
             !('payoutStatus' in request.resource.data)
@@ -347,7 +394,9 @@ service cloud.firestore {
                 !(request.resource.data.payoutStatus in ['Ready', 'Paid', 'Partial'])
                 || (
                   request.resource.data.status == 'Completed'
-                  && request.resource.data.paymentStatus == 'Paid'
+                  && verifiedPayment()
+                  && request.resource.data.get('refundStatus', '') != 'Requested'
+                  && request.resource.data.get('disputeStatus', '') != 'Open'
                   && resource.data.get('completionConfirmedBy', '') == resource.data.customerUid
                   && resource.data.get('completionConfirmedAt', null) is timestamp
                 )
@@ -363,7 +412,7 @@ service cloud.firestore {
       }
 
       function providerCanUpdateOrder() {
-        return !(resource.data.status in ['Complaint', 'Cancelled', 'Completed', 'Awaiting confirmation'])
+        return providerWorkflow() && !(resource.data.status in ['Complaint', 'Cancelled', 'Completed', 'Awaiting confirmation'])
           && request.resource.data.status != 'Completed'
           && validStatus(request.resource.data.status)
           && validStepForStatus(request.resource.data.status, request.resource.data.currentStep)
@@ -389,7 +438,7 @@ service cloud.firestore {
                 )
               )
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                'status', 'currentStep', 'completionProofText', 'completionRequestedBy', 'completionRequestedAt', 'updatedAt'
+                'status', 'currentStep', 'completionProofText', 'completionRequestedBy', 'completionRequestedAt', 'providerAcceptedBy', 'providerAcceptedAt', 'updatedAt'
               ])
             )
           );
@@ -403,7 +452,7 @@ service cloud.firestore {
               'customerNote', 'updatedAt'
             ])
             || (
-              resource.data.status in ['Awaiting confirmation', 'Completed']
+              verifiedPayment() && resource.data.status == 'Awaiting confirmation'
               && resource.data.get('completionConfirmedBy', '') == ''
               && request.resource.data.status == 'Completed'
               && request.resource.data.currentStep == 5
@@ -418,12 +467,14 @@ service cloud.firestore {
               request.resource.data.status == 'Complaint'
               && request.resource.data.currentStep == 2
               && request.resource.data.payoutStatus == 'Held'
+              && request.resource.data.get('disputeStatus', 'Open') == 'Open'
               && request.resource.data.complaintText is string
               && request.resource.data.complaintText.size() >= 10
               && request.resource.data.complaintText.size() <= 2000
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
                 'status',
                 'currentStep',
+                'disputeStatus',
                 'complaintText',
                 'complaintSubmittedAt',
                 'payoutStatus',
@@ -435,7 +486,11 @@ service cloud.firestore {
       }
 
       function riderCanUpdateOrder() {
-        return !(resource.data.status in ['Complaint', 'Cancelled', 'Completed', 'Awaiting confirmation'])
+        return verifiedPayment()
+          && resource.data.status == 'Out for Delivery'
+          && ((resource.data.riderStatus == 'Accepted' && request.resource.data.riderStatus == 'Picked up')
+            || (resource.data.riderStatus == 'Picked up' && request.resource.data.riderStatus == 'Delivered'))
+          && !(resource.data.status in ['Complaint', 'Cancelled', 'Completed', 'Awaiting confirmation'])
           && resource.data.serviceType == 'delivery'
           && request.resource.data.customerUid == resource.data.customerUid
           && request.resource.data.customerEmail == resource.data.customerEmail

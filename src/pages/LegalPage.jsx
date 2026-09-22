@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { supportPhone } from '../config/businessConfig'
+import { supportEmail, supportEmailHref, supportPhone, supportWhatsAppHref } from '../config/businessConfig'
 
 const policies = {
   privacy: {
@@ -33,7 +33,7 @@ export default function LegalPage({ type }) {
       <p>Effective date: 16 July 2026. This document should be reviewed for the laws that apply to the final CareNest business entity and service area.</p>
       {policy.sections.map(([title, body]) => <section key={title}><h2>{title}</h2><p>{body}</p></section>)}
       <h2>Contact</h2>
-      <p>Contact CareNest support{supportPhone ? ` at ${supportPhone}` : ' using the support number shown in the app'} for policy or account requests.</p>
+      <p>For support, policy or account requests, email <a href={supportEmailHref}>{supportEmail}</a> or contact us on <a href={supportWhatsAppHref}>WhatsApp: {supportPhone}</a>.</p>
     </main>
   )
 }

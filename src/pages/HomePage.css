@@ -328,3 +328,7 @@ h2 {
     min-height: auto;
   }
 }
+
+.home-support a {
+  overflow-wrap: anywhere;
+}

@@ -1,6 +1,7 @@
 import { FiArrowRight, FiCheckCircle, FiClock, FiHeadphones, FiShield } from 'react-icons/fi'
 import { Link } from 'react-router-dom'
 import Navbar from '../components/Navbar'
+import { supportEmail, supportEmailHref, supportPhone, supportWhatsAppHref } from '../config/businessConfig'
 import { useT } from '../i18n/useI18n.jsx'
 import './HomePage.css'
 
@@ -78,6 +79,12 @@ function HomePage() {
           <Link to="/dashboard/customer">{openDashboard} <FiArrowRight /></Link>
         </div>
       </section>
+      <footer className="section home-support" id="support">
+        <h2>Contact CareNest support</h2>
+        <p><a href={supportEmailHref}>{supportEmail}</a></p>
+        <p><a href={supportWhatsAppHref}>WhatsApp: {supportPhone}</a></p>
+        <nav aria-label="Legal"><Link to="/privacy">Privacy Policy</Link> | <Link to="/terms">Terms of Service</Link></nav>
+      </footer>
     </main>
   )
 }

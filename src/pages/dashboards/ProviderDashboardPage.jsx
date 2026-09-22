@@ -21,7 +21,11 @@ import {
 
 import DashboardShell from './DashboardShell'
 
-const providerStatuses = ['Pending', 'Assigned', 'In Progress', 'Quality Check', 'Out for Delivery', 'Awaiting confirmation', 'Completed']
+function providerStatuses(order) {
+  if (order.paymentStatus !== 'Paid' || !order.paymentVerifiedAt) return [order.status]
+  const next = { Pending: ['Assigned'], Assigned: ['In Progress'], 'In Progress': ['Quality Check'], 'Quality Check': ['Out for Delivery', ...(order.serviceType === 'delivery' ? [] : ['Completed'])], 'Out for Delivery': order.serviceType === 'delivery' ? [] : ['Completed'] }
+  return [order.status, ...(next[order.status] || [])]
+}
 
 const emptyListing = {
   category: 'gas', title: '', description: '', price: '', unit: 'cylinder', serviceArea: '',
@@ -236,7 +240,7 @@ function ProviderDashboardPage() {
                           <button className="table-action" type="button" onClick={() => acceptJob(order)}>Accept</button>
                         ) : assignedToMe ? (
                           <select className="dashboard-select" value={order.status} disabled={['Awaiting confirmation', 'Completed', 'Complaint', 'Cancelled'].includes(order.status)} onChange={(event) => updateStatus(order, event.target.value)}>
-                            {providerStatuses.map((status) => <option key={status} value={status} disabled={status === 'Awaiting confirmation'}>{status === 'Completed' && order.status !== 'Completed' ? 'Request completion confirmation' : status}</option>)}
+                            {providerStatuses(order).map((status) => <option key={status} value={status} disabled={status === 'Awaiting confirmation'}>{status === 'Completed' && order.status !== 'Completed' ? 'Request completion confirmation' : status === 'Assigned' && order.status === 'Pending' ? 'Accept job' : status === 'In Progress' && order.status === 'Assigned' ? 'Accept and start job' : status}</option>)}
                           </select>
                         ) : <span className="dashboard-muted">Assigned</span>}
                       </td>

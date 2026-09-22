@@ -13,6 +13,8 @@ const baseOrder = {
   status: 'Pending', currentStep: 0, paymentMethod: 'Fapshi', paymentStatus: 'Pending',
 }
 
+const verifiedPayment = { paymentStatus: 'Paid', paymentVerifiedAt: new Date(), paymentVerifiedBy: 'fapshi-webhook' }
+
 const baseListing = {
   providerUid: 'provider-a', providerName: 'Provider A', providerPhone: '+237670000003',
   title: '12.5 kg gas refill', category: 'gas', kind: 'product',
@@ -110,7 +112,7 @@ test('riders can access only assigned deliveries and update their own progress',
   await seed()
   await env.withSecurityRulesDisabled(async (context) => {
     await setDoc(doc(context.firestore(), 'serviceRequests/delivery-a'), {
-      ...baseOrder, id: 'CN-DELIVERY', serviceType: 'delivery', serviceSpeed: 'Standard',
+      ...baseOrder, ...verifiedPayment, id: 'CN-DELIVERY', serviceType: 'delivery', serviceSpeed: 'Standard',
       itemSummary: 'Groceries', amount: 2500, status: 'Out for Delivery', currentStep: 4, createdAt: new Date(),
     })
   })
@@ -212,7 +214,7 @@ test('a provider cannot edit price or another provider job', async () => {
 test('a provider needs completion proof and cannot change payout state', async () => {
   await seed()
   await env.withSecurityRulesDisabled(async (context) => updateDoc(doc(context.firestore(), 'serviceRequests/order-a'), {
-    providerUid: 'provider-a', status: 'Out for Delivery', currentStep: 4,
+    ...verifiedPayment, providerUid: 'provider-a', status: 'Out for Delivery', currentStep: 4,
   }))
   const order = doc(env.authenticatedContext('provider-a', verified).firestore(), 'serviceRequests/order-a')
   await assertFails(updateDoc(order, {
@@ -242,12 +244,12 @@ test('only the payment server can approve payments and admins can pay eligible p
   await seed()
   const order = doc(env.authenticatedContext('admin-a').firestore(), 'serviceRequests/order-a')
   await assertFails(updateDoc(order, { paymentStatus: 'Paid' }))
-  await assertSucceeds(updateDoc(order, { paymentStatus: 'Failed' }))
+  await assertFails(updateDoc(order, { paymentStatus: 'Failed' }))
   await assertFails(updateDoc(order, { payoutStatus: 'Unknown' }))
   await assertFails(updateDoc(order, { payoutStatus: 'Paid' }))
 
   await env.withSecurityRulesDisabled(async (context) => updateDoc(doc(context.firestore(), 'serviceRequests/order-a'), {
-    status: 'Completed', currentStep: 5, paymentStatus: 'Paid', completionConfirmedBy: 'customer-a', completionConfirmedAt: new Date(),
+    ...verifiedPayment, status: 'Completed', currentStep: 5, completionConfirmedBy: 'customer-a', completionConfirmedAt: new Date(),
   }))
   await assertSucceeds(updateDoc(order, { payoutStatus: 'Paid' }))
 })
@@ -289,7 +291,7 @@ test('customers cannot read another application or private payment records', asy
 async function seedCompletionClaim() {
   await seed()
   await env.withSecurityRulesDisabled(async (context) => updateDoc(doc(context.firestore(), 'serviceRequests/order-a'), {
-    providerUid: 'provider-a', status: 'Awaiting confirmation', currentStep: 4, paymentStatus: 'Paid',
+    ...verifiedPayment, providerUid: 'provider-a', status: 'Awaiting confirmation', currentStep: 4,
     completionRequestedBy: 'provider-a', completionRequestedAt: new Date(),
   }))
 }
@@ -341,4 +343,65 @@ test('a rider cannot directly finalize delivery or forge customer confirmation',
   const rider = doc(env.authenticatedContext('rider-a').firestore(), 'serviceRequests/order-a')
   await assertFails(updateDoc(rider, { riderStatus: 'Delivered', status: 'Completed', currentStep: 5, deliveredAt: serverTimestamp() }))
   await assertFails(updateDoc(rider, confirmation()))
+})
+
+
+test('unpaid orders cannot advance through provider, rider, admin or customer actions', async () => {
+  await seed()
+  await env.withSecurityRulesDisabled(async (context) => updateDoc(doc(context.firestore(), 'serviceRequests/order-a'), { providerUid: 'provider-a', status: 'Assigned', currentStep: 1 }))
+  const provider = doc(env.authenticatedContext('provider-a').firestore(), 'serviceRequests/order-a')
+  await assertFails(updateDoc(provider, { status: 'In Progress', currentStep: 2, providerAcceptedBy: 'provider-a', providerAcceptedAt: serverTimestamp() }))
+  const admin = doc(env.authenticatedContext('admin-a').firestore(), 'serviceRequests/order-a')
+  await assertFails(updateDoc(admin, { status: 'In Progress', currentStep: 2 }))
+  for (const patch of [{ paymentInitiationState: 'Failed' }, { paymentReference: 'forged' }, { paymentVerifiedBy: 'fapshi-webhook' }, { paidAt: serverTimestamp() }]) {
+    await assertFails(updateDoc(admin, patch))
+  }
+  await env.withSecurityRulesDisabled(async (context) => updateDoc(doc(context.firestore(), 'serviceRequests/order-a'), { status: 'Awaiting confirmation', currentStep: 4 }))
+  await assertFails(updateDoc(doc(env.authenticatedContext('customer-a').firestore(), 'serviceRequests/order-a'), confirmation()))
+})
+
+test('paid provider work follows acceptance and ordered progress', async () => {
+  await seed()
+  await env.withSecurityRulesDisabled(async (context) => updateDoc(doc(context.firestore(), 'serviceRequests/order-a'), { ...verifiedPayment, providerUid: 'provider-a', status: 'Assigned', currentStep: 1 }))
+  const order = doc(env.authenticatedContext('provider-a').firestore(), 'serviceRequests/order-a')
+  await assertFails(updateDoc(order, { status: 'Quality Check', currentStep: 3 }))
+  await assertFails(updateDoc(order, { status: 'In Progress', currentStep: 2 }))
+  await assertSucceeds(updateDoc(order, { status: 'In Progress', currentStep: 2, providerAcceptedBy: 'provider-a', providerAcceptedAt: serverTimestamp() }))
+  await assertFails(updateDoc(order, { status: 'Assigned', currentStep: 1 }))
+  await assertSucceeds(updateDoc(order, { status: 'Quality Check', currentStep: 3 }))
+  await assertSucceeds(updateDoc(order, { status: 'Awaiting confirmation', currentStep: 4, completionProofText: 'Cleaning completed and inspected.', completionRequestedBy: 'provider-a', completionRequestedAt: serverTimestamp() }))
+  await assertSucceeds(updateDoc(doc(env.authenticatedContext('customer-a').firestore(), 'serviceRequests/order-a'), confirmation()))
+})
+
+test('manual rider assignment requires payment and delivery cannot skip pickup', async () => {
+  await seed()
+  await env.withSecurityRulesDisabled(async (context) => updateDoc(doc(context.firestore(), 'serviceRequests/order-a'), { serviceType: 'delivery', status: 'Out for Delivery', currentStep: 4 }))
+  const admin = doc(env.authenticatedContext('admin-a').firestore(), 'serviceRequests/order-a')
+  const assignment = { riderUid: 'rider-a', riderStatus: 'Accepted', riderAssignedAt: serverTimestamp() }
+  await assertFails(updateDoc(admin, assignment))
+  await env.withSecurityRulesDisabled(async (context) => updateDoc(doc(context.firestore(), 'serviceRequests/order-a'), verifiedPayment))
+  await assertSucceeds(updateDoc(admin, assignment))
+  const rider = doc(env.authenticatedContext('rider-a').firestore(), 'serviceRequests/order-a')
+  const delivered = { riderStatus: 'Delivered', status: 'Awaiting confirmation', currentStep: 4, deliveredAt: serverTimestamp(), completionRequestedBy: 'rider-a', completionRequestedAt: serverTimestamp() }
+  await assertFails(updateDoc(rider, delivered))
+  await assertSucceeds(updateDoc(rider, { riderStatus: 'Picked up' }))
+  await assertFails(updateDoc(rider, { riderStatus: 'Accepted' }))
+  await assertSucceeds(updateDoc(rider, delivered))
+})
+
+test('refund requests hold settlement without rewriting collection status', async () => {
+  await seed()
+  await env.withSecurityRulesDisabled(async (context) => updateDoc(doc(context.firestore(), 'serviceRequests/order-a'), verifiedPayment))
+  const order = doc(env.authenticatedContext('admin-a').firestore(), 'serviceRequests/order-a')
+  await assertFails(updateDoc(order, { paymentStatus: 'Refunded' }))
+  await assertSucceeds(updateDoc(order, { refundStatus: 'Requested', refundRequestedBy: 'admin-a', refundRequestedAt: serverTimestamp(), payoutStatus: 'Held' }))
+  assert.equal((await getDoc(order)).data().paymentStatus, 'Paid')
+})
+
+test('customers cannot seed forged payment recovery or acceptance metadata', async () => {
+  await seed()
+  const db = env.authenticatedContext('customer-a', { email: 'a@example.com' }).firestore()
+  for (const patch of [{ paymentInitiationState: 'Unknown', paymentInitiatedBy: 'customer-a' }, { paymentVerifiedAt: serverTimestamp() }, { providerAcceptedBy: 'provider-a' }, { paymentReference: 'tx-forged' }]) {
+    await assertFails(setDoc(doc(db, 'serviceRequests/forged'), { ...baseOrder, ...patch }))
+  }
 })

@@ -406,7 +406,7 @@ function CustomerAppPage() {
         })
       } catch (error) {
         setRecentOrder(createdOrder)
-        setRequestError(`Your order was saved. Payment could not start: ${error.message} Use Retry payment below for this same order.`)
+        setRequestError(`Your order was saved. Payment could not start: ${error.message} Check the saved order payment status before trying again.`)
         navigate(`/dashboard/customer/orders/${createdOrder.id}`)
         setIsSubmitting(false)
         return
@@ -503,14 +503,28 @@ function CustomerAppPage() {
       setPaymentSuccess({ id: nextOrder.id, amount: nextOrder.amount })
     } catch (error) {
       setRecentOrder(createdOrder)
-      setRequestError('Your order was saved. Payment could not start: ' + error.message + ' Use Retry payment below for this same order.')
+      setRequestError('Your order was saved. Payment could not start: ' + error.message + ' Check the saved order payment status before trying again.')
       navigate(`/dashboard/customer/orders/${createdOrder.id}`)
     } finally {
       setIsSubmitting(false)
     }
   }
+  async function checkOrderPayment() {
+    if (!viewedOrder?.firestoreId) return
+    setIsSubmitting(true)
+    setRequestError('')
+    try {
+      const result = await postJson('/api/payments', { firestoreId: viewedOrder.firestoreId, action: 'verify' })
+      if (result.message) setRequestError(result.message)
+    } catch (error) {
+      setRequestError(error.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   async function retryOrderPayment() {
-    if (!viewedOrder?.firestoreId || viewedOrder.paymentStatus === 'Paid' || viewedOrder.paymentReference) return
+    if (!viewedOrder?.firestoreId || viewedOrder.paymentStatus === 'Paid' || viewedOrder.paymentReference || ['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState)) return
     if (isSubmitting) return
     setIsSubmitting(true)
     setRequestError('')
@@ -894,10 +908,12 @@ function CustomerAppPage() {
                 <div><span>Pickup</span><strong>{formatPickupDate(viewedOrder.pickupDate, locale)}, {formatPickupTime(viewedOrder.pickupTime, locale)}</strong></div>
                 <div><span>Details</span><strong>{viewedOrder.note || viewedOrder.itemSummary || viewedOrder.clothesType}</strong></div>
                 <div><span>Payment</span><strong>Mobile Money - {viewedOrder.paymentStatus || 'Pending'}</strong></div>
-                {!viewedOrder.paymentReference && ['Pending', 'Failed'].includes(viewedOrder.paymentStatus || 'Pending') && <p>Your order is saved. Select Retry payment to receive a Mobile Money prompt for this order, then approve it on your phone.</p>}
+                {!viewedOrder.paymentReference && !['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState) && ['Pending', 'Failed'].includes(viewedOrder.paymentStatus || 'Pending') && <p>Your order is saved. Select Retry payment to receive a Mobile Money prompt for this order, then approve it on your phone.</p>}
                 {viewedOrder.paymentReference && viewedOrder.paymentStatus !== 'Paid' && <p>A payment request already exists. Check your phone for the Mobile Money prompt. If it failed or you received no prompt, contact CareNest with this order number before paying again.</p>}
                 {requestError && <p className="request-error" role="alert">{requestError}</p>}
-                {['Pending', 'Failed'].includes(viewedOrder.paymentStatus || 'Pending') && !viewedOrder.paymentReference && <button className="payment-retry-button" type="button" disabled={isSubmitting} onClick={retryOrderPayment}>{isSubmitting ? 'Starting payment…' : 'Retry payment'}</button>}
+                {['Pending', 'Failed'].includes(viewedOrder.paymentStatus || 'Pending') && !viewedOrder.paymentReference && !['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState) && !['Cancelled', 'Complaint', 'Completed'].includes(viewedOrder.status) && <button className="payment-retry-button" type="button" disabled={isSubmitting} onClick={retryOrderPayment}>{isSubmitting ? 'Starting payment…' : 'Retry payment'}</button>}
+                {['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState) && <p>Your previous payment is awaiting verification. Check its status or contact support before paying again.</p>}
+                {viewedOrder.paymentStatus !== 'Paid' && (viewedOrder.paymentReference || ['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState)) && <button className="payment-retry-button" type="button" disabled={isSubmitting} onClick={checkOrderPayment}>{isSubmitting ? 'Checking...' : 'Check payment status'}</button>}
                 {viewedOrder.paymentReceiverNumber && <div><span>Paid to</span><strong>{viewedOrder.paymentReceiverNumber}</strong></div>}
                 {viewedOrder.paymentReference && <div><span>Payment ref</span><strong>{viewedOrder.paymentReference}</strong></div>}
                 {viewedOrder.paymentReceiptText && <div><span>Payment message</span><strong>{viewedOrder.paymentReceiptText}</strong></div>}

@@ -11,7 +11,8 @@ import {
   subscribeToAllOrders,
   subscribeToPaymentSmsReceipts,
   subscribeToUsers,
-  updatePaymentStatus,
+  requestOrderRefund,
+  assignServiceRequestToRider,
   updateProviderPayoutStatus,
   updateServiceRequestStatus,
 } from '../../firebase/orderService'
@@ -75,6 +76,7 @@ function AdminDashboardPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [listingVisibility, setListingVisibility] = useState('all')
   const [listingCategory, setListingCategory] = useState('all')
+  const [riderSelections, setRiderSelections] = useState({})
   const [providerSelections, setProviderSelections] = useState({})
 
   useEffect(() => {
@@ -290,15 +292,26 @@ function AdminDashboardPage() {
     }
   }
 
-  async function updatePayment(order, paymentStatus, note = '') {
+  async function requestRefund(order) {
     setError('')
     setMessage('')
+    const note = window.prompt('Why is a refund needed? This records a request and holds settlement; it does not send money.')
+    if (!note?.trim()) return
     try {
-      await updatePaymentStatus(order.firestoreId, paymentStatus, user.uid, note || `Marked ${paymentStatus.toLowerCase()} by admin.`)
-      setMessage(`${order.id} payment marked as ${paymentStatus.toLowerCase()}.`)
-    } catch (nextError) {
-      setError(nextError.message)
-    }
+      await requestOrderRefund(order.firestoreId, user.uid, note.trim())
+      setMessage('Refund request recorded. Payment remains paid until an actual refund is verified.')
+    } catch (nextError) { setError(nextError.message) }
+  }
+
+  async function assignRider(order) {
+    setError('')
+    setMessage('')
+    const rider = riders.find((item) => item.uid === riderSelections[order.firestoreId])
+    if (!rider) { setError('Choose a rider first.'); return }
+    try {
+      await assignServiceRequestToRider(order.firestoreId, rider)
+      setMessage('Rider assigned. Pickup must be recorded before delivery.')
+    } catch (nextError) { setError(nextError.message) }
   }
 
   async function updatePayout(order, payoutStatus, note = '') {
@@ -529,19 +542,24 @@ function AdminDashboardPage() {
                       {order.complaintText && <details><summary>Complaint</summary><p>{order.complaintText}</p></details>}
                     </td>
                     <td data-label="Status">
+                      {order.serviceType === 'delivery' && order.status === 'Out for Delivery' && !order.riderUid && order.paymentStatus === 'Paid' && <div>
+                        <select aria-label="Choose rider" value={riderSelections[order.firestoreId] || ''} onChange={(event) => setRiderSelections((current) => ({ ...current, [order.firestoreId]: event.target.value }))}>
+                          <option value="">Choose rider</option>{riders.map((rider) => <option key={rider.uid} value={rider.uid}>{rider.name || rider.email}</option>)}
+                        </select><button type="button" className="table-action" onClick={() => assignRider(order)}>Assign rider</button>
+                      </div>}
+                      {order.riderUid && <small>Rider: {order.riderName} - {order.riderStatus}</small>}
+
                       <select className="dashboard-select" value={order.status} onChange={(event) => updateStatus(order, event.target.value)}>
-                        {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+                        {[order.status, ...(!['Completed', 'Cancelled', 'Complaint'].includes(order.status) ? ['Complaint', 'Cancelled'] : [])].map((status) => <option key={status} value={status}>{status}</option>)}
                       </select>
                     </td>
                     <td data-label="Payment">
                       {order.paymentStatus === 'Paid' ? (
-                        <span className="status-chip completed">Paid automatically</span>
+                        <><span className="status-chip completed">Paid automatically</span><button className="table-action secondary" type="button" disabled={order.refundStatus === 'Requested'} onClick={() => requestRefund(order)}>Request refund review</button>{order.refundStatus && <small>Refund: {order.refundStatus}</small>}</>
                       ) : (
                         <>
                           <strong>{order.paymentStatus || 'Pending'}</strong>
                           <div className="table-action-row">
-                            <button className="table-action danger" type="button" onClick={() => updatePayment(order, 'Failed', 'Payment marked failed after review.')}>Mark failed</button>
-                            <button className="table-action secondary" type="button" onClick={() => updatePayment(order, 'Refunded', 'Customer refund approved by admin.')}>Refund</button>
                           </div>
                           {order.paymentStatus === 'Submitted' && <small className="dashboard-muted">Awaiting automatic provider verification.</small>}
                         </>

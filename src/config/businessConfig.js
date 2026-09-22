@@ -47,7 +47,7 @@ function normalizeServicePrices(config) {
   ]))
 }
 
-export const supportPhone = String(import.meta.env.VITE_SUPPORT_PHONE || '').trim()
+export const supportPhone = String(import.meta.env.VITE_SUPPORT_PHONE || '+237 653 638 145').trim()
 export const supportPhoneHref = supportPhone ? `tel:${supportPhone.replace(/[^\d+]/g, '')}` : '#'
 export const defaultCustomerAddress = String(import.meta.env.VITE_DEFAULT_CUSTOMER_ADDRESS || '').trim()
 export const defaultCustomerCity = String(import.meta.env.VITE_DEFAULT_CUSTOMER_CITY || '').trim()
@@ -65,3 +65,7 @@ export function getStartingPrice(serviceType) {
     .filter((amount) => amount > 0)
   return prices.length > 0 ? Math.min(...prices) : 0
 }
+
+export const supportEmail = String(import.meta.env.VITE_SUPPORT_EMAIL || 'cheforgodwin01@gmail.com').trim()
+export const supportEmailHref = 'mailto:' + supportEmail
+export const supportWhatsAppHref = 'https://wa.me/' + supportPhone.replace(/\D/g, '')

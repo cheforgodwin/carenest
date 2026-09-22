@@ -252,6 +252,7 @@ export async function assignServiceRequestToRider(firestoreId, rider) {
     const snapshot = await transaction.get(orderRef)
     if (!snapshot.exists()) throw new Error('Service request was not found.')
     const order = snapshot.data()
+    if (order.paymentStatus !== 'Paid' || !order.paymentVerifiedAt) throw new Error('Payment must be verified before rider assignment.')
     if (order.riderUid || order.status !== 'Out for Delivery') {
       throw new Error('This delivery is not available for rider assignment.')
     }
@@ -304,6 +305,7 @@ export function updateServiceRequestStatus(firestoreId, status) {
     updatedAt: serverTimestamp(),
   }
 
+  if (status === 'Complaint') payload.disputeStatus = 'Open'
   if (status === 'Complaint' || status === 'Cancelled') {
     payload.payoutStatus = 'Held'
     payload.payoutNote = status === 'Complaint'
@@ -334,6 +336,7 @@ export function submitCustomerComplaint(firestoreId, complaintText) {
   return updateDoc(doc(db, 'serviceRequests', firestoreId), {
     status: 'Complaint',
     currentStep: statusSteps.Complaint,
+    disputeStatus: 'Open',
     complaintText: cleanText,
     complaintSubmittedAt: serverTimestamp(),
     payoutStatus: 'Held',
@@ -349,6 +352,10 @@ export function updateProviderJobStatus(firestoreId, status, proofText = '') {
     updatedAt: serverTimestamp(),
   }
 
+  if (['Assigned', 'In Progress'].includes(status)) {
+    payload.providerAcceptedBy = auth.currentUser?.uid || ''
+    payload.providerAcceptedAt = serverTimestamp()
+  }
   if (status === 'Completed') {
     const cleanProof = assertTextLength(proofText, { field: 'Completion note', min: 8, max: inputLimits.note })
     if (cleanProof.length < 8) {
@@ -423,22 +430,11 @@ export function adminClearServiceRequestProvider(firestoreId, adminUid) {
   })
 }
 
-export function updatePaymentStatus(firestoreId, paymentStatus, reviewerUid = '', reviewNote = '') {
-  if (!paymentStatuses.includes(paymentStatus)) {
-    throw new Error('Unsupported payment status.')
-  }
+export function requestOrderRefund(firestoreId, reviewerUid, note) {
   return updateDoc(doc(db, 'serviceRequests', firestoreId), {
-    paymentStatus,
-    paymentReviewedBy: reviewerUid,
-    paymentReviewedAt: serverTimestamp(),
-    paymentReviewNote: reviewNote,
-    paymentHistory: arrayUnion({
-      status: paymentStatus,
-      reviewerUid,
-      note: reviewNote,
-      recordedAt: new Date().toISOString(),
-    }),
-    paidAt: paymentStatus === 'Paid' ? serverTimestamp() : null,
+    refundStatus: 'Requested', refundRequestedBy: reviewerUid,
+    refundRequestedAt: serverTimestamp(), refundNote: note,
+    payoutStatus: 'Held', payoutNote: 'Refund requested; review required before settlement.',
     updatedAt: serverTimestamp(),
   })
 }
