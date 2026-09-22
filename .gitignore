@@ -42,3 +42,7 @@ android-verifier/local.properties
 .env*
 
 firebase-service-account*.json
+
+# Local audit artifacts and browser sessions must never be committed
+/.task-*/
+**/chrome-profile/
