@@ -40,8 +40,9 @@ function Navbar() {
         </button>
         <div className="nav-menu" id="site-navigation">
           <div className="nav-links">
-            <a href="#services" onClick={() => setIsMenuOpen(false)}>{servicesLabel}</a>
-            <a href="#how" onClick={() => setIsMenuOpen(false)}>{howLabel}</a>
+            <a href="/#services" onClick={() => setIsMenuOpen(false)}>{servicesLabel}</a>
+            <a href="/#how" onClick={() => setIsMenuOpen(false)}>{howLabel}</a>
+            <Link to="/support" onClick={() => setIsMenuOpen(false)}>Support</Link>
           </div>
           <div className="nav-version">v{appVersion}</div>
           <div className="nav-auth">

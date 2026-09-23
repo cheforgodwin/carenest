@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import HomePage from './pages/HomePage'
 import ProtectedRoute from './auth/ProtectedRoute'
 import NetworkStatus from './components/NetworkStatus'
+import { PublicFooter, SupportShortcut } from './components/SiteFooter'
 
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const SignupPage = lazy(() => import('./pages/SignupPage'))
@@ -10,6 +11,7 @@ const ProviderDashboardPage = lazy(() => import('./pages/dashboards/ProviderDash
 const RiderDashboardPage = lazy(() => import('./pages/dashboards/RiderDashboardPage'))
 const AdminDashboardPage = lazy(() => import('./pages/dashboards/AdminDashboardPage'))
 const CustomerAppPage = lazy(() => import('./pages/customer/CustomerAppPage'))
+const SupportPage = lazy(() => import('./pages/SupportPage'))
 const LegalPage = lazy(() => import('./pages/LegalPage'))
 
 function LegacyCustomerRedirect() {
@@ -28,6 +30,7 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/carenest-admin" element={<LoginPage adminOnly />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/support" element={<SupportPage />} />
           <Route path="/privacy" element={<LegalPage type="privacy" />} />
           <Route path="/terms" element={<LegalPage type="terms" />} />
           <Route path="/dashboard/customer/*" element={<ProtectedRoute role="customer"><CustomerAppPage /></ProtectedRoute>} />
@@ -37,6 +40,8 @@ function App() {
           <Route path="/customer/*" element={<LegacyCustomerRedirect />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes></Suspense>
+        <PublicFooter />
+        <SupportShortcut />
       </BrowserRouter>
     </>
   )

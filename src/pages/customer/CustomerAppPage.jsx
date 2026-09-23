@@ -34,6 +34,7 @@ import {
 } from '../../config/businessConfig'
 import { formatMarketplaceAmount, getMarketplaceCategory } from '../../config/marketplaceConfig'
 import Logo from '../../components/Logo'
+import SiteFooter from '../../components/SiteFooter'
 import { confirmCustomerCompletion, createMarketplaceServiceRequest, createRequestId, createServiceRequest, submitCustomerComplaint, subscribeToCustomerOrders } from '../../firebase/orderService'
 import { postJson } from '../../utils/networkUtils'
 import { inputLimits, sanitizeText } from '../../utils/securityUtils'
@@ -589,6 +590,7 @@ function CustomerAppPage() {
                 <Link to="/dashboard/customer/orders" onClick={() => setIsCustomerMenuOpen(false)}><FiBriefcase />Orders</Link>
                 <Link to="/dashboard/customer/services" onClick={() => setIsCustomerMenuOpen(false)}><FiGift />Services</Link>
                 <Link to="/dashboard/customer/apply" onClick={() => setIsCustomerMenuOpen(false)}><FiUserPlus />Apply to work</Link>
+                <Link to="/support" onClick={() => setIsCustomerMenuOpen(false)}>Help &amp; support</Link>
                 <a href={supportPhoneHref} onClick={() => setIsCustomerMenuOpen(false)}><FiPhone />Call CareNest</a>
               </div>
             </div>
@@ -649,7 +651,7 @@ function CustomerAppPage() {
                 {completedOrders.length === 0 && <p className="dashboard-muted-empty">Your completed services will appear here.</p>}
               </div>
             </div>
-            <a className="floating-call" href={supportPhoneHref} aria-label="Call CareNest"><FiPhone /></a>
+
           </section>
         )}
 
@@ -966,6 +968,7 @@ function CustomerAppPage() {
           </div>
         )}
 
+        <SiteFooter />
         <nav className="mobile-tabs">
           <Logo to="/dashboard/customer" className="customer-nav-brand" />
           <div className="customer-nav-links">

@@ -1,0 +1,20 @@
+.site-footer { margin-top: 32px; padding: 32px clamp(18px, 4vw, 48px) 90px; background: #073b25; color: #effaf3; border-radius: 12px 12px 0 0; width: 100%; min-width: 0; }
+.site-footer-grid { display: grid; grid-template-columns: 1fr .75fr 1.3fr; gap: 28px; max-width: 1180px; margin: 0 auto; }
+.site-footer-grid > * { min-width: 0; }
+.site-footer h2 { font-size: 16px; color: #fff; margin: 0 0 12px; }
+.site-footer p { color: #c7dfd1; line-height: 1.6; margin: 10px 0; }
+.site-footer a { color: #fff; text-decoration: none; overflow-wrap: anywhere; }
+.site-footer a:hover { text-decoration: underline; }
+.site-footer a:focus-visible, .support-shortcut:focus-visible { outline: 3px solid #ffb36b; outline-offset: 4px; }
+.site-footer .footer-brand { font-size: 26px; font-weight: 900; }
+.site-footer-grid nav, .footer-contact { display: flex; flex-direction: column; align-items: flex-start; }
+.site-footer-grid nav a, .footer-contact a { display: flex; align-items: center; gap: 10px; min-height: 44px; max-width: 100%; }
+.footer-contact svg { flex-shrink: 0; }
+.footer-contact span { min-width: 0; }
+.footer-bottom { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; max-width: 1180px; margin: 24px auto 0; padding-top: 20px; border-top: 1px solid #41634f; }
+.footer-bottom nav { display: flex; flex-wrap: wrap; gap: 18px; }
+.footer-bottom a { display: inline-flex; align-items: center; min-height: 44px; }
+.support-shortcut { position: fixed; right: max(16px, env(safe-area-inset-right)); bottom: calc(18px + env(safe-area-inset-bottom)); z-index: 30; display: inline-flex; gap: 8px; align-items: center; justify-content: center; min-height: 48px; padding: 12px 18px; border: 2px solid white; border-radius: 28px; background: #075d38; color: white; text-decoration: none; font-weight: 800; box-shadow: 0 4px 18px #073b2533; }
+.support-shortcut svg { width: 20px; height: 20px; }
+.mobile-phone > .site-footer { margin-bottom: 80px; }
+@media (max-width: 768px) { .site-footer-grid { grid-template-columns: 1fr; gap: 24px; } .site-footer { padding: 26px 18px 90px; } .support-shortcut-customer { bottom: calc(92px + env(safe-area-inset-bottom)); } .site-footer a { font-size: 15px; } }

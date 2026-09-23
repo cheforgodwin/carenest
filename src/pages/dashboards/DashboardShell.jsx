@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { FiBriefcase, FiCreditCard, FiGrid, FiLogOut, FiMenu, FiPlus, FiSettings, FiUsers, FiX } from 'react-icons/fi'
 import { useAuth } from '../../auth/useAuth'
 import Logo from '../../components/Logo'
+import SiteFooter from '../../components/SiteFooter'
 import { appVersion } from '../../config/appVersion'
 import './Dashboard.css'
 
@@ -83,6 +84,7 @@ function DashboardShell({
               </NavLink>
             )
           })}
+          <Link to="/support" onClick={() => setIsMenuOpen(false)}>Help &amp; support</Link>
         </nav>
       </aside>
       <section className="dashboard-main">
@@ -131,6 +133,7 @@ function DashboardShell({
             ) : <p className="dashboard-empty">{emptyMessage}</p>}
           </section>
         )}
+        <SiteFooter />
       </section>
     </main>
   )
