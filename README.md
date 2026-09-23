@@ -37,18 +37,18 @@ FAPSHI_PAYMENT_FLOW="direct"
 FAPSHI_SANDBOX_API_URL="https://sandbox.fapshi.com/initiate-pay"
 FAPSHI_SANDBOX_API_USER="your-sandbox-user-id"
 FAPSHI_SANDBOX_SECRET_KEY="your-sandbox-secret"
-FAPSHI_LIVE_API_URL="https://api.fapshi.com/initiate-pay"
+FAPSHI_LIVE_API_URL="https://live.fapshi.com/initiate-pay"
 FAPSHI_LIVE_API_USER="your-live-user-id"
 FAPSHI_LIVE_SECRET_KEY="your-live-secret"
 ```
 
 Keep the `FAPSHI_*_SECRET_KEY` values in your Vercel project settings, not in `VITE_*`.
 
-`FAPSHI_PAYMENT_FLOW="direct"` sends the Mobile Money approval prompt to the phone number saved on the customer account, so CareNest does not redirect the customer to Fapshi checkout. Direct Pay must be enabled by Fapshi before using it in live mode.
+`FAPSHI_PAYMENT_FLOW="direct"` sends the Mobile Money approval prompt to the Mobile Money number entered at checkout (or the saved profile number when no override is entered), so CareNest does not redirect the customer to Fapshi checkout. Direct Pay must be enabled by Fapshi before using it in live mode.
 
 ### Fapshi payment verification
 
-Set your Fapshi service webhook URL to `https://your-domain.vercel.app/api/fapshi-webhook`. Generate a webhook secret, set it in Fapshi, and store the same value as `FAPSHI_WEBHOOK_SECRET` in Vercel. Add `FIREBASE_SERVICE_ACCOUNT_JSON` in Vercel as a single-line Firebase service-account JSON value. The webhook checks Fapshi's `x-wh-secret` header, then verifies every callback by querying Fapshi with server-side credentials and matching its transaction ID, order ID, and amount before marking a CareNest order as `Paid` (or `Failed`).
+Set your Fapshi service webhook URL to `https://carenest237.com/api/fapshi-webhook`. Store `FIREBASE_SERVICE_ACCOUNT_JSON` only in server-side environment settings. Each webhook independently queries Fapshi with server credentials and matches transaction ID, order ID, customer ID, amount and environment before updating payment status. A callback body or secret header alone is never proof of payment.
 
 ## SMS Payment Verifier
 
@@ -70,3 +70,16 @@ Before building the APK in Android Studio:
 6. Open the app and sign in with the CareNest admin account.
 
 Do not publish this app publicly unless you redesign it around Play Store SMS permission rules. It is intended as a private owner-phone tool.
+
+
+### Payment prompt diagnostics
+
+`node --env-file=<server-env-file> scripts/production-payment-smoke.mjs` is read-only by default: it checks configuration and balance authentication without creating an order or requesting money. Never treat a successful balance check as proof that Direct Pay is enabled or that a phone prompt arrived.
+
+Production must use `FAPSHI_MODE=live`, `FAPSHI_PAYMENT_FLOW=direct`, the approved collections service credentials, and `https://live.fapshi.com/initiate-pay`. CareNest rejects hosted/unknown flow settings before contacting Fapshi because its checkout does not follow a hosted payment URL.
+
+A successful `/api/payments` response is HTTP 202 with `accepted: true`; the transaction reference is stored on the order. It does not mean the customer approved payment. Use server verification to distinguish PENDING, FAILED and SUCCESSFUL. Do not reset an unknown payment lock just to trigger another prompt.
+
+The optional live diagnostic requires `CARENEST_ALLOW_LIVE_PAYMENT_TEST=1`, `CARENEST_PAYMENT_TEST_PHONE`, and a unique `CARENEST_PAYMENT_TEST_ID`. It sends exactly one 100 XAF request for that test ID, to an explicitly authorized phone, through the real `/api/payments` endpoint. It retains the order and transaction evidence, prevents dispatching the same test twice, and never fabricates a successful callback. Run it only after the phone owner approves the test.
+
+For credential-safe build diagnostics, set `CARENEST_PAYMENT_DIAGNOSTICS=1` for a single deployment build. Only safe configuration metadata, masked phone suffixes and recent order/payment statuses are logged. Sensitive Vercel variables export as `[SENSITIVE]`; an exported placeholder is not evidence of a broken runtime setting.

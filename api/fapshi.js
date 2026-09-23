@@ -1,7 +1,7 @@
 import { FieldValue } from 'firebase-admin/firestore'
 import { randomUUID } from 'node:crypto'
 import { getAdminDb, requireAuthenticatedUser } from './_firebaseAdmin.js'
-import { getFapshiBaseUrl, getFapshiConfig, readJsonResponse } from './_fapshi.js'
+import { getFapshiBaseUrl, getFapshiConfig, getFapshiPaymentFlow, readJsonResponse } from './_fapshi.js'
 import { reconcileOrderPayment, paymentError } from './_paymentVerification.js'
 import { financialSnapshot } from '../src/utils/finance.js'
 import { entryId, financialEntry } from './_finance.js'
@@ -43,7 +43,7 @@ export default async function handler(req, res) {
 
     const order = snapshot.data()
     if (order.customerUid !== user.uid) return res.status(403).json({ error: 'You do not own this order.' })
-    if (!Number.isInteger(order.amount) || order.amount < 100) return res.status(409).json({ error: 'The order amount is invalid.' })
+    if (!Number.isSafeInteger(order.amount) || order.amount < 100) return res.status(409).json({ error: 'The order amount is invalid.' })
     if (['Cancelled', 'Complaint', 'Completed'].includes(order.status)) throw paymentError('This order cannot accept a payment.')
     if (['Paid', 'Refunded'].includes(order.paymentStatus)) return res.status(409).json({ error: 'This order has already been paid.' })
     if (order.paymentReference && ['Pending', 'Submitted'].includes(order.paymentStatus)) {
@@ -54,7 +54,7 @@ export default async function handler(req, res) {
     if (!/^6\d{8}$/.test(phone)) return res.status(400).json({ error: 'The order needs a valid Cameroon Mobile Money number.' })
 
     const { apiUrl, apiUser, apiKey } = getFapshiConfig()
-    const direct = String(process.env.FAPSHI_PAYMENT_FLOW || 'direct').trim().toLowerCase() === 'direct'
+    const direct = getFapshiPaymentFlow() === 'direct'
 
     const now = Date.now()
     const rateRef = db.collection('paymentRateLimits').doc(user.uid)
@@ -139,6 +139,7 @@ export default async function handler(req, res) {
       throw paymentError('The payment outcome is unknown. Check payment status before paying again.', 503)
     }
     if (!response.ok) {
+      console.error('payment_provider_rejected', { orderId: firestoreId, attemptId: initiationId, provider: 'fapshi', httpStatus: response.status, flow: 'direct' })
       const rejected = [400, 401, 403, 404, 422].includes(response.status)
       await updateAttempt({ paymentInitiationState: rejected ? 'Failed' : 'Unknown' })
       const authenticationFailed = response.status === 401
@@ -180,6 +181,7 @@ export default async function handler(req, res) {
       updatedAt: FieldValue.serverTimestamp(),
     })
 
+    console.info('payment_request_accepted', { orderId: firestoreId, attemptId: initiationId, flow: 'direct', environment: apiUrl.includes('sandbox') ? 'sandbox' : 'live' })
     res.setHeader('Cache-Control', 'no-store')
     return res.status(202).json({ accepted: true, message: 'Payment request sent. Await server verification.' })
   } catch (error) {
@@ -191,6 +193,7 @@ export default async function handler(req, res) {
       })
     }
     const status = Number(error.statusCode || 500)
+    if (!error.statusCode) console.error('payment_internal_error', { stage: 'payment-handler', code: typeof error.code === 'string' && /^[a-z0-9_/-]{1,60}$/i.test(error.code) ? error.code : 'internal' })
     return res.status(status).json({ error: error.statusCode ? error.message : 'The payment service is temporarily unavailable.' })
   }
 }

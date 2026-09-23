@@ -419,7 +419,7 @@ function CustomerAppPage() {
       ...current,
       [currentServiceType]: createEmptyForm(currentServiceType),
     }))
-    setPaymentSuccess({ id: nextOrder.id, amount: nextOrder.amount })
+    setPaymentSuccess({ id: nextOrder.id, amount: nextOrder.amount, phone: nextOrder.customerPhone })
     setIsSubmitting(false)
   }
 
@@ -501,7 +501,7 @@ function CustomerAppPage() {
         })
 
       setRecentOrder(createdOrder)
-      setPaymentSuccess({ id: nextOrder.id, amount: nextOrder.amount })
+      setPaymentSuccess({ id: nextOrder.id, amount: nextOrder.amount, phone: nextOrder.customerPhone })
     } catch (error) {
       setRecentOrder(createdOrder)
       setRequestError('Your order was saved. Payment could not start: ' + error.message + ' Check the saved order payment status before trying again.')
@@ -531,7 +531,7 @@ function CustomerAppPage() {
     setRequestError('')
     try {
       await postJson('/api/payments', { firestoreId: viewedOrder.firestoreId })
-      setPaymentSuccess({ id: viewedOrder.id, amount: viewedOrder.amount })
+      setPaymentSuccess({ id: viewedOrder.id, amount: viewedOrder.amount, phone: viewedOrder.customerPhone })
     } catch (error) {
       setRequestError('Payment could not start: ' + error.message)
     } finally {
@@ -962,6 +962,7 @@ function CustomerAppPage() {
               <span className="payment-success-icon"><FiCheck /></span>
               <h2 id="payment-success-title">Payment request sent</h2>
               <p>Approve the Mobile Money prompt on your phone. CareNest will show Paid only after the payment provider is verified by our server.</p>
+              <p>Approval phone: <strong>{paymentSuccess.phone}</strong>. The prompt appears on that phone, which may be different from the device you are using now.</p>
               <small>Request {paymentSuccess.id}</small>
               <button type="button" onClick={() => { setPaymentSuccess(null); navigate(`/dashboard/customer/orders/${paymentSuccess.id}`) }}>View order</button>
             </section>

@@ -17,6 +17,7 @@ describe('payment ownership', () => {
     mocks.requireUser.mockResolvedValue({ uid: 'customer-a' })
     mocks.getDb.mockReturnValue({ collection: (name) => ({ doc: () => name === 'serviceRequests' ? orderRef : rateRef }), runTransaction })
     vi.stubEnv('FAPSHI_MODE', 'sandbox')
+    vi.stubEnv('FAPSHI_PAYMENT_FLOW', 'direct')
     vi.stubEnv('FAPSHI_SANDBOX_API_URL', 'https://sandbox.fapshi.com/initiate-pay')
     vi.stubEnv('FAPSHI_SANDBOX_API_USER', 'test-user')
     vi.stubEnv('FAPSHI_SANDBOX_SECRET_KEY', 'test-key')
@@ -35,6 +36,32 @@ describe('payment ownership', () => {
     expect(JSON.parse(res.end.mock.calls[0][0]).code).toBe('PAYMENT_CONFIGURATION_ERROR')
     expect(runTransaction).not.toHaveBeenCalled()
     expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it.each(['hosted', 'initiate', 'driect'])('rejects a non-prompt payment flow before creating a request: %s', async (flow) => {
+    const { runTransaction } = validOrder()
+    vi.stubEnv('FAPSHI_PAYMENT_FLOW', flow)
+    const fetch = vi.fn(); vi.stubGlobal('fetch', fetch)
+    const res = { setHeader: vi.fn(), end: vi.fn() }
+    await handler({ method: 'POST', headers: {}, body: { firestoreId: 'order-a' } }, res)
+    expect(res.statusCode).toBe(503)
+    expect(JSON.parse(res.end.mock.calls[0][0]).code).toBe('PAYMENT_CONFIGURATION_ERROR')
+    expect(runTransaction).not.toHaveBeenCalled()
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('sends the normalized checkout phone to Direct Pay and stores the accepted reference', async () => {
+    const { order } = validOrder()
+    const fetch = vi.fn(async () => ({ ok: true, status: 200, text: async () => JSON.stringify({ transId: 'tx-test' }) }))
+    vi.stubGlobal('fetch', fetch)
+    const res = { setHeader: vi.fn(), end: vi.fn() }
+    await handler({ method: 'POST', headers: {}, body: { firestoreId: 'order-a' } }, res)
+    expect(fetch.mock.calls[0][0]).toBe('https://sandbox.fapshi.com/direct-pay')
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({ phone: '670000001', amount: 1500, externalId: 'order-a', userId: 'customer-a' })
+    expect(res.statusCode).toBe(202)
+    expect(JSON.parse(res.end.mock.calls[0][0]).accepted).toBe(true)
+    expect(order.paymentReference).toBe('tx-test')
+    expect(order.paymentStatus).toBe('Submitted')
   })
 
   it('preserves the saved order and handles a provider credential rejection', async () => {

@@ -28,3 +28,10 @@ export async function readJsonResponse(response) {
   if (!text) return {}
   try { return JSON.parse(text) } catch { return { message: text } }
 }
+
+// CareNest's checkout waits for a phone prompt; it does not open hosted checkout URLs.
+export function getFapshiPaymentFlow() {
+  const flow = String(process.env.FAPSHI_PAYMENT_FLOW || 'direct').trim().toLowerCase()
+  if (flow !== 'direct') throw configurationError('CareNest phone approval requires FAPSHI_PAYMENT_FLOW=direct. Hosted checkout is not implemented.')
+  return flow
+}
