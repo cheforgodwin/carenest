@@ -2985,3 +2985,18 @@
 
 .completion-confirmation { padding: 16px; border: 1px solid #bcdcca; border-radius: 12px; background: #ecf7f0; }
 .completion-confirmation a { display: block; margin-top: 12px; color: #075d38; font-weight: 700; }
+
+/* Keep the footer after the content instead of shrinking it into a viewport panel. */
+.mobile-app-page,
+.mobile-phone {
+  height: auto;
+  min-height: 100dvh;
+  overflow: visible;
+}
+.mobile-phone > .mobile-content {
+  flex: 1 0 auto;
+  overflow: visible;
+}
+@media (min-width: 641px) {
+  .mobile-phone > .mobile-tabs { position: sticky; top: 0; z-index: 20; }
+}
