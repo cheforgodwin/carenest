@@ -75,6 +75,8 @@ export default async function handler(req, res) {
       const baseUrl = (configuredUrl || (apiKey.endsWith(':fx') ? 'https://api-free.deepl.com' : 'https://api.deepl.com')).replace(/\/$/, '')
       const upstream = await fetch(`${baseUrl}/v2/translate`, {
         method: 'POST',
+        signal: AbortSignal.timeout(15000),
+        redirect: 'error',
         headers: { Authorization: `DeepL-Auth-Key ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: missing.map((item) => item.text.replace(/\bCareNest\b/g, '<brand>CareNest</brand>')),
@@ -86,7 +88,10 @@ export default async function handler(req, res) {
         }),
       })
       const data = await upstream.json().catch(() => null)
-      if (!upstream.ok) reject('DeepL translation request failed.', upstream.status === 429 ? 429 : 502)
+      if (!upstream.ok) {
+        console.error('translation_provider_rejected', { status: upstream.status })
+        reject('DeepL translation request failed.', upstream.status === 429 ? 429 : 502)
+      }
       if (data?.translations?.length !== missing.length) throw new Error('Incomplete DeepL response.')
 
       missing.forEach((item, index) => {

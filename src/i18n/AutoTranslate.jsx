@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { uiEnglishText } from './uiTextCatalog.js'
 import { translateMessages } from './translationService.js'
 
@@ -49,45 +49,64 @@ function translateDocument(root, translations, locale) {
     translatedAttributes.forEach((attribute) => {
       const value = element.getAttribute(attribute)
       const replacement = value && translations.get(value.trim())
-      if (replacement) element.setAttribute(attribute, replacement)
+      if (replacement && replacement !== value) element.setAttribute(attribute, replacement)
     })
   })
 
-  if (locale === 'fr') {
-    root.querySelectorAll?.('.dashboard-error, .auth-status.error, .request-status.error').forEach((element) => {
-      const current = element.textContent?.trim()
-      if (current && !translations.has(current) && !/[À-ÿ]/.test(current)) {
-        element.textContent = 'Une erreur est survenue. Vérifiez les informations saisies et réessayez.'
-      }
-    })
-  }
+
 }
 
+// Only catalogued interface labels are sent; customer names and order data stay local.
+const catalog = new Set(uiEnglishText)
 export default function AutoTranslate({ locale }) {
-  const [french, setFrench] = useState({})
-  const translations = useMemo(() => new Map(
-    uiEnglishText.map((text, index) => [locale === 'fr' ? text : french[index], locale === 'fr' ? french[index] : text]),
-  ), [locale, french])
-
+  const french = useRef(new Map())
   useEffect(() => {
     document.documentElement.lang = locale
-  }, [locale])
-
-  useEffect(() => {
-    if (locale !== 'fr' || Object.keys(french).length) return
-    translateMessages(uiEnglishText.map((text, index) => ({ key: `ui.${index}`, text })), 'fr')
-      .then((result) => setFrench(Object.fromEntries(uiEnglishText.map((_, index) => [index, result[`ui.${index}`]]))))
-      .catch(() => {})
-  }, [locale, french])
-
-  useEffect(() => {
-    if (!translations.size || (locale === 'fr' && !Object.keys(french).length)) return undefined
-    const apply = () => translateDocument(document.body, translations, locale)
-    apply()
-    const observer = new MutationObserver(apply)
+    let stopped = false
+    let busy = false
+    let timer
+    let failures = 0
+    const apply = () => {
+      const translations = locale === 'fr' ? french.current : new Map([...french.current].map(([en, fr]) => [fr, en]))
+      translateDocument(document.body, translations, locale)
+    }
+    const scan = async () => {
+      if (stopped) return
+      apply()
+      if (locale !== 'fr' || busy) return
+      const needed = new Set()
+      const add = (value) => {
+        const text = String(value || '').trim()
+        if (catalog.has(text) && !french.current.has(text)) needed.add(text)
+      }
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
+      while (walker.nextNode()) {
+        if (!walker.currentNode.parentElement?.closest('[data-no-translate], script, style, code, pre')) add(walker.currentNode.nodeValue)
+      }
+      document.body.querySelectorAll('[placeholder], [title], [aria-label]').forEach((element) => {
+        if (!element.closest('[data-no-translate]')) translatedAttributes.forEach((attribute) => add(element.getAttribute(attribute)))
+      })
+      if (!needed.size || failures >= 3) return
+      busy = true
+      try {
+        const entries = [...needed].slice(0, 50).map((text) => ({ key: 'ui.text.' + encodeURIComponent(text), text }))
+        const result = await translateMessages(entries, 'fr')
+        entries.forEach(({ key, text }) => { if (result[key]) french.current.set(text, result[key]) })
+        failures = 0
+      } catch {
+        failures++
+      } finally {
+        busy = false
+        if (!stopped) { apply(); timer = setTimeout(scan, failures ? failures * 5000 : 100) }
+      }
+    }
+    const schedule = () => { clearTimeout(timer); timer = setTimeout(scan, 150) }
+    const retry = () => { failures = 0; schedule() }
+    const observer = new MutationObserver(schedule)
     observer.observe(document.body, { attributes: true, attributeFilter: translatedAttributes, characterData: true, childList: true, subtree: true })
-    return () => observer.disconnect()
-  }, [locale, french, translations])
-
+    window.addEventListener('online', retry)
+    scan()
+    return () => { stopped = true; clearTimeout(timer); observer.disconnect(); window.removeEventListener('online', retry) }
+  }, [locale])
   return null
 }

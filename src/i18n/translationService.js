@@ -65,6 +65,7 @@ export async function translateMessages(entries, targetLocale) {
     const batch = missingEntries.slice(offset, offset + 50)
     const response = await fetch(TRANSLATION_ENDPOINT, {
       method: 'POST',
+      signal: AbortSignal.timeout(20000),
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         texts: batch.map((entry) => entry.text),
@@ -84,8 +85,9 @@ export async function translateMessages(entries, targetLocale) {
         result[entry.key] = translatedText
       }
     })
+    setStoredCache({ ...getStoredCache(), ...cache })
   }
-  setStoredCache(cache)
+  setStoredCache({ ...getStoredCache(), ...cache })
   return result
 }
 

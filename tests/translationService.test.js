@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { translateText, getBrowserLocale } from '../src/i18n/translationService.js'
+import { translateText, translateMessages, getBrowserLocale } from '../src/i18n/translationService.js'
 
 const originalFetch = globalThis.fetch
 const originalLocalStorage = globalThis.localStorage
@@ -66,5 +66,24 @@ describe('translationService', () => {
 
   it('detects browser locale', () => {
     expect(getBrowserLocale()).toBe('fr')
+  })
+})
+
+
+describe('translation batch recovery', () => {
+  it('keeps completed batches when a later request fails', async () => {
+    const storage = mockLocalStorage()
+    vi.stubGlobal('localStorage', storage)
+    const entries = Array.from({ length: 51 }, (_, i) => ({ key: 'batch.' + i, text: 'Label ' + i }))
+    const fetchMock = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => ({ translations: entries.slice(0, 50).map((_, i) => 'French ' + i) }) }).mockRejectedValueOnce(new Error('Offline'))
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      await expect(translateMessages(entries, 'fr')).rejects.toThrow('Offline')
+      fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ translations: ['French 50'] }) })
+      const result = await translateMessages(entries, 'fr')
+      expect(result['batch.0']).toBe('French 0')
+      expect(result['batch.50']).toBe('French 50')
+      expect(JSON.parse(fetchMock.mock.calls[2][1].body).texts).toEqual(['Label 50'])
+    } finally { vi.unstubAllGlobals() }
   })
 })

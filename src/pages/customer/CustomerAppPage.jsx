@@ -510,6 +510,31 @@ function CustomerAppPage() {
       setIsSubmitting(false)
     }
   }
+  const pendingPaymentId = viewedOrder?.firestoreId
+  const pendingPaymentReference = viewedOrder?.paymentReference
+  const pendingPaymentStatus = viewedOrder?.paymentStatus
+  useEffect(() => {
+    if (!pendingPaymentId || !pendingPaymentReference || !['Pending', 'Submitted'].includes(pendingPaymentStatus)) return undefined
+    let stopped = false
+    let attempts = 0
+    let timer
+    const refresh = async () => {
+      if (stopped || attempts >= 6) return
+      if (document.visibilityState !== 'hidden') {
+        attempts++
+        try {
+          const result = await postJson('/api/payments', { firestoreId: pendingPaymentId, action: 'verify' })
+          if (['Paid', 'Failed', 'Refunded'].includes(result.paymentStatus)) return
+        } catch {
+          // Keep the manual status button available after a temporary network failure.
+        }
+      }
+      if (!stopped) timer = setTimeout(refresh, 30000)
+    }
+    timer = setTimeout(refresh, 1000)
+    return () => { stopped = true; clearTimeout(timer) }
+  }, [pendingPaymentId, pendingPaymentReference, pendingPaymentStatus])
+
   async function checkOrderPayment() {
     if (!viewedOrder?.firestoreId) return
     setIsSubmitting(true)
@@ -911,11 +936,12 @@ function CustomerAppPage() {
                 <div><span>Details</span><strong>{viewedOrder.note || viewedOrder.itemSummary || viewedOrder.clothesType}</strong></div>
                 <div><span>Payment</span><strong>Mobile Money - {viewedOrder.paymentStatus || 'Pending'}</strong></div>
                 {!viewedOrder.paymentReference && !['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState) && ['Pending', 'Failed'].includes(viewedOrder.paymentStatus || 'Pending') && <p>Your order is saved. Select Retry payment to receive a Mobile Money prompt for this order, then approve it on your phone.</p>}
-                {viewedOrder.paymentReference && viewedOrder.paymentStatus !== 'Paid' && <p>A payment request already exists. Check your phone for the Mobile Money prompt. If it failed or you received no prompt, contact CareNest with this order number before paying again.</p>}
+                {viewedOrder.paymentReference && !['Paid', 'Failed', 'Refunded'].includes(viewedOrder.paymentStatus) && <p>A payment request already exists. Check your phone for the Mobile Money prompt. If it failed or you received no prompt, contact CareNest with this order number before paying again.</p>}
                 {requestError && <p className="request-error" role="alert">{requestError}</p>}
                 {['Pending', 'Failed'].includes(viewedOrder.paymentStatus || 'Pending') && !viewedOrder.paymentReference && !['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState) && !['Cancelled', 'Complaint', 'Completed'].includes(viewedOrder.status) && <button className="payment-retry-button" type="button" disabled={isSubmitting} onClick={retryOrderPayment}>{isSubmitting ? 'Starting payment…' : 'Retry payment'}</button>}
                 {['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState) && <p>Your previous payment is awaiting verification. Check its status or contact support before paying again.</p>}
                 {viewedOrder.paymentStatus !== 'Paid' && (viewedOrder.paymentReference || ['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState)) && <button className="payment-retry-button" type="button" disabled={isSubmitting} onClick={checkOrderPayment}>{isSubmitting ? 'Checking...' : 'Check payment status'}</button>}
+                {viewedOrder.paymentStatus === 'Failed' && viewedOrder.paymentReference && <p>The payment provider reports that this request failed. If no approval prompt appeared, contact CareNest support with this order number and your Mobile Money network. Do not approve an older prompt or pay again until support has checked the transaction.</p>}
                 {viewedOrder.paymentReceiverNumber && <div><span>Paid to</span><strong>{viewedOrder.paymentReceiverNumber}</strong></div>}
                 {viewedOrder.paymentReference && <div><span>Payment ref</span><strong>{viewedOrder.paymentReference}</strong></div>}
                 {viewedOrder.paymentReceiptText && <div><span>Payment message</span><strong>{viewedOrder.paymentReceiptText}</strong></div>}
