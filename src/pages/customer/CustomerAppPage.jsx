@@ -181,7 +181,7 @@ const createEmptyForm = (serviceType = 'laundry') => {
     pickupTime: '10:00',
     paymentMethod: 'Mobile Money',
     paymentReference: '',
-    paymentPhone: '',
+    paymentPhone: null,
     note: '',
   }
 }
@@ -209,7 +209,7 @@ function CustomerAppPage() {
   const [marketplaceForm, setMarketplaceForm] = useState(() => ({
     quantity: 1, address: availableServiceAddresses[0] || defaultCustomerAddress || defaultCustomerCity,
     pickupDate: createEmptyForm('delivery').pickupDate, pickupTime: '10:00',
-    paymentPhone: '', note: '', orderType: '', variant: '', returnableContainers: 0, rooms: 1, fabricNotes: '', problem: '',
+    paymentPhone: null, note: '', orderType: '', variant: '', returnableContainers: 0, rooms: 1, fabricNotes: '', problem: '',
   }))
   const [ordersLoading, setOrdersLoading] = useState(true)
   const [forms, setForms] = useState(() => Object.fromEntries(
@@ -356,7 +356,7 @@ function CustomerAppPage() {
       setRequestError('Please select an address, date, and time.')
       return
     }
-    if (!/^6\d{8}$/.test(String(form.paymentPhone || profile?.phone || '').replace(/\D/g, '').replace(/^237/, ''))) {
+    if (!/^6\d{8}$/.test(String(form.paymentPhone ?? profile?.phone ?? '').replace(/\D/g, '').replace(/^237/, ''))) {
       setRequestError('Enter a valid Cameroon Mobile Money number before saving the order.')
       return
     }
@@ -369,10 +369,10 @@ function CustomerAppPage() {
       customerUid: user.uid,
       customerName: profile?.name || user.displayName || 'Customer',
       customerEmail: user.email,
-      customerPhone: form.paymentPhone || profile?.phone || '',
       service: requestConfig.label,
       serviceType: currentServiceType,
       ...form,
+      customerPhone: form.paymentPhone ?? profile?.phone ?? '',
       serviceSpeed: selectedOption[0],
       itemSummary: primaryValue,
       amount: requestAmount,
@@ -450,7 +450,7 @@ function CustomerAppPage() {
       setRequestError('Enter the delivery address, date, and time.')
       return
     }
-    const customerPhone = marketplaceForm.paymentPhone || profile?.phone || ''
+    const customerPhone = marketplaceForm.paymentPhone ?? profile?.phone ?? ''
     if (!/^6\d{8}$/.test(String(customerPhone).replace(/\D/g, '').replace(/^237/, ''))) {
       setRequestError('Enter the Mobile Money number that should receive the payment prompt.')
       return
@@ -812,7 +812,8 @@ function CustomerAppPage() {
                       <label>{marketplaceCategory.kind === 'product' ? 'Delivery address' : 'Service address'}<span className="request-input"><FiMapPin /><input name="address" maxLength="240" value={marketplaceForm.address} onChange={updateMarketplaceForm} required /></span></label>
                       <label>{marketplaceCategory.kind === 'product' ? 'Delivery date' : 'Service date'}<span className="request-input"><FiCalendar /><input name="pickupDate" type="date" min={minimumPickupDate} value={marketplaceForm.pickupDate} onChange={updateMarketplaceForm} required /></span></label>
                       <label>Preferred time<span className="request-input"><FiClock /><input name="pickupTime" type="time" value={marketplaceForm.pickupTime} onChange={updateMarketplaceForm} required /></span></label>
-                      <label>Mobile Money number<span className="request-input"><FiPhone /><input name="paymentPhone" type="tel" maxLength="20" value={marketplaceForm.paymentPhone || profile?.phone || ''} onChange={updateMarketplaceForm} placeholder={phonePlaceholder} required /></span></label>
+                      <label>Mobile Money number<span className="request-input"><FiPhone /><input name="paymentPhone" type="tel" maxLength="20" value={marketplaceForm.paymentPhone ?? profile?.phone ?? ''} onChange={updateMarketplaceForm} placeholder={phonePlaceholder} required /></span></label>
+                      <p className="payment-phone-preview"><span>The approval request will be sent to:</span> <strong data-no-translate>{marketplaceForm.paymentPhone ?? profile?.phone ?? ''}</strong></p>
                       <label className="request-note-field">Instructions<textarea name="note" maxLength="1000" value={marketplaceForm.note} onChange={updateMarketplaceForm} placeholder="Delivery directions, preferences, or other details…" /></label>
                     </div>
                     {requestError && <p className="request-message request-error" role="alert">{requestError}</p>}
@@ -858,7 +859,8 @@ function CustomerAppPage() {
                   <label>{currentServiceType === 'delivery' ? 'Delivery Address' : 'Service Address'}<span className="request-input"><FiMapPin /><input name="address" type="text" maxLength="240" list="service-addresses" value={form.address} onChange={updateForm} placeholder="Enter your pickup or service address" required /></span><datalist id="service-addresses">{addresses.map((address) => <option key={address} value={address} />)}</datalist></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Date' : 'Service Date'}<span className="request-input"><FiCalendar /><input name="pickupDate" type="date" min={minimumPickupDate} value={form.pickupDate} onChange={updateForm} /></span></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Time' : 'Service Time'}<span className="request-input"><FiClock /><input name="pickupTime" type="time" value={form.pickupTime} onChange={updateForm} /></span></label>
-                  <label>Mobile Money Number<span className="request-input"><FiPhone /><input name="paymentPhone" type="tel" maxLength="20" value={form.paymentPhone || profile?.phone || ''} onChange={updateForm} placeholder={phonePlaceholder} required /></span></label>
+                  <label>Mobile Money Number<span className="request-input"><FiPhone /><input name="paymentPhone" type="tel" maxLength="20" value={form.paymentPhone ?? profile?.phone ?? ''} onChange={updateForm} placeholder={phonePlaceholder} required /></span></label>
+                      <p className="payment-phone-preview"><span>The approval request will be sent to:</span> <strong data-no-translate>{form.paymentPhone ?? profile?.phone ?? ''}</strong></p>
                   <div className="manual-payment-panel">
                     <div>
                       <span>Secure Mobile Money</span>

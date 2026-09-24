@@ -25,6 +25,21 @@ describe('payment ownership', () => {
     return { order, orderRef, runTransaction }
   }
 
+  it.each(['+237 699 000 661', '699000661', '237699000661', '+237 653 638 145'])('uses the saved checkout phone, not profile/provider/request overrides: %s', async (checkoutPhone) => {
+    const { order } = validOrder()
+    order.customerPhone = checkoutPhone
+    order.providerPhone = '+237670000999'
+    order.providerPayoutPhone = '+237670000998'
+    mocks.requireUser.mockResolvedValue({ uid: 'customer-a', phone_number: '+237670000777' })
+    const fetch = vi.fn(async () => ({ ok: true, status: 200, text: async () => JSON.stringify({ transId: 'tx-checkout-test' }) }))
+    vi.stubGlobal('fetch', fetch)
+    const res = { setHeader: vi.fn(), end: vi.fn() }
+    await handler({ method: 'POST', headers: {}, body: { firestoreId: 'order-a', phone: '+237670000888' } }, res)
+    expect(res.statusCode).toBe(202)
+    expect(JSON.parse(fetch.mock.calls[0][1].body).phone).toBe(checkoutPhone.replace(/\D/g, '').replace(/^237/, ''))
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects invalid configuration before acquiring a payment lock', async () => {
     const { runTransaction } = validOrder()
     vi.stubEnv('FAPSHI_SANDBOX_SECRET_KEY', '')

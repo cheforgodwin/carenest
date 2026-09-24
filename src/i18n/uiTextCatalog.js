@@ -568,6 +568,7 @@ export const uiEnglishText = [
   "Tell us about your services, location, and experience. The CareNest team reviews every application before approval.",
   "Tell us the home size, cleaning type, and arrival time. We will assign a verified cleaner near you.",
   "Terms of Service",
+  "The approval request will be sent to:",
   "The passwords do not match.",
   "The payment provider reports that this request failed. If no approval prompt appeared, contact CareNest support with this order number and your Mobile Money network. Do not approve an older prompt or pay again until support has checked the transaction.",
   "The provider or rider reported completion. Confirm only if you received the service or delivery. Their payout stays blocked until you confirm.",
