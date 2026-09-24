@@ -53,6 +53,10 @@ export default async function handler(req, res) {
     const phone = String(order.customerPhone || '').replace(/\D/g, '').replace(/^237/, '')
     if (!/^6\d{8}$/.test(phone)) return res.status(400).json({ error: 'The order needs a valid Cameroon Mobile Money number.' })
 
+    const network = order.paymentNetwork || ''
+    if (!['', 'mtn', 'orange'].includes(network)) return res.status(400).json({ error: 'Choose a valid Mobile Money network.' })
+    const medium = network === 'mtn' ? 'mobile money' : network === 'orange' ? 'orange money' : undefined
+
     const { apiUrl, apiUser, apiKey } = getFapshiConfig()
     const direct = getFapshiPaymentFlow() === 'direct'
 
@@ -95,7 +99,7 @@ export default async function handler(req, res) {
         error.statusCode = 409
         throw error
       }
-      if (latest.amount !== order.amount || latest.customerPhone !== order.customerPhone || ['Cancelled', 'Complaint', 'Completed'].includes(latest.status)) throw paymentError('The order changed. Reload it before paying.')
+      if (latest.amount !== order.amount || latest.customerPhone !== order.customerPhone || (latest.paymentNetwork || '') !== network || ['Cancelled', 'Complaint', 'Completed'].includes(latest.status)) throw paymentError('The order changed. Reload it before paying.')
       const policy = (await transaction.get(db.collection('financialSettings').doc('current'))).data()
       const snapshot = latest.financialSnapshot || financialSnapshot(latest, policy)
       if (snapshot.amount !== latest.amount) throw paymentError('The order amount no longer matches its saved allocation. Contact support before paying.')
@@ -126,6 +130,7 @@ export default async function handler(req, res) {
         redirect: 'error', signal: AbortSignal.timeout(20000),
         body: JSON.stringify({
           amount: order.amount,
+          ...(medium ? { medium } : {}),
           email: order.customerEmail || user.email || '',
           userId: user.uid,
           externalId: firestoreId,
@@ -181,7 +186,7 @@ export default async function handler(req, res) {
       updatedAt: FieldValue.serverTimestamp(),
     })
 
-    console.info('payment_request_accepted', { orderId: firestoreId, attemptId: initiationId, flow: 'direct', environment: apiUrl.includes('sandbox') ? 'sandbox' : 'live' })
+    console.info('payment_request_accepted', { orderId: firestoreId, attemptId: initiationId, flow: 'direct', network: network || 'auto', phoneSuffix: phone.slice(-3), environment: apiUrl.includes('sandbox') ? 'sandbox' : 'live' })
     res.setHeader('Cache-Control', 'no-store')
     return res.status(202).json({ accepted: true, message: 'Payment request sent. Await server verification.' })
   } catch (error) {

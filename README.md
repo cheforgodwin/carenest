@@ -83,3 +83,7 @@ A successful `/api/payments` response is HTTP 202 with `accepted: true`; the tra
 The optional live diagnostic requires `CARENEST_ALLOW_LIVE_PAYMENT_TEST=1`, `CARENEST_PAYMENT_TEST_PHONE`, and a unique `CARENEST_PAYMENT_TEST_ID`. It sends exactly one 100 XAF request for that test ID, to an explicitly authorized phone, through the real `/api/payments` endpoint. It retains the order and transaction evidence, prevents dispatching the same test twice, and never fabricates a successful callback. Run it only after the phone owner approves the test.
 
 For credential-safe build diagnostics, set `CARENEST_PAYMENT_DIAGNOSTICS=1` for a single deployment build. Only safe configuration metadata, masked phone suffixes and recent order/payment statuses are logged. Sensitive Vercel variables export as `[SENSITIVE]`; an exported placeholder is not evidence of a broken runtime setting.
+
+New checkouts require the customer to select MTN MoMo or Orange Money. The saved `paymentNetwork` controls Fapshi's explicit `medium` (`mobile money` / `orange money`); existing orders without a network retain Fapshi automatic detection. The server always takes the phone and network from the owned saved order, never from payment request overrides or provider payout settings.
+
+For an authorized 100 XAF live diagnostic, `CARENEST_PAYMENT_TEST_NETWORK=mtn` or `orange` selects the intended network. Sandbox success verifies integration behavior, not live operator delivery. A live Orange test still requires an authorized Orange phone and confirmation from its owner.

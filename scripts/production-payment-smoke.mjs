@@ -12,6 +12,8 @@ if (process.env.CARENEST_ALLOW_LIVE_PAYMENT_TEST !== '1') {
   const config = getFapshiConfig()
   if (new URL(config.apiUrl).hostname !== 'live.fapshi.com' || getFapshiPaymentFlow() !== 'direct') throw new Error('Live diagnostics require live Direct Pay configuration.')
   const phone = String(process.env.CARENEST_PAYMENT_TEST_PHONE || '').replace(/\D/g, '').replace(/^237/, '')
+  const network = String(process.env.CARENEST_PAYMENT_TEST_NETWORK || '')
+  if (!['', 'mtn', 'orange'].includes(network)) throw new Error('Invalid diagnostic payment network.')
   const testId = String(process.env.CARENEST_PAYMENT_TEST_ID || '')
   if (!/^6\d{8}$/.test(phone) || !/^[a-zA-Z0-9_-]{8,60}$/.test(testId)) throw new Error('Provide an authorized Cameroon phone and a unique diagnostic test ID.')
   const siteUrl = String(process.env.CARENEST_SITE_URL || 'https://carenest237.com').replace(/\/$/, '')
@@ -42,7 +44,7 @@ if (process.env.CARENEST_ALLOW_LIVE_PAYMENT_TEST !== '1') {
       accountCreated = true
       const email = String(process.env.CARENEST_PAYMENT_TEST_EMAIL || '')
       await db.collection('users').doc(uid).create({ uid, name: 'CareNest payment diagnostic', email, phone: '+237' + phone, accountType: 'customer', paymentDiagnostic: true })
-      await orderRef.create({ id: 'DIAG-' + testId, customerUid: uid, customerEmail: email, customerName: 'CareNest payment diagnostic', customerPhone: '+237' + phone, amount: 100, paymentStatus: 'Pending', paymentReference: '', paymentReceiptTransactionId: '', status: 'Payment diagnostic', serviceType: 'diagnostic', service: 'Owner-authorized 100 XAF prompt check', paymentDiagnostic: true, createdAt: FieldValue.serverTimestamp() })
+      await orderRef.create({ id: 'DIAG-' + testId, customerUid: uid, customerEmail: email, customerName: 'CareNest payment diagnostic', customerPhone: '+237' + phone, paymentNetwork: network, amount: 100, paymentStatus: 'Pending', paymentReference: '', paymentReceiptTransactionId: '', status: 'Payment diagnostic', serviceType: 'diagnostic', service: 'Owner-authorized 100 XAF prompt check', paymentDiagnostic: true, createdAt: FieldValue.serverTimestamp() })
       const customToken = await auth.createCustomToken(uid)
       const exchange = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=' + encodeURIComponent(apiKey), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: customToken, returnSecureToken: true }), redirect: 'error', signal: AbortSignal.timeout(15000) })
       const session = await exchange.json()

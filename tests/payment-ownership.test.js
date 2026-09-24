@@ -40,6 +40,28 @@ describe('payment ownership', () => {
     expect(fetch).toHaveBeenCalledTimes(1)
   })
 
+  it.each([['mtn', 'mobile money'], ['orange', 'orange money']])('routes %s explicitly using the saved order network', async (network, medium) => {
+    const { order } = validOrder()
+    order.paymentNetwork = network
+    const fetch = vi.fn(async () => ({ ok: true, status: 200, text: async () => JSON.stringify({ transId: 'tx-network-test' }) }))
+    vi.stubGlobal('fetch', fetch)
+    const res = { setHeader: vi.fn(), end: vi.fn() }
+    await handler({ method: 'POST', headers: {}, body: { firestoreId: 'order-a', paymentNetwork: network === 'mtn' ? 'orange' : 'mtn' } }, res)
+    expect(res.statusCode).toBe(202)
+    expect(JSON.parse(fetch.mock.calls[0][1].body).medium).toBe(medium)
+  })
+
+  it('rejects unsupported network settings before requesting money', async () => {
+    const { order, runTransaction } = validOrder()
+    order.paymentNetwork = 'unsupported'
+    const fetch = vi.fn(); vi.stubGlobal('fetch', fetch)
+    const res = { setHeader: vi.fn(), end: vi.fn() }
+    await handler({ method: 'POST', headers: {}, body: { firestoreId: 'order-a' } }, res)
+    expect(res.statusCode).toBe(400)
+    expect(fetch).not.toHaveBeenCalled()
+    expect(runTransaction).not.toHaveBeenCalled()
+  })
+
   it('rejects invalid configuration before acquiring a payment lock', async () => {
     const { runTransaction } = validOrder()
     vi.stubEnv('FAPSHI_SANDBOX_SECRET_KEY', '')

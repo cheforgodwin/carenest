@@ -181,7 +181,7 @@ const createEmptyForm = (serviceType = 'laundry') => {
     pickupTime: '10:00',
     paymentMethod: 'Mobile Money',
     paymentReference: '',
-    paymentPhone: null,
+    paymentNetwork: '', paymentPhone: null,
     note: '',
   }
 }
@@ -209,7 +209,7 @@ function CustomerAppPage() {
   const [marketplaceForm, setMarketplaceForm] = useState(() => ({
     quantity: 1, address: availableServiceAddresses[0] || defaultCustomerAddress || defaultCustomerCity,
     pickupDate: createEmptyForm('delivery').pickupDate, pickupTime: '10:00',
-    paymentPhone: null, note: '', orderType: '', variant: '', returnableContainers: 0, rooms: 1, fabricNotes: '', problem: '',
+    paymentNetwork: '', paymentPhone: null, note: '', orderType: '', variant: '', returnableContainers: 0, rooms: 1, fabricNotes: '', problem: '',
   }))
   const [ordersLoading, setOrdersLoading] = useState(true)
   const [forms, setForms] = useState(() => Object.fromEntries(
@@ -360,6 +360,10 @@ function CustomerAppPage() {
       setRequestError('Enter a valid Cameroon Mobile Money number before saving the order.')
       return
     }
+    if (!['mtn', 'orange'].includes(form.paymentNetwork)) {
+      setRequestError('Choose MTN MoMo or Orange Money for this payment number.')
+      return
+    }
     if (isSubmitting) return
     setIsSubmitting(true)
     setRequestError('')
@@ -455,6 +459,10 @@ function CustomerAppPage() {
       setRequestError('Enter the Mobile Money number that should receive the payment prompt.')
       return
     }
+    if (!['mtn', 'orange'].includes(marketplaceForm.paymentNetwork)) {
+      setRequestError('Choose MTN MoMo or Orange Money for this payment number.')
+      return
+    }
     if (isSubmitting) return
     setIsSubmitting(true)
 
@@ -464,6 +472,7 @@ function CustomerAppPage() {
       customerName: profile?.name || user.displayName || 'Customer',
       customerEmail: user.email,
       customerPhone,
+      paymentNetwork: marketplaceForm.paymentNetwork,
       service: selectedListing.title,
       serviceType: 'marketplace',
       serviceSpeed: 'Standard',
@@ -812,7 +821,8 @@ function CustomerAppPage() {
                       <label>{marketplaceCategory.kind === 'product' ? 'Delivery address' : 'Service address'}<span className="request-input"><FiMapPin /><input name="address" maxLength="240" value={marketplaceForm.address} onChange={updateMarketplaceForm} required /></span></label>
                       <label>{marketplaceCategory.kind === 'product' ? 'Delivery date' : 'Service date'}<span className="request-input"><FiCalendar /><input name="pickupDate" type="date" min={minimumPickupDate} value={marketplaceForm.pickupDate} onChange={updateMarketplaceForm} required /></span></label>
                       <label>Preferred time<span className="request-input"><FiClock /><input name="pickupTime" type="time" value={marketplaceForm.pickupTime} onChange={updateMarketplaceForm} required /></span></label>
-                      <label>Mobile Money number<span className="request-input"><FiPhone /><input name="paymentPhone" type="tel" maxLength="20" value={marketplaceForm.paymentPhone ?? profile?.phone ?? ''} onChange={updateMarketplaceForm} placeholder={phonePlaceholder} required /></span></label>
+                      <label>Payment network<span className="request-input"><select name="paymentNetwork" value={marketplaceForm.paymentNetwork} onChange={updateMarketplaceForm} required><option value="">Choose your network</option><option value="mtn">MTN MoMo</option><option value="orange">Orange Money</option></select><FiChevronDown /></span></label>
+                  <label>Mobile Money number<span className="request-input"><FiPhone /><input name="paymentPhone" type="tel" maxLength="20" value={marketplaceForm.paymentPhone ?? profile?.phone ?? ''} onChange={updateMarketplaceForm} placeholder={phonePlaceholder} required /></span></label>
                       <p className="payment-phone-preview"><span>The approval request will be sent to:</span> <strong data-no-translate>{marketplaceForm.paymentPhone ?? profile?.phone ?? ''}</strong></p>
                       <label className="request-note-field">Instructions<textarea name="note" maxLength="1000" value={marketplaceForm.note} onChange={updateMarketplaceForm} placeholder="Delivery directions, preferences, or other details…" /></label>
                     </div>
@@ -859,6 +869,7 @@ function CustomerAppPage() {
                   <label>{currentServiceType === 'delivery' ? 'Delivery Address' : 'Service Address'}<span className="request-input"><FiMapPin /><input name="address" type="text" maxLength="240" list="service-addresses" value={form.address} onChange={updateForm} placeholder="Enter your pickup or service address" required /></span><datalist id="service-addresses">{addresses.map((address) => <option key={address} value={address} />)}</datalist></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Date' : 'Service Date'}<span className="request-input"><FiCalendar /><input name="pickupDate" type="date" min={minimumPickupDate} value={form.pickupDate} onChange={updateForm} /></span></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Time' : 'Service Time'}<span className="request-input"><FiClock /><input name="pickupTime" type="time" value={form.pickupTime} onChange={updateForm} /></span></label>
+                  <label>Payment network<span className="request-input"><select name="paymentNetwork" value={form.paymentNetwork} onChange={updateForm} required><option value="">Choose your network</option><option value="mtn">MTN MoMo</option><option value="orange">Orange Money</option></select><FiChevronDown /></span></label>
                   <label>Mobile Money Number<span className="request-input"><FiPhone /><input name="paymentPhone" type="tel" maxLength="20" value={form.paymentPhone ?? profile?.phone ?? ''} onChange={updateForm} placeholder={phonePlaceholder} required /></span></label>
                       <p className="payment-phone-preview"><span>The approval request will be sent to:</span> <strong data-no-translate>{form.paymentPhone ?? profile?.phone ?? ''}</strong></p>
                   <div className="manual-payment-panel">
