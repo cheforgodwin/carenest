@@ -34,7 +34,6 @@ import {
 } from '../../config/businessConfig'
 import { formatMarketplaceAmount, getMarketplaceCategory } from '../../config/marketplaceConfig'
 import Logo from '../../components/Logo'
-import SiteFooter from '../../components/SiteFooter'
 import { confirmCustomerCompletion, createMarketplaceServiceRequest, createRequestId, createServiceRequest, submitCustomerComplaint, subscribeToCustomerOrders } from '../../firebase/orderService'
 import { postJson } from '../../utils/networkUtils'
 import { inputLimits, sanitizeText } from '../../utils/securityUtils'
@@ -1011,7 +1010,6 @@ function CustomerAppPage() {
           </div>
         )}
 
-        <SiteFooter />
         <nav className="mobile-tabs">
           <Logo to="/dashboard/customer" className="customer-nav-brand" />
           <div className="customer-nav-links">
