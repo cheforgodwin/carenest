@@ -50,10 +50,13 @@ export default async function handler(req, res) {
       return res.status(409).json({ error: 'A payment is already in progress for this order.' })
     }
 
-    const phone = String(order.customerPhone || '').replace(/\D/g, '').replace(/^237/, '')
+    const requestedPhone = String(req.body?.phone || req.body?.customerPhone || order.customerPhone || '').trim()
+    const phone = requestedPhone.replace(/\D/g, '').replace(/^237/, '')
     if (!/^6\d{8}$/.test(phone)) return res.status(400).json({ error: 'The order needs a valid Cameroon Mobile Money number.' })
 
-    const network = order.paymentNetwork || ''
+    const savedNetwork = String(order.paymentNetwork || '').trim().toLowerCase()
+    const requestedNetwork = String(req.body?.paymentNetwork || '').trim().toLowerCase()
+    const network = savedNetwork || requestedNetwork
     if (!['', 'mtn', 'orange'].includes(network)) return res.status(400).json({ error: 'Choose a valid Mobile Money network.' })
     const medium = network === 'mtn' ? 'mobile money' : network === 'orange' ? 'orange money' : undefined
 
@@ -99,13 +102,17 @@ export default async function handler(req, res) {
         error.statusCode = 409
         throw error
       }
-      if (latest.amount !== order.amount || latest.customerPhone !== order.customerPhone || (latest.paymentNetwork || '') !== network || ['Cancelled', 'Complaint', 'Completed'].includes(latest.status)) throw paymentError('The order changed. Reload it before paying.')
+      const updatedCustomerPhone = requestedPhone || latest.customerPhone || ''
+      const updatedPaymentNetwork = String(latest.paymentNetwork || savedNetwork || requestedNetwork || '').trim().toLowerCase()
+      if (latest.amount !== order.amount || ['Cancelled', 'Complaint', 'Completed'].includes(latest.status)) throw paymentError('The order changed. Reload it before paying.')
       const policy = (await transaction.get(db.collection('financialSettings').doc('current'))).data()
       const snapshot = latest.financialSnapshot || financialSnapshot(latest, policy)
       if (snapshot.amount !== latest.amount) throw paymentError('The order amount no longer matches its saved allocation. Contact support before paying.')
       const environment = apiUrl.includes('sandbox.fapshi.com') ? 'sandbox' : 'live'
       transaction.set(db.collection('financialEntries').doc(entryId('attempt', initiationId)), financialEntry({ ...latest, paymentEnvironment: environment }, firestoreId, 'payment_attempt', { amount: latest.amount, reference: initiationId, status: 'Starting' }))
       transaction.update(orderRef, {
+        customerPhone: updatedCustomerPhone,
+        paymentNetwork: updatedPaymentNetwork,
         financialSnapshot: snapshot,
         paymentEnvironment: environment,
         paymentInitiationId: initiationId,

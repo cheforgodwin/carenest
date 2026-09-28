@@ -25,18 +25,19 @@ describe('payment ownership', () => {
     return { order, orderRef, runTransaction }
   }
 
-  it.each(['+237 699 000 661', '699000661', '237699000661', '+237 653 638 145'])('uses the saved checkout phone, not profile/provider/request overrides: %s', async (checkoutPhone) => {
+  it('accepts a valid alternate payment phone while keeping the saved order network', async () => {
     const { order } = validOrder()
-    order.customerPhone = checkoutPhone
-    order.providerPhone = '+237670000999'
-    order.providerPayoutPhone = '+237670000998'
-    mocks.requireUser.mockResolvedValue({ uid: 'customer-a', phone_number: '+237670000777' })
+    order.customerPhone = '+237699000661'
+    order.paymentNetwork = 'mtn'
     const fetch = vi.fn(async () => ({ ok: true, status: 200, text: async () => JSON.stringify({ transId: 'tx-checkout-test' }) }))
     vi.stubGlobal('fetch', fetch)
     const res = { setHeader: vi.fn(), end: vi.fn() }
-    await handler({ method: 'POST', headers: {}, body: { firestoreId: 'order-a', phone: '+237670000888' } }, res)
+    await handler({ method: 'POST', headers: {}, body: { firestoreId: 'order-a', phone: '+237650000999' } }, res)
     expect(res.statusCode).toBe(202)
-    expect(JSON.parse(fetch.mock.calls[0][1].body).phone).toBe(checkoutPhone.replace(/\D/g, '').replace(/^237/, ''))
+    expect(JSON.parse(fetch.mock.calls[0][1].body).phone).toBe('650000999')
+    expect(JSON.parse(fetch.mock.calls[0][1].body).medium).toBe('mobile money')
+    expect(order.customerPhone).toBe('+237650000999')
+    expect(order.paymentNetwork).toBe('mtn')
     expect(fetch).toHaveBeenCalledTimes(1)
   })
 

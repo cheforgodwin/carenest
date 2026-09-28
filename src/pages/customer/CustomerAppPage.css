@@ -126,7 +126,7 @@
   height: auto;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: clamp(14px, 1.5vw, 20px);
+  padding: clamp(14px, 1.5vw, 20px) clamp(14px, 1.5vw, 20px) 96px;
 }
 
 .mobile-content h1,

@@ -1,4 +1,5 @@
-// Opt-in, read-only diagnostics. Never prints credentials, balances or full customer phones.
+// Read-only by default; exact-order reconciliation needs a separate explicit opt-in.
+// Never prints credentials, balances or full customer phones.
 import { createHash } from 'node:crypto'
 import { getFapshiConfig, getFapshiBaseUrl, getFapshiPaymentFlow } from '../api/_fapshi.js'
 import { applyVerifiedPayment, fetchVerifiedPayment } from '../api/_paymentVerification.js'
@@ -20,7 +21,7 @@ export async function runPaymentDiagnostics() {
   for (const snapshot of recent.docs) {
     const order = snapshot.data()
     const phone = String(order.customerPhone || '').replace(/\D/g, '').replace(/^237/, '')
-    console.log('PAYMENT_ORDER', JSON.stringify({ orderId: snapshot.id, orderLabel: order.id, createdAt: order.createdAt?.toDate?.().toISOString(), amount: order.amount, phoneSuffix: phone.slice(-3), phoneValid: /^6\d{8}$/.test(phone), status: order.paymentStatus, initiation: order.paymentInitiationState, environment: order.paymentEnvironment, hasReference: Boolean(order.paymentReference), providerStatus: order.paymentProviderStatus, diagnostic: Boolean(order.paymentDiagnostic) }))
+    console.log('PAYMENT_ORDER', JSON.stringify({ orderId: snapshot.id, orderLabel: order.id, createdAt: order.createdAt?.toDate?.().toISOString(), amount: order.amount, phoneSuffix: phone.slice(-3), phoneValid: /^6\d{8}$/.test(phone), status: order.paymentStatus, initiation: order.paymentInitiationState, environment: order.paymentEnvironment, hasReference: Boolean(order.paymentReference), providerStatus: order.paymentProviderStatus, verifiedBy: order.paymentVerifiedBy, network: order.paymentNetwork, diagnostic: Boolean(order.paymentDiagnostic) }))
     if (!order.paymentReference || checked >= 3 || !/^[A-Za-z0-9_-]{1,128}$/.test(order.paymentReference)) continue
     checked++
     if (process.env.CARENEST_RECONCILE_DIAGNOSTIC_ORDER === '1' && target && order.id?.toUpperCase() === target.toUpperCase()) {
@@ -31,6 +32,6 @@ export async function runPaymentDiagnostics() {
     const response = await fetch(getFapshiBaseUrl(config.apiUrl) + '/payment-status/' + encodeURIComponent(order.paymentReference), { headers, redirect: 'error', signal: AbortSignal.timeout(15000) })
     const body = await response.json().catch(() => ({}))
     const clean = (value) => typeof value === 'string' ? value.replaceAll(config.apiKey, '[redacted]').replaceAll(config.apiUser, '[redacted]').replace(/\b\d{9,}\b/g, '[phone]').slice(0, 160) : undefined
-    console.log('PAYMENT_PROVIDER_STATUS', JSON.stringify({ orderId: snapshot.id, httpStatus: response.status, status: body.status, medium: clean(body.medium), transactionId: body.transId, reasonProvided: body.reason != null && body.reason !== '', amount: body.amount, orderMatches: body.externalId === snapshot.id, customerMatches: body.userId === order.customerUid, amountMatches: Number(body.amount) === order.amount, message: clean(body.message), reason: typeof body.reason === 'object' && body.reason ? Object.fromEntries(Object.entries(body.reason).filter(([key]) => ['message', 'code', 'error', 'description', 'reason', 'status'].includes(key)).map(([key, value]) => [key, typeof value === 'number' ? value : clean(value)])) : clean(body.reason), responseFields: Object.keys(body) }))
+    console.log('PAYMENT_PROVIDER_STATUS', JSON.stringify({ orderId: snapshot.id, httpStatus: response.status, status: body.status, medium: clean(body.medium), transactionId: body.transId, dateInitiated: clean(body.dateInitiated), dateConfirmed: clean(body.dateConfirmed), webhookConfiguredAtProvider: Boolean(body.webhook), webhookMatchesExpected: typeof body.webhook === 'string' && body.webhook.replace(/\/$/, '') === String(process.env.FAPSHI_WEBHOOK_URL || '').replace(/\/$/, ''), operatorReferencePresent: Boolean(body.financialTransId), reasonProvided: body.reason != null && body.reason !== '', amount: body.amount, orderMatches: body.externalId === snapshot.id, customerMatches: body.userId === order.customerUid, amountMatches: Number(body.amount) === order.amount, message: clean(body.message), reason: typeof body.reason === 'object' && body.reason ? Object.fromEntries(Object.entries(body.reason).filter(([key]) => ['message', 'code', 'error', 'description', 'reason', 'status'].includes(key)).map(([key, value]) => [key, typeof value === 'number' ? value : clean(value)])) : clean(body.reason), responseFields: Object.keys(body) }))
   }
 }

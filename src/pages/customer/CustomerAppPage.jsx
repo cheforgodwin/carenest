@@ -193,6 +193,9 @@ function CustomerAppPage() {
   const { locale } = useI18n()
   const { pathname } = useLocation()
   const navigate = useNavigate()
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [pathname])
   const isServices = pathname.includes('/services')
   const marketplaceMatch = pathname.match(/\/shop\/([^/]+)/)
   const isMarketplaceRequest = Boolean(marketplaceMatch)
