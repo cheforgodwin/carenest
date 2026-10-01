@@ -378,7 +378,8 @@ function CustomerAppPage() {
       service: requestConfig.label,
       serviceType: currentServiceType,
       ...form,
-      customerPhone: form.paymentPhone ?? profile?.phone ?? '',
+      customerPhone: profile?.phone || '',
+      paymentPhone: form.paymentPhone ?? profile?.phone ?? '',
       serviceSpeed: selectedOption[0],
       itemSummary: primaryValue,
       amount: requestAmount,
@@ -402,7 +403,7 @@ function CustomerAppPage() {
     }
 
     if (isMobileMoneyPayment) {
-      if (!nextOrder.customerPhone) {
+      if (!nextOrder.paymentPhone) {
         setRequestError('Enter the Mobile Money number that should receive the payment prompt.')
         setIsSubmitting(false)
         return
@@ -425,7 +426,7 @@ function CustomerAppPage() {
       ...current,
       [currentServiceType]: createEmptyForm(currentServiceType),
     }))
-    setPaymentSuccess({ id: nextOrder.id, amount: nextOrder.amount, phone: nextOrder.customerPhone })
+    setPaymentSuccess({ id: nextOrder.id, amount: nextOrder.amount, phone: nextOrder.paymentPhone })
     setIsSubmitting(false)
   }
 
@@ -456,8 +457,8 @@ function CustomerAppPage() {
       setRequestError('Enter the delivery address, date, and time.')
       return
     }
-    const customerPhone = marketplaceForm.paymentPhone ?? profile?.phone ?? ''
-    if (!/^6\d{8}$/.test(String(customerPhone).replace(/\D/g, '').replace(/^237/, ''))) {
+    const paymentPhone = marketplaceForm.paymentPhone ?? profile?.phone ?? ''
+    if (!/^6\d{8}$/.test(String(paymentPhone).replace(/\D/g, '').replace(/^237/, ''))) {
       setRequestError('Enter the Mobile Money number that should receive the payment prompt.')
       return
     }
@@ -473,7 +474,8 @@ function CustomerAppPage() {
       customerUid: user.uid,
       customerName: profile?.name || user.displayName || 'Customer',
       customerEmail: user.email,
-      customerPhone,
+      customerPhone: profile?.phone || '',
+      paymentPhone,
       paymentNetwork: marketplaceForm.paymentNetwork,
       service: selectedListing.title,
       serviceType: 'marketplace',
@@ -512,7 +514,7 @@ function CustomerAppPage() {
         })
 
       setRecentOrder(createdOrder)
-      setPaymentSuccess({ id: nextOrder.id, amount: nextOrder.amount, phone: nextOrder.customerPhone })
+      setPaymentSuccess({ id: nextOrder.id, amount: nextOrder.amount, phone: nextOrder.paymentPhone })
     } catch (error) {
       setRecentOrder(createdOrder)
       setRequestError('Your order was saved. Payment could not start: ' + error.message + ' Check the saved order payment status before trying again.')
@@ -561,13 +563,13 @@ function CustomerAppPage() {
   }
 
   async function retryOrderPayment() {
-    if (!viewedOrder?.firestoreId || viewedOrder.paymentStatus === 'Paid' || viewedOrder.paymentReference || ['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState)) return
+    if (!viewedOrder?.firestoreId || ['Paid', 'Refunded'].includes(viewedOrder.paymentStatus) || ['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState)) return
     if (isSubmitting) return
     setIsSubmitting(true)
     setRequestError('')
     try {
       await postJson('/api/payments', { firestoreId: viewedOrder.firestoreId })
-      setPaymentSuccess({ id: viewedOrder.id, amount: viewedOrder.amount, phone: viewedOrder.customerPhone })
+      setPaymentSuccess({ id: viewedOrder.id, amount: viewedOrder.amount, phone: viewedOrder.paymentPhone || viewedOrder.customerPhone })
     } catch (error) {
       setRequestError('Payment could not start: ' + error.message)
     } finally {
@@ -950,13 +952,13 @@ function CustomerAppPage() {
                 <div><span>Pickup</span><strong>{formatPickupDate(viewedOrder.pickupDate, locale)}, {formatPickupTime(viewedOrder.pickupTime, locale)}</strong></div>
                 <div><span>Details</span><strong>{viewedOrder.note || viewedOrder.itemSummary || viewedOrder.clothesType}</strong></div>
                 <div><span>Payment</span><strong>Mobile Money - {viewedOrder.paymentStatus || 'Pending'}</strong></div>
-                {!viewedOrder.paymentReference && !['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState) && ['Pending', 'Failed'].includes(viewedOrder.paymentStatus || 'Pending') && <p>Your order is saved. Select Retry payment to receive a Mobile Money prompt for this order, then approve it on your phone.</p>}
+                {!['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState) && ['Pending', 'Failed'].includes(viewedOrder.paymentStatus || 'Pending') && <p>Your order is saved. Select Retry payment to receive a Mobile Money prompt for this order, then approve it on your phone.</p>}
                 {viewedOrder.paymentReference && !['Paid', 'Failed', 'Refunded'].includes(viewedOrder.paymentStatus) && <p>A payment request already exists. Check your phone for the Mobile Money prompt. If it failed or you received no prompt, contact CareNest with this order number before paying again.</p>}
                 {requestError && <p className="request-error" role="alert">{requestError}</p>}
-                {['Pending', 'Failed'].includes(viewedOrder.paymentStatus || 'Pending') && !viewedOrder.paymentReference && !['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState) && !['Cancelled', 'Complaint', 'Completed'].includes(viewedOrder.status) && <button className="payment-retry-button" type="button" disabled={isSubmitting} onClick={retryOrderPayment}>{isSubmitting ? 'Starting payment…' : 'Retry payment'}</button>}
+                {['Pending', 'Failed'].includes(viewedOrder.paymentStatus || 'Pending') && !['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState) && !['Cancelled', 'Complaint', 'Completed'].includes(viewedOrder.status) && <button className="payment-retry-button" type="button" disabled={isSubmitting} onClick={retryOrderPayment}>{isSubmitting ? 'Starting payment…' : 'Retry payment'}</button>}
                 {['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState) && <p>Your previous payment is awaiting verification. Check its status or contact support before paying again.</p>}
                 {viewedOrder.paymentStatus !== 'Paid' && (viewedOrder.paymentReference || ['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState)) && <button className="payment-retry-button" type="button" disabled={isSubmitting} onClick={checkOrderPayment}>{isSubmitting ? 'Checking...' : 'Check payment status'}</button>}
-                {viewedOrder.paymentStatus === 'Failed' && viewedOrder.paymentReference && <p>The payment provider reports that this request failed. If no approval prompt appeared, contact CareNest support with this order number and your Mobile Money network. Do not approve an older prompt or pay again until support has checked the transaction.</p>}
+                {viewedOrder.paymentStatus === 'Failed' && viewedOrder.paymentReference && <p>This payment failed or expired. Select Retry payment to try again. CareNest checks the previous transaction before sending another prompt.</p>}
                 {viewedOrder.paymentReceiverNumber && <div><span>Paid to</span><strong>{viewedOrder.paymentReceiverNumber}</strong></div>}
                 {viewedOrder.paymentReference && <div><span>Payment ref</span><strong>{viewedOrder.paymentReference}</strong></div>}
                 {viewedOrder.paymentReceiptText && <div><span>Payment message</span><strong>{viewedOrder.paymentReceiptText}</strong></div>}

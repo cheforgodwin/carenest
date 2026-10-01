@@ -46,22 +46,29 @@ export default async function handler(req, res) {
     if (!Number.isSafeInteger(order.amount) || order.amount < 100) return res.status(409).json({ error: 'The order amount is invalid.' })
     if (['Cancelled', 'Complaint', 'Completed'].includes(order.status)) throw paymentError('This order cannot accept a payment.')
     if (['Paid', 'Refunded'].includes(order.paymentStatus)) return res.status(409).json({ error: 'This order has already been paid.' })
-    if (order.paymentReference && ['Pending', 'Submitted'].includes(order.paymentStatus)) {
-      return res.status(409).json({ error: 'A payment is already in progress for this order.' })
-    }
 
-    const requestedPhone = String(req.body?.phone || req.body?.customerPhone || order.customerPhone || '').trim()
+    const requestedPhone = String(req.body?.paymentPhone || req.body?.phone || req.body?.customerPhone || order.paymentPhone || order.customerPhone || '').trim()
     const phone = requestedPhone.replace(/\D/g, '').replace(/^237/, '')
     if (!/^6\d{8}$/.test(phone)) return res.status(400).json({ error: 'The order needs a valid Cameroon Mobile Money number.' })
 
     const savedNetwork = String(order.paymentNetwork || '').trim().toLowerCase()
     const requestedNetwork = String(req.body?.paymentNetwork || '').trim().toLowerCase()
-    const network = savedNetwork || requestedNetwork
+    const network = requestedNetwork || savedNetwork
     if (!['', 'mtn', 'orange'].includes(network)) return res.status(400).json({ error: 'Choose a valid Mobile Money network.' })
     const medium = network === 'mtn' ? 'mobile money' : network === 'orange' ? 'orange money' : undefined
 
     const { apiUrl, apiUser, apiKey } = getFapshiConfig()
     const direct = getFapshiPaymentFlow() === 'direct'
+
+    // Only a fresh, independently verified terminal failure authorizes replacement.
+    let retryReference = ''
+    if (order.paymentReference) {
+      const result = await reconcileOrderPayment(db, orderRef, firestoreId, user.uid)
+      if (result.paymentStatus !== 'Failed' || !['FAILED', 'EXPIRED'].includes(result.verifiedProviderStatus)) {
+        throw paymentError('The previous payment is successful, pending, or unknown. Check its status before paying again.')
+      }
+      retryReference = result.verifiedReference
+    }
 
     const now = Date.now()
     const rateRef = db.collection('paymentRateLimits').doc(user.uid)
@@ -97,13 +104,21 @@ export default async function handler(req, res) {
         error.statusCode = 403
         throw error
       }
-      if (['Paid', 'Refunded'].includes(latest.paymentStatus) || latest.paymentReference || ['Starting', 'Unknown'].includes(latest.paymentInitiationState)) {
+      const replacingFailedAttempt = retryReference
+        && latest.paymentReference === retryReference
+        && latest.paymentReceiptTransactionId === retryReference
+        && latest.paymentInitiationId === order.paymentInitiationId
+        && latest.paymentStatus === 'Failed'
+        && latest.paymentVerifiedAt
+        && ['FAILED', 'EXPIRED'].includes(latest.paymentProviderStatus)
+      if (['Paid', 'Refunded'].includes(latest.paymentStatus)
+        || (retryReference && !replacingFailedAttempt)
+        || (latest.paymentReference && !replacingFailedAttempt)
+        || ['Starting', 'Unknown'].includes(latest.paymentInitiationState)) {
         const error = new Error('A payment is already complete or in progress for this order.')
         error.statusCode = 409
         throw error
       }
-      const updatedCustomerPhone = requestedPhone || latest.customerPhone || ''
-      const updatedPaymentNetwork = String(latest.paymentNetwork || savedNetwork || requestedNetwork || '').trim().toLowerCase()
       if (latest.amount !== order.amount || ['Cancelled', 'Complaint', 'Completed'].includes(latest.status)) throw paymentError('The order changed. Reload it before paying.')
       const policy = (await transaction.get(db.collection('financialSettings').doc('current'))).data()
       const snapshot = latest.financialSnapshot || financialSnapshot(latest, policy)
@@ -111,8 +126,15 @@ export default async function handler(req, res) {
       const environment = apiUrl.includes('sandbox.fapshi.com') ? 'sandbox' : 'live'
       transaction.set(db.collection('financialEntries').doc(entryId('attempt', initiationId)), financialEntry({ ...latest, paymentEnvironment: environment }, firestoreId, 'payment_attempt', { amount: latest.amount, reference: initiationId, status: 'Starting' }))
       transaction.update(orderRef, {
-        customerPhone: updatedCustomerPhone,
-        paymentNetwork: updatedPaymentNetwork,
+        paymentPhone: phone,
+        ...(replacingFailedAttempt ? {
+          paymentRetiredReferences: [...(latest.paymentRetiredReferences || []), retryReference],
+          paymentReference: '', paymentReceiptTransactionId: '',
+          paymentStatus: 'Pending', paymentProviderStatus: '',
+          paymentVerifiedAt: null, paymentVerifiedBy: '', paymentConfirmedAt: null,
+          paymentFinancials: null, paymentLastCheckedAtMs: 0,
+        } : {}),
+        paymentNetwork: network,
         financialSnapshot: snapshot,
         paymentEnvironment: environment,
         paymentInitiationId: initiationId,
@@ -177,7 +199,7 @@ export default async function handler(req, res) {
     }
 
     const transactionId = String(result.transId || result.transactionId || result.reference || '').trim()
-    if (!/^[A-Za-z0-9_-]{1,128}$/.test(transactionId)) {
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(transactionId) || transactionId === retryReference || order.paymentRetiredReferences?.includes(transactionId)) {
       await updateAttempt({ paymentInitiationState: 'Unknown' })
       throw paymentError('The payment outcome is unknown. Check payment status before paying again.', 502)
     }

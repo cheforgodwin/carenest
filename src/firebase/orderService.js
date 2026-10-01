@@ -18,7 +18,6 @@ import { assertTextLength, inputLimits, sanitizeTrimmedText } from '../utils/sec
 
 const ordersRef = collection(db, 'serviceRequests')
 const usersRef = collection(db, 'users')
-const paymentSmsReceiptsRef = collection(db, 'paymentSmsReceipts')
 
 export const statusSteps = {
   Pending: 0,
@@ -94,16 +93,6 @@ function normalizeUser(docSnapshot) {
   }
 }
 
-function normalizePaymentSmsReceipt(docSnapshot) {
-  const data = docSnapshot.data()
-  return {
-    firestoreId: docSnapshot.id,
-    ...data,
-    createdAtDate: toDate(data.createdAt),
-    receivedAtDate: toDate(data.receivedAt),
-  }
-}
-
 export function createRequestId() {
   const randomPart = globalThis.crypto?.randomUUID?.().replace(/-/g, '').slice(0, 12)
     || Math.random().toString(36).slice(2, 14)
@@ -129,6 +118,7 @@ function sanitizeOrderInput(order) {
     ...order,
     customerName: sanitizeTrimmedText(order.customerName, inputLimits.name),
     customerPhone: sanitizeTrimmedText(order.customerPhone, inputLimits.phone),
+    paymentPhone: sanitizeTrimmedText(order.paymentPhone, inputLimits.phone),
     service: sanitizeTrimmedText(order.service, inputLimits.title),
     itemSummary: sanitizeTrimmedText(order.itemSummary, inputLimits.title),
     address: sanitizeTrimmedText(order.address, inputLimits.address),
@@ -286,14 +276,6 @@ export function subscribeToUsers(onNext, onError) {
   return onSnapshot(
     query(usersRef, orderBy('createdAt', 'desc')),
     (snapshot) => onNext(snapshot.docs.map(normalizeUser)),
-    onError,
-  )
-}
-
-export function subscribeToPaymentSmsReceipts(onNext, onError) {
-  return onSnapshot(
-    query(paymentSmsReceiptsRef, orderBy('createdAt', 'desc')),
-    (snapshot) => onNext(snapshot.docs.map(normalizePaymentSmsReceipt)),
     onError,
   )
 }

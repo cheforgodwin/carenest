@@ -1,6 +1,6 @@
 # Admin transactions and earnings
 
-Open `/dashboard/admin?view=finance` as an administrator. The Notifications menu (`?view=notifications`) lists unresolved transaction issues and opens the matching order for review. All admin tables become labelled cards on phone/tablet screens, including requests, users, applications, SMS receipts, financial allocations and history.
+Open `/dashboard/admin?view=finance` as an administrator. The Notifications menu (`?view=notifications`) lists unresolved transaction issues and opens the matching order for review. All admin tables become labelled cards on phone/tablet screens, including requests, users, applications, financial allocations and history.
 
 - The order table includes every saved order, with filters for environment, collection status, date and customer/provider/rider/reference. Summary cards include verified live collections only (or sandbox only when explicitly selected). Unknown historical environments never count as real money until an independent Fapshi status check confirms the environment.
 - Fapshi collection fees are `amount - revenue` from the authenticated payment-status response. Missing or invalid revenue remains unknown, never zero. The displayed percentage is the actual effective percentage for that transaction, not a promise about future pricing.

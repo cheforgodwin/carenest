@@ -5,7 +5,6 @@ import {
   adminAssignServiceRequest,
   adminClearServiceRequestProvider,
   subscribeToAllOrders,
-  subscribeToPaymentSmsReceipts,
   subscribeToUsers,
   requestOrderRefund,
   assignServiceRequestToRider,
@@ -62,9 +61,9 @@ function downloadCsv(filename, rows) {
 function AdminDashboardPage() {
   const [searchParams] = useSearchParams()
   const { user } = useAuth()
-  const activeView = searchParams.get('view') || 'overview'
+  const requestedView = searchParams.get('view') || 'overview'
+  const activeView = requestedView === 'payments' ? 'finance' : requestedView
   const [orders, setOrders] = useState([])
-  const [paymentReceipts, setPaymentReceipts] = useState([])
   const [users, setUsers] = useState([])
   const [applications, setApplications] = useState([])
   const [listings, setListings] = useState([])
@@ -101,15 +100,10 @@ function AdminDashboardPage() {
       setListings,
       (nextError) => setError(nextError.message),
     )
-    const unsubPaymentReceipts = subscribeToPaymentSmsReceipts(
-      setPaymentReceipts,
-      (nextError) => setError(nextError.message),
-    )
     return () => {
       unsubOrders()
       unsubUsers()
       unsubApplications()
-      unsubPaymentReceipts()
       unsubListings()
     }
   }, [])
@@ -126,7 +120,6 @@ function AdminDashboardPage() {
   const openOrders = orders.filter((order) => !['Completed', 'Cancelled'].includes(order.status))
   const complaints = orders.filter((order) => order.status === 'Complaint')
   const pendingApplications = applications.filter((application) => application.status === 'Pending')
-  const reviewPaymentReceipts = paymentReceipts.filter((receipt) => receipt.matchStatus === 'needs_review')
   const bookingsToday = orders.filter((order) => order.createdAtDate?.toDateString() === todayKey).length
 
   const metrics = [
@@ -139,7 +132,6 @@ function AdminDashboardPage() {
     ['Live customer collections', formatAmount(finances.collected)],
     ['Open requests', String(openOrders.length)],
     ['Applications', String(pendingApplications.length)],
-    ['Payment reviews', String(reviewPaymentReceipts.length)],
     ['CareNest earned (confirmed)', formatAmount(finances.platform)],
   ]
 
@@ -171,24 +163,6 @@ function AdminDashboardPage() {
     })
   }, [users, query])
 
-  const filteredPaymentReceipts = useMemo(() => {
-    const needle = query.trim().toLowerCase()
-    return paymentReceipts.filter((receipt) => {
-      const haystack = [
-        receipt.provider,
-        receipt.paymentMethod,
-        receipt.amount,
-        receipt.senderPhone,
-        receipt.transactionId,
-        receipt.matchStatus,
-        receipt.matchReason,
-        receipt.matchedOrderId,
-        receipt.message,
-      ].join(' ').toLowerCase()
-      return !needle || haystack.includes(needle)
-    })
-  }, [paymentReceipts, query])
-
   const filteredListings = useMemo(() => {
     const needle = query.trim().toLowerCase()
     return listings.filter((listing) => {
@@ -204,23 +178,6 @@ function AdminDashboardPage() {
     })
   }, [listings, listingCategory, listingVisibility, query])
   function exportData() {
-    if (activeView === 'payments') {
-      downloadCsv('carenest-payment-sms-receipts.csv', [
-        ['Provider', 'Amount', 'Sender', 'Transaction ID', 'Match status', 'Matched order', 'Reason', 'Received'],
-        ...filteredPaymentReceipts.map((receipt) => [
-          receipt.paymentMethod || receipt.provider,
-          receipt.amount,
-          receipt.senderPhone,
-          receipt.transactionId,
-          receipt.matchStatus,
-          receipt.matchedOrderId,
-          receipt.matchReason,
-          formatDate(receipt.receivedAtDate || receipt.createdAtDate),
-        ]),
-      ])
-      return
-    }
-
     if (activeView === 'users') {
       downloadCsv('carenest-users.csv', [
         ['Name', 'Email', 'Phone', 'Role', 'Joined'],
@@ -353,7 +310,6 @@ function AdminDashboardPage() {
     { label: `Notifications (${financeAlerts.alerts.length})`, to: '/dashboard/admin?view=notifications', icon: 'payments' },
     { label: 'Users', to: '/dashboard/admin?view=users', icon: 'users' },
     { label: 'Requests', to: '/dashboard/admin?view=requests', icon: 'bookings' },
-    { label: 'SMS receipts', to: '/dashboard/admin?view=payments', icon: 'payments' },
     { label: 'Transactions & earnings', to: '/dashboard/admin?view=finance', icon: 'payments' },
     { label: 'Applications', to: '/dashboard/admin?view=applications', icon: 'users' },
     { label: 'Marketplace', to: '/dashboard/admin?view=marketplace', icon: 'bookings' },
@@ -627,40 +583,6 @@ function AdminDashboardPage() {
               </tbody>
             </table>
           ) : <p className="dashboard-empty">No provider applications yet.</p>}
-        </section>
-      )}
-
-      {activeView === 'payments' && (
-        <section className="dashboard-panel">
-          <div className="dashboard-panel-header">
-            <div>
-              <h2>SMS payment receipts</h2>
-              <p>Review payment messages from the owner phone. Messages are supporting evidence; collections must be verified with Fapshi in Transactions & earnings.</p>
-            </div>
-            <div className="dashboard-tools">
-              <input className="dashboard-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search payment SMS" />
-              <button className="dashboard-action-button" type="button" onClick={exportData}><FiDownload />Export</button>
-            </div>
-          </div>
-          {filteredPaymentReceipts.length > 0 ? (
-            <table className="dashboard-table">
-              <thead><tr><th>Provider</th><th>Amount</th><th>Sender</th><th>Transaction</th><th>Status</th><th>Order</th><th>Reason</th><th>Received</th></tr></thead>
-              <tbody>
-                {filteredPaymentReceipts.map((receipt) => (
-                  <tr key={receipt.firestoreId}>
-                    <td data-label="Provider">{receipt.paymentMethod || receipt.provider}</td>
-                    <td data-label="Amount">{formatAmount(receipt.amount)}</td>
-                    <td data-label="Sender">{receipt.senderPhone || 'Not found'}</td>
-                    <td data-label="Transaction">{receipt.transactionId || 'Not found'}</td>
-                    <td data-label="Status"><span className={`status-chip ${normalizeStatus(receipt.matchStatus)}`}>{receipt.matchStatus}</span></td>
-                    <td data-label="Order">{receipt.matchedOrderId || 'Needs review'}</td>
-                    <td data-label="Reason">{receipt.matchReason || 'Verified automatically'}</td>
-                    <td data-label="Received">{formatDate(receipt.receivedAtDate || receipt.createdAtDate)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : <p className="dashboard-empty">No SMS payment receipts yet.</p>}
         </section>
       )}
 

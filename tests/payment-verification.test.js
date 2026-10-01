@@ -67,6 +67,34 @@ describe('atomic payment verification', () => {
     expect(order.paymentInitiationState).toBe('Unknown')
     expect(order.paymentReference).toBe('')
   })
+  it.each(['Starting', 'Unknown', 'Submitted'])('rejects a retired callback during a new %s attempt', async (state) => {
+    const { db, order, writes } = fixture({
+      paymentReference: state === 'Submitted' ? 'tx-new' : '',
+      paymentReceiptTransactionId: state === 'Submitted' ? 'tx-new' : '',
+      paymentInitiationState: state, paymentInitiatedBy: 'customer-a',
+      paymentRetiredReferences: ['tx-a'], paymentStatus: 'Pending',
+    })
+    await expect(applyVerifiedPayment(db, payment, 'fapshi-webhook')).rejects.toThrow('retired attempt')
+    expect(order.paymentStatus).toBe('Pending')
+    expect(writes).not.toHaveBeenCalled()
+  })
+  it('excludes retired attempts when recovering the new transaction', async () => {
+    const { db, ref, order } = fixture({ paymentReference: '', paymentReceiptTransactionId: '', paymentInitiationState: 'Unknown', paymentInitiatedBy: 'customer-a', paymentRetiredReferences: ['tx-a'] })
+    const nextPayment = { ...payment, transId: 'tx-new' }
+    const fetch = provider([[{ ...payment, status: 'FAILED' }, nextPayment], nextPayment])
+    await reconcileOrderPayment(db, ref, 'order-a', 'customer-a')
+    expect(fetch.mock.calls[1][0]).toContain('/payment-status/tx-new')
+    expect(order.paymentReference).toBe('tx-new')
+    expect(order.paymentStatus).toBe('Paid')
+  })
+  it('keeps a new unknown attempt locked when search only finds retired transactions', async () => {
+    const { db, ref, order } = fixture({ paymentReference: '', paymentReceiptTransactionId: '', paymentInitiationState: 'Unknown', paymentInitiatedBy: 'customer-a', paymentRetiredReferences: ['tx-a'] })
+    const fetch = provider([[{ ...payment, status: 'FAILED' }]])
+    await expect(reconcileOrderPayment(db, ref, 'order-a', 'customer-a')).rejects.toThrow('unknown')
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(order.paymentInitiationState).toBe('Unknown')
+    expect(order.paymentReference).toBe('')
+  })
   it('rejects polling by another customer without contacting Fapshi', async () => {
     const { db, ref } = fixture()
     const fetch = provider([])

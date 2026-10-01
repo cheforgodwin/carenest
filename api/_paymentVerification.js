@@ -44,6 +44,7 @@ export async function applyVerifiedPayment(db, payment, source, expectedOrderId 
     const snapshot = await transaction.get(orderRef)
     if (!snapshot.exists) throw paymentError('Matching CareNest order not found.', 404)
     const order = snapshot.data()
+    if (order.paymentRetiredReferences?.includes(reference)) throw paymentError('Payment belongs to a retired attempt.', 400)
     const bound = order.paymentReference === reference && order.paymentReceiptTransactionId === reference
     const recoverable = !order.paymentReference && !order.paymentReceiptTransactionId
       && ['Starting', 'Unknown'].includes(order.paymentInitiationState)
@@ -105,12 +106,14 @@ export async function reconcileOrderPayment(db, orderRef, firestoreId, userUid) 
     if (order.paymentInitiationStartedAtMs) query.set('start', new Date(order.paymentInitiationStartedAtMs).toISOString().slice(0, 10))
     const results = await providerGet('/search?' + query)
     if (!Array.isArray(results)) throw paymentError('Unable to reconcile the payment. Contact CareNest support.', 503)
-    const matches = results.filter((item) => item.externalId === firestoreId && item.userId === userUid && Number(item.amount) === order.amount)
+    const matches = results.filter((item) => item.externalId === firestoreId && item.userId === userUid && Number(item.amount) === order.amount
+      && !order.paymentRetiredReferences?.includes(item.transId || item.transactionId))
     if (matches.length === 1) reference = matches[0].transId
     // Search is limited: an absent or ambiguous match never authorizes another charge.
     if (!reference) throw paymentError('The previous payment outcome is still unknown. Contact CareNest support before paying again.')
   }
   if (!reference) return { paymentStatus: order.paymentStatus || 'Pending', message: 'No payment request is awaiting verification.' }
   const payment = await fetchVerifiedPayment(reference)
-  return applyVerifiedPayment(db, payment, 'fapshi-poll', firestoreId)
+  const result = await applyVerifiedPayment(db, payment, 'fapshi-poll', firestoreId)
+  return { ...result, verifiedReference: reference, verifiedProviderStatus: String(payment.status || '').toUpperCase() }
 }

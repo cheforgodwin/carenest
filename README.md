@@ -50,28 +50,6 @@ Keep the `FAPSHI_*_SECRET_KEY` values in your Vercel project settings, not in `V
 
 Set your Fapshi service webhook URL to `https://carenest237.com/api/fapshi-webhook`. Store `FIREBASE_SERVICE_ACCOUNT_JSON` only in server-side environment settings. Each webhook independently queries Fapshi with server credentials and matches transaction ID, order ID, customer ID, amount and environment before updating payment status. A callback body or secret header alone is never proof of payment.
 
-## SMS Payment Verifier
-
-CareNest includes a no-billing private Android owner app skeleton. It reads MTN/Orange payment SMS messages from your phone, signs in with the CareNest admin account, and uses Firestore directly under admin security rules.
-
-The verifier stores each SMS in `paymentSmsReceipts` and marks an order `Paid` only when it finds one clear matching submitted order. If the SMS is ambiguous, it stores the receipt as `needs_review` for admin follow-up.
-
-### Private Android Verifier
-
-The `android-verifier/` folder contains a private Android app skeleton for the owner phone. It requests SMS permission, watches incoming payment SMS messages, parses amount/reference/sender details, and writes to Firestore through the signed-in admin account.
-
-Before building the APK in Android Studio:
-
-1. Install Android Studio and a JDK.
-2. Open the `android-verifier/` folder.
-3. Copy `android-verifier/local.properties.example` to `android-verifier/local.properties`.
-4. Set `firebase.projectId` and `firebase.apiKey` from your web app Firebase config.
-5. Build and install the APK only on the owner phone.
-6. Open the app and sign in with the CareNest admin account.
-
-Do not publish this app publicly unless you redesign it around Play Store SMS permission rules. It is intended as a private owner-phone tool.
-
-
 ### Payment prompt diagnostics
 
 `node --env-file=<server-env-file> scripts/production-payment-smoke.mjs` is read-only by default: it checks configuration and balance authentication without creating an order or requesting money. Never treat a successful balance check as proof that Direct Pay is enabled or that a phone prompt arrived.
@@ -84,6 +62,8 @@ The optional live diagnostic requires `CARENEST_ALLOW_LIVE_PAYMENT_TEST=1`, `CAR
 
 For credential-safe build diagnostics, set `CARENEST_PAYMENT_DIAGNOSTICS=1` for a single deployment build. Only safe configuration metadata, masked phone suffixes and recent order/payment statuses are logged. Sensitive Vercel variables export as `[SENSITIVE]`; an exported placeholder is not evidence of a broken runtime setting.
 
-New checkouts require the customer to select MTN MoMo or Orange Money. The saved `paymentNetwork` controls Fapshi's explicit `medium` (`mobile money` / `orange money`); existing orders without a network retain Fapshi automatic detection. The server always takes the phone and network from the owned saved order, never from payment request overrides or provider payout settings.
+New checkouts require the customer to select MTN MoMo or Orange Money. The current validated `paymentNetwork` takes priority over the saved network and controls Fapshi's explicit `medium` (`mobile money` / `orange money`). Existing orders without a network retain Fapshi automatic detection. `customerPhone` remains the customer's contact number; `paymentPhone` stores the normalized payer number for the current attempt. The server validates payment overrides and falls back to the saved payer number, then the contact number for older orders.
+
+Before retrying an order with a transaction reference, the server independently reconciles that transaction with Fapshi. Only a confirmed FAILED or EXPIRED result permits an atomic replacement with a new attempt. Pending, successful, and unknown outcomes block retries. Retired references remain recorded so late callbacks or recovery searches cannot bind an old transaction to the new attempt. Only verified status polling or webhooks can mark an order Paid.
 
 For an authorized 100 XAF live diagnostic, `CARENEST_PAYMENT_TEST_NETWORK=mtn` or `orange` selects the intended network. Sandbox success verifies integration behavior, not live operator delivery. A live Orange test still requires an authorized Orange phone and confirmation from its owner.

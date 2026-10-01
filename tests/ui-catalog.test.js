@@ -9,7 +9,7 @@ describe('UI translation catalog', () => {
       'Provider Dashboard',
       'Rider Dashboard',
       'Operations Dashboard',
-      'Payment reviews',
+      'Transactions & earnings',
       'Provider applications',
       'Save availability',
     ]))

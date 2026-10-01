@@ -59,6 +59,16 @@ test('a customer without a profile document can still create a booking when auth
   }))
 })
 
+test('a customer can save a separate payer phone with a bounded length', async () => {
+  await seed()
+  const db = env.authenticatedContext('customer-a', verified).firestore()
+  await assertSucceeds(setDoc(doc(db, 'serviceRequests/separate-payer'), { ...baseOrder, paymentPhone: '+237699000661' }))
+  const saved = (await getDoc(doc(db, 'serviceRequests/separate-payer'))).data()
+  assert.equal(saved.customerPhone, '+237670000001')
+  assert.equal(saved.paymentPhone, '+237699000661')
+  await assertFails(setDoc(doc(db, 'serviceRequests/invalid-payer'), { ...baseOrder, paymentPhone: '6'.repeat(21) }))
+})
+
 test('a customer can read only their own order', async () => {
   await seed()
   await assertSucceeds(getDoc(doc(env.authenticatedContext('customer-a').firestore(), 'serviceRequests/order-a')))
@@ -280,11 +290,9 @@ test('customers cannot read another application or private payment records', asy
   await seed()
   await env.withSecurityRulesDisabled(async (context) => {
     await setDoc(doc(context.firestore(), 'providerApplications/customer-a'), { userUid: 'customer-a' })
-    await setDoc(doc(context.firestore(), 'paymentSmsReceipts/receipt-a'), { customerUid: 'customer-a' })
   })
   const db = env.authenticatedContext('customer-b').firestore()
   await assertFails(getDoc(doc(db, 'providerApplications/customer-a')))
-  await assertFails(getDoc(doc(db, 'paymentSmsReceipts/receipt-a')))
   await assertFails(getDoc(doc(db, 'paymentRateLimits/customer-a')))
 })
 
@@ -353,7 +361,7 @@ test('unpaid orders cannot advance through provider, rider, admin or customer ac
   await assertFails(updateDoc(provider, { status: 'In Progress', currentStep: 2, providerAcceptedBy: 'provider-a', providerAcceptedAt: serverTimestamp() }))
   const admin = doc(env.authenticatedContext('admin-a').firestore(), 'serviceRequests/order-a')
   await assertFails(updateDoc(admin, { status: 'In Progress', currentStep: 2 }))
-  for (const patch of [{ paymentInitiationState: 'Failed' }, { paymentReference: 'forged' }, { paymentVerifiedBy: 'fapshi-webhook' }, { paidAt: serverTimestamp() }]) {
+  for (const patch of [{ paymentInitiationState: 'Failed' }, { paymentReference: 'forged' }, { paymentRetiredReferences: ['tx-forged'] }, { paymentVerifiedBy: 'fapshi-webhook' }, { paidAt: serverTimestamp() }]) {
     await assertFails(updateDoc(admin, patch))
   }
   await env.withSecurityRulesDisabled(async (context) => updateDoc(doc(context.firestore(), 'serviceRequests/order-a'), { status: 'Awaiting confirmation', currentStep: 4 }))
@@ -401,7 +409,7 @@ test('refund requests hold settlement without rewriting collection status', asyn
 test('customers cannot seed forged payment recovery or acceptance metadata', async () => {
   await seed()
   const db = env.authenticatedContext('customer-a', { email: 'a@example.com' }).firestore()
-  for (const patch of [{ paymentInitiationState: 'Unknown', paymentInitiatedBy: 'customer-a' }, { paymentVerifiedAt: serverTimestamp() }, { providerAcceptedBy: 'provider-a' }, { paymentReference: 'tx-forged' }]) {
+  for (const patch of [{ paymentInitiationState: 'Unknown', paymentInitiatedBy: 'customer-a' }, { paymentVerifiedAt: serverTimestamp() }, { providerAcceptedBy: 'provider-a' }, { paymentReference: 'tx-forged' }, { paymentRetiredReferences: ['tx-forged'] }]) {
     await assertFails(setDoc(doc(db, 'serviceRequests/forged'), { ...baseOrder, ...patch }))
   }
 })
