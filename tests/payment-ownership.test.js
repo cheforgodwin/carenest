@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ requireUser: vi.fn(), getDb: vi.fn() }))
 vi.mock('../api/_firebaseAdmin.js', () => ({ requireAuthenticatedUser: mocks.requireUser, getAdminDb: mocks.getDb }))
 import handler from '../api/fapshi.js'
+import webhook from '../api/fapshi-webhook.js'
 
 describe('payment ownership', () => {
   beforeEach(() => vi.clearAllMocks())
@@ -28,7 +29,7 @@ describe('payment ownership', () => {
     vi.stubEnv('FAPSHI_SANDBOX_API_USER', 'test-user')
     vi.stubEnv('FAPSHI_SANDBOX_SECRET_KEY', 'test-key')
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    return { order, orderRef, runTransaction }
+    return { order, orderRef, runTransaction, records }
   }
 
   it('accepts a valid alternate payment phone while keeping the saved order network', async () => {
@@ -232,6 +233,38 @@ describe('payment ownership', () => {
     await Promise.all(responses.map((res) => handler({ method: 'POST', headers: {}, body: { firestoreId: 'order-a' } }, res)))
     expect(responses.filter((res) => res.statusCode === 202)).toHaveLength(1)
     expect(fetch.mock.calls.filter(([url]) => url.endsWith('/direct-pay'))).toHaveLength(1)
+  })
+
+  it('completes MTN failure, Orange retry, and independently verified webhook success', async () => {
+    const { order, records } = validOrder()
+    let attempts = 0
+    const fetch = vi.fn(async (url) => {
+      const body = url.endsWith('/direct-pay')
+        ? { transId: ++attempts === 1 ? 'tx-first' : 'tx-second', status: 'SUCCESSFUL' }
+        : verifiedResponse(url.endsWith('/tx-first') ? 'FAILED' : 'SUCCESSFUL', { transId: url.endsWith('/tx-first') ? 'tx-first' : 'tx-second' })
+      return { ok: true, status: 200, text: async () => JSON.stringify(body) }
+    })
+    vi.stubGlobal('fetch', fetch)
+    const response = () => ({ setHeader: vi.fn(), end: vi.fn() })
+    const first = response()
+    await handler({ method: 'POST', headers: {}, body: { firestoreId: 'order-a', paymentPhone: '650000001', paymentNetwork: 'mtn' } }, first)
+    expect(first.statusCode).toBe(202)
+    expect(order.paymentStatus).toBe('Submitted')
+    const second = response()
+    await handler({ method: 'POST', headers: {}, body: { firestoreId: 'order-a', paymentPhone: '690000001', paymentNetwork: 'orange' } }, second)
+    expect(second.statusCode).toBe(202)
+    expect(order.paymentStatus).toBe('Submitted')
+    expect(order.paymentReference).toBe('tx-second')
+    const callback = response()
+    await webhook({ method: 'POST', headers: { 'x-forwarded-for': 'flow-test' }, body: { transId: 'tx-second' } }, callback)
+    expect(callback.statusCode).toBe(200)
+    expect(order).toMatchObject({ paymentStatus: 'Paid', paymentVerifiedBy: 'fapshi-webhook', customerPhone: '+237670000001', paymentPhone: '690000001', paymentNetwork: 'orange' })
+    expect(fetch.mock.calls.at(-1)[0]).toContain('/payment-status/tx-second')
+    const attemptRecords = [...records.values()].filter((entry) => entry.kind === 'payment_attempt' && entry.status === 'Submitted')
+    expect(attemptRecords).toEqual(expect.arrayContaining([
+      expect.objectContaining({ transactionId: 'tx-first', paymentPhone: '650000001', paymentNetwork: 'mtn' }),
+      expect.objectContaining({ transactionId: 'tx-second', paymentPhone: '690000001', paymentNetwork: 'orange' }),
+    ]))
   })
 
   it('uses the saved payer phone without changing the contact number', async () => {

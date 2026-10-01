@@ -20,7 +20,7 @@ export async function runPaymentDiagnostics() {
   let checked = 0
   for (const snapshot of recent.docs) {
     const order = snapshot.data()
-    const phone = String(order.customerPhone || '').replace(/\D/g, '').replace(/^237/, '')
+    const phone = String(order.paymentPhone || order.customerPhone || '').replace(/\D/g, '').replace(/^237/, '')
     console.log('PAYMENT_ORDER', JSON.stringify({ orderId: snapshot.id, orderLabel: order.id, createdAt: order.createdAt?.toDate?.().toISOString(), amount: order.amount, phoneSuffix: phone.slice(-3), phoneValid: /^6\d{8}$/.test(phone), status: order.paymentStatus, initiation: order.paymentInitiationState, environment: order.paymentEnvironment, hasReference: Boolean(order.paymentReference), providerStatus: order.paymentProviderStatus, verifiedBy: order.paymentVerifiedBy, network: order.paymentNetwork, diagnostic: Boolean(order.paymentDiagnostic) }))
     if (!order.paymentReference || checked >= 3 || !/^[A-Za-z0-9_-]{1,128}$/.test(order.paymentReference)) continue
     checked++

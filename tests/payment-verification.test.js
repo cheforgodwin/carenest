@@ -107,6 +107,10 @@ describe('atomic payment verification', () => {
     await expect(reconcileOrderPayment(db, ref, 'order-a', 'customer-a')).rejects.toThrow('15 seconds')
     expect(fetch).not.toHaveBeenCalled()
   })
+  it.each([undefined, '', 'Payout'])('rejects missing or non-Collection transaction type %j', async (transType) => {
+    provider([{ ...payment, transType }])
+    await expect(fetchVerifiedPayment('tx-a')).rejects.toThrow('not a collection')
+  })
   it('rejects a payout or substituted transaction in a status response', async () => {
     provider([{ ...payment, transType: 'Payout' }, { ...payment, transId: 'other' }])
     await expect(fetchVerifiedPayment('tx-a')).rejects.toThrow('not a collection')

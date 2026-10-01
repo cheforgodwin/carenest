@@ -6,7 +6,8 @@ describe('frontend security boundaries', () => {
     const source = await readFile(new URL('../src/pages/customer/CustomerAppPage.jsx', import.meta.url), 'utf8')
     expect(source).not.toContain("providerStatus === 'SUCCESSFUL'")
     expect(source).not.toContain('Payment successful')
-    expect(source).toContain('only after the payment provider is verified by our server')
+    const feedback = await readFile(new URL('../src/components/PaymentFeedback.jsx', import.meta.url), 'utf8')
+    expect(feedback).toContain('only after the payment provider is verified by our server')
   })
 
   it('contains no raw HTML injection sink', async () => {

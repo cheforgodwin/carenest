@@ -26,7 +26,7 @@ export async function fetchVerifiedPayment(transactionId) {
   const expectedWebhook = String(process.env.FAPSHI_WEBHOOK_URL || '').trim().replace(/\/$/, '')
   const verifiedWebhook = String(payment.webhook || '').trim().replace(/\/$/, '')
   if (expectedWebhook && verifiedWebhook && expectedWebhook !== verifiedWebhook) throw paymentError('Payment belongs to a different webhook.', 400)
-  if (payment.transType && payment.transType !== 'Collection') throw paymentError('Payment is not a collection.', 400)
+  if (payment.transType !== 'Collection') throw paymentError('Payment is not a collection.', 400)
   return { ...payment, verifiedEnvironment: getFapshiConfig().apiUrl.includes('sandbox') ? 'sandbox' : 'live' }
 }
 

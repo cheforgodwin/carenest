@@ -34,6 +34,7 @@ import {
 } from '../../config/businessConfig'
 import { formatMarketplaceAmount, getMarketplaceCategory } from '../../config/marketplaceConfig'
 import Logo from '../../components/Logo'
+import PaymentFeedback from '../../components/PaymentFeedback'
 import { confirmCustomerCompletion, createMarketplaceServiceRequest, createRequestId, createServiceRequest, submitCustomerComplaint, subscribeToCustomerOrders } from '../../firebase/orderService'
 import { postJson } from '../../utils/networkUtils'
 import { inputLimits, sanitizeText } from '../../utils/securityUtils'
@@ -220,6 +221,7 @@ function CustomerAppPage() {
   const [requestMessage, setRequestMessage] = useState('')
   const [requestError, setRequestError] = useState('')
   const [paymentSuccess, setPaymentSuccess] = useState(null)
+  const [retryPayments, setRetryPayments] = useState({})
   const [complaintText, setComplaintText] = useState('')
   const [complaintStatus, setComplaintStatus] = useState({ loading: false, error: '', message: '' })
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -283,6 +285,16 @@ function CustomerAppPage() {
   const viewedOrderId = pathname.split('/').pop()
   const viewedOrder = orders.find((order) => order.id === viewedOrderId)
     || (recentOrder?.id === viewedOrderId ? recentOrder : null)
+  const paymentOrder = paymentSuccess
+    ? orders.find((order) => order.id === paymentSuccess.id) || (recentOrder?.id === paymentSuccess.id ? recentOrder : null)
+    : viewedOrder
+  const retryPayment = retryPayments[viewedOrder?.firestoreId] || {
+    phone: viewedOrder?.paymentPhone || viewedOrder?.customerPhone || '',
+    network: viewedOrder?.paymentNetwork || '',
+  }
+  const canRetryPayment = viewedOrder && ['Pending', 'Failed'].includes(viewedOrder.paymentStatus || 'Pending')
+    && !['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState)
+    && !['Cancelled', 'Complaint', 'Completed'].includes(viewedOrder.status)
   const selectedListing = marketplaceListings.find((listing) => listing.firestoreId === marketplaceMatch?.[1]) || null
   const marketplaceCategory = selectedListing ? getMarketplaceCategory(selectedListing.category) : null
   const marketplaceAmount = selectedListing ? Number(selectedListing.price) * Number(marketplaceForm.quantity || 0) : 0
@@ -523,9 +535,9 @@ function CustomerAppPage() {
       setIsSubmitting(false)
     }
   }
-  const pendingPaymentId = viewedOrder?.firestoreId
-  const pendingPaymentReference = viewedOrder?.paymentReference
-  const pendingPaymentStatus = viewedOrder?.paymentStatus
+  const pendingPaymentId = paymentOrder?.firestoreId
+  const pendingPaymentReference = paymentOrder?.paymentReference
+  const pendingPaymentStatus = paymentOrder?.paymentStatus
   useEffect(() => {
     if (!pendingPaymentId || !pendingPaymentReference || !['Pending', 'Submitted'].includes(pendingPaymentStatus)) return undefined
     let stopped = false
@@ -563,13 +575,17 @@ function CustomerAppPage() {
   }
 
   async function retryOrderPayment() {
-    if (!viewedOrder?.firestoreId || ['Paid', 'Refunded'].includes(viewedOrder.paymentStatus) || ['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState)) return
+    if (!viewedOrder?.firestoreId || !canRetryPayment) return
+    if (!/^6\d{8}$/.test(String(retryPayment.phone).replace(/\D/g, '').replace(/^237/, '')) || !['mtn', 'orange'].includes(retryPayment.network)) {
+      setRequestError('Enter a valid Mobile Money number and choose MTN MoMo or Orange Money.')
+      return
+    }
     if (isSubmitting) return
     setIsSubmitting(true)
     setRequestError('')
     try {
-      await postJson('/api/payments', { firestoreId: viewedOrder.firestoreId })
-      setPaymentSuccess({ id: viewedOrder.id, amount: viewedOrder.amount, phone: viewedOrder.paymentPhone || viewedOrder.customerPhone })
+      await postJson('/api/payments', { firestoreId: viewedOrder.firestoreId, paymentPhone: retryPayment.phone, paymentNetwork: retryPayment.network })
+      setPaymentSuccess({ id: viewedOrder.id, amount: viewedOrder.amount, phone: retryPayment.phone })
     } catch (error) {
       setRequestError('Payment could not start: ' + error.message)
     } finally {
@@ -955,7 +971,11 @@ function CustomerAppPage() {
                 {!['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState) && ['Pending', 'Failed'].includes(viewedOrder.paymentStatus || 'Pending') && <p>Your order is saved. Select Retry payment to receive a Mobile Money prompt for this order, then approve it on your phone.</p>}
                 {viewedOrder.paymentReference && !['Paid', 'Failed', 'Refunded'].includes(viewedOrder.paymentStatus) && <p>A payment request already exists. Check your phone for the Mobile Money prompt. If it failed or you received no prompt, contact CareNest with this order number before paying again.</p>}
                 {requestError && <p className="request-error" role="alert">{requestError}</p>}
-                {['Pending', 'Failed'].includes(viewedOrder.paymentStatus || 'Pending') && !['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState) && !['Cancelled', 'Complaint', 'Completed'].includes(viewedOrder.status) && <button className="payment-retry-button" type="button" disabled={isSubmitting} onClick={retryOrderPayment}>{isSubmitting ? 'Starting payment…' : 'Retry payment'}</button>}
+                {canRetryPayment && <div className="request-form-grid">
+                  <label>Payment network<span className="request-input"><select value={retryPayment.network} disabled={isSubmitting} onChange={(event) => setRetryPayments((current) => ({ ...current, [viewedOrder.firestoreId]: { ...retryPayment, network: event.target.value } }))}><option value="">Choose your network</option><option value="mtn">MTN MoMo</option><option value="orange">Orange Money</option></select></span></label>
+                  <label>Payment phone<span className="request-input"><FiPhone /><input type="tel" maxLength="20" value={retryPayment.phone} disabled={isSubmitting} onChange={(event) => setRetryPayments((current) => ({ ...current, [viewedOrder.firestoreId]: { ...retryPayment, phone: event.target.value } }))} /></span></label>
+                  <button className="payment-retry-button" type="button" disabled={isSubmitting} onClick={retryOrderPayment}>{isSubmitting ? 'Starting payment...' : 'Retry payment'}</button>
+                </div>}
                 {['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState) && <p>Your previous payment is awaiting verification. Check its status or contact support before paying again.</p>}
                 {viewedOrder.paymentStatus !== 'Paid' && (viewedOrder.paymentReference || ['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState)) && <button className="payment-retry-button" type="button" disabled={isSubmitting} onClick={checkOrderPayment}>{isSubmitting ? 'Checking...' : 'Check payment status'}</button>}
                 {viewedOrder.paymentStatus === 'Failed' && viewedOrder.paymentReference && <p>This payment failed or expired. Select Retry payment to try again. CareNest checks the previous transaction before sending another prompt.</p>}
@@ -1003,9 +1023,7 @@ function CustomerAppPage() {
             <section className="payment-success-modal" role="dialog" aria-modal="true" aria-labelledby="payment-success-title">
               <button className="payment-success-close" type="button" onClick={() => setPaymentSuccess(null)} aria-label="Close payment confirmation"><FiX /></button>
               <span className="payment-success-icon"><FiCheck /></span>
-              <h2 id="payment-success-title">Payment request sent</h2>
-              <p>Approve the Mobile Money prompt on your phone. CareNest will show Paid only after the payment provider is verified by our server.</p>
-              <p>Approval phone: <strong>{paymentSuccess.phone}</strong>. The prompt appears on that phone, which may be different from the device you are using now.</p>
+              <PaymentFeedback order={paymentOrder} phone={paymentSuccess.phone} titleId="payment-success-title" />
               <small>Request {paymentSuccess.id}</small>
               <button type="button" onClick={() => { setPaymentSuccess(null); navigate(`/dashboard/customer/orders/${paymentSuccess.id}`) }}>View order</button>
             </section>

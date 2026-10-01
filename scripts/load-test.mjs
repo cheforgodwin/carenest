@@ -30,7 +30,7 @@ async function simulate(index) {
     method: 'PATCH', headers, body: JSON.stringify({ fields: fields({ uid: signup.localId, email, name: `Load User ${index}`, phone: `+237670${String(index).padStart(6, '0')}`, accountType: 'customer' }) }),
   })
   await request(`${dbBase}/serviceRequests/load-${runId}-${index}`, {
-    method: 'PATCH', headers, body: JSON.stringify({ fields: fields({ id: `LOAD-${index}`, customerUid: signup.localId, customerEmail: email, serviceType: 'laundry', serviceSpeed: 'Normal', itemSummary: 'Mixed clothes', amount: 3000, status: 'Pending', currentStep: 0, paymentMethod: 'Cash', paymentStatus: 'Pending' }) }),
+    method: 'PATCH', headers, body: JSON.stringify({ fields: fields({ id: `LOAD-${index}`, customerUid: signup.localId, customerEmail: email, serviceType: 'laundry', serviceSpeed: 'Normal', itemSummary: 'Mixed clothes', amount: 3000, status: 'Pending', currentStep: 0, paymentMethod: 'Mobile Money', paymentStatus: 'Pending' }) }),
   })
   await request(`${authBase}/accounts:signInWithPassword?key=fake`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password, returnSecureToken: true }),

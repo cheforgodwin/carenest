@@ -9,7 +9,7 @@ npm install
 npm run dev
 npm run build
 npm run test:release
-npm run test:load -- 100 20
+npm run test:load
 ```
 
 The load test uses isolated Firebase Auth and Firestore emulators to perform concurrent signup, profile creation, booking creation, and login. The numbers are total users and concurrency. Never point synthetic load at production.

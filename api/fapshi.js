@@ -124,7 +124,7 @@ export default async function handler(req, res) {
       const snapshot = latest.financialSnapshot || financialSnapshot(latest, policy)
       if (snapshot.amount !== latest.amount) throw paymentError('The order amount no longer matches its saved allocation. Contact support before paying.')
       const environment = apiUrl.includes('sandbox.fapshi.com') ? 'sandbox' : 'live'
-      transaction.set(db.collection('financialEntries').doc(entryId('attempt', initiationId)), financialEntry({ ...latest, paymentEnvironment: environment }, firestoreId, 'payment_attempt', { amount: latest.amount, reference: initiationId, status: 'Starting' }))
+      transaction.set(db.collection('financialEntries').doc(entryId('attempt', initiationId)), financialEntry({ ...latest, paymentEnvironment: environment }, firestoreId, 'payment_attempt', { amount: latest.amount, reference: initiationId, status: 'Starting', paymentPhone: phone, paymentNetwork: network }))
       transaction.update(orderRef, {
         paymentPhone: phone,
         ...(replacingFailedAttempt ? {
@@ -147,7 +147,7 @@ export default async function handler(req, res) {
     const updateAttempt = (payload) => db.runTransaction(async (transaction) => {
       const current = (await transaction.get(orderRef)).data()
       if (current?.paymentInitiationId !== initiationId || current.paymentReference || ['Paid', 'Refunded'].includes(current.paymentStatus)) return
-      transaction.set(db.collection('financialEntries').doc(entryId('attempt', initiationId, payload.paymentInitiationState)), financialEntry(current, firestoreId, 'payment_attempt', { amount: current.amount, reference: initiationId, status: payload.paymentInitiationState }))
+      transaction.set(db.collection('financialEntries').doc(entryId('attempt', initiationId, payload.paymentInitiationState)), financialEntry(current, firestoreId, 'payment_attempt', { amount: current.amount, reference: initiationId, status: payload.paymentInitiationState, transactionId: payload.paymentReference || '', paymentPhone: phone, paymentNetwork: network }))
       transaction.update(orderRef, { ...payload, updatedAt: FieldValue.serverTimestamp() })
     })
     let response
@@ -215,7 +215,7 @@ export default async function handler(req, res) {
       updatedAt: FieldValue.serverTimestamp(),
     })
 
-    console.info('payment_request_accepted', { orderId: firestoreId, attemptId: initiationId, flow: 'direct', network: network || 'auto', phoneSuffix: phone.slice(-3), environment: apiUrl.includes('sandbox') ? 'sandbox' : 'live' })
+    console.info('payment_request_accepted', { orderId: firestoreId, attemptId: initiationId, transactionId, flow: 'direct', network: network || 'auto', phoneSuffix: phone.slice(-3), environment: apiUrl.includes('sandbox') ? 'sandbox' : 'live' })
     res.setHeader('Cache-Control', 'no-store')
     return res.status(202).json({ accepted: true, message: 'Payment request sent. Await server verification.' })
   } catch (error) {

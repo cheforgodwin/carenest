@@ -20,8 +20,12 @@ Run these checks before promoting a build to production.
 - A customer can create laundry, cleaning, and delivery requests.
 - A customer cannot create a request with a changed amount from browser dev tools.
 - A customer can only see their own requests.
-- A request records `paymentMethod: "Cash"`, `"Mobile Money"`, or `"Orange Money"`.
+- A request records `paymentMethod: "Mobile Money"` and the selected MTN/Orange network.
 - A request starts with `paymentStatus: "Pending"`.
+- Contact and payer phones remain separate; the prompt targets the payer number and selected MTN/Orange network.
+- An accepted request shows verification pending; only verified payment shows success.
+- A failed attempt can retry with a different payer phone/network after server reconciliation.
+- Pending, successful, and unknown transactions block duplicate requests.
 
 ## Provider Application Flow
 
@@ -36,18 +40,18 @@ Run these checks before promoting a build to production.
 
 - A provider sees pending open jobs.
 - A provider sees only their assigned jobs after accepting work.
-- A provider can accept a pending job.
+- A provider can accept a pending job only after independently verified payment.
 - A provider can move their own job through allowed statuses.
 - A provider cannot edit the request amount or payment status.
 - Completing a job requires a completion note.
-- A provider sees the 80% provider earning and current payout state.
+- A provider sees earnings from the confirmed allocation policy and the current payout state.
 
 ## Complaint and Payout Flow
 
 - A customer can submit a complaint with a meaningful description.
 - A complaint changes the request to `Complaint` and holds the provider payout.
-- Only a completed request with customer payment marked `Paid` can be paid to a provider.
-- An admin can mark an eligible payout `Paid`, `Partial`, or `Held`.
+- Payout eligibility requires verified live payment, customer-confirmed completion, and the confirmed allocation policy.
+- Admins record actual eligible transfers through the finance API; direct payout-field edits are denied.
 - The payout export contains the provider phone, provider earning, and CareNest fee.
 - The provider payout method and phone persist after saving availability.
 
@@ -55,7 +59,7 @@ Run these checks before promoting a build to production.
 
 - An admin can list users, requests, and provider applications.
 - An admin can update request status.
-- An admin can update payment status to `Paid`, `Failed`, or `Refunded`.
+- An admin cannot manually mark payments Paid; webhook/status reconciliation independently verifies Fapshi.
 - An admin can export users and service requests.
 
 ## Negative Permission Checks
