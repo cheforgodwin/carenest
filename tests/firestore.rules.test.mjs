@@ -436,3 +436,20 @@ test('financial balances and pricing snapshots cannot be forged or paid orders d
   await env.withSecurityRulesDisabled(async (context) => updateDoc(doc(context.firestore(), 'serviceRequests/order-a'), verifiedPayment))
   await assertFails(deleteDoc(admin))
 })
+
+
+test('FCM device tokens and push event guards are server-managed and private', async () => {
+  await seed()
+  const customer = env.authenticatedContext('customer-a', verified).firestore()
+  const provider = env.authenticatedContext('provider-a', verified).firestore()
+  await env.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), 'pushSubscriptions/device-a'), { uid: 'customer-a', token: 'private-token' })
+    await setDoc(doc(context.firestore(), 'users/customer-a/fcmTokens/device-a'), { token: 'private-token' })
+  })
+  for (const db of [customer, provider]) {
+    await assertFails(getDoc(doc(db, 'pushSubscriptions/device-a')))
+    await assertFails(setDoc(doc(db, 'pushSubscriptions/forged-device'), { uid: 'provider-a', token: 'forged' }))
+    await assertFails(getDoc(doc(db, 'users/customer-a/fcmTokens/device-a')))
+    await assertFails(setDoc(doc(db, 'pushEvents/forged-event'), { status: 'Sent' }))
+  }
+})

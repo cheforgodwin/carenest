@@ -1,3 +1,4 @@
+import { postJson } from '../utils/networkUtils'
 import { eligibleForPayout } from '../utils/finance.js'
 import {
   addDoc,
@@ -16,6 +17,12 @@ import {
 import { servicePrices } from '../config/businessConfig'
 import { auth, db } from './firebaseConfig'
 import { assertTextLength, inputLimits, sanitizeTrimmedText } from '../utils/securityUtils'
+
+
+async function updateOrder(firestoreId, payload) {
+  await updateDoc(doc(db, 'serviceRequests', firestoreId), payload)
+  await postJson('/api/notifications', { action: 'syncOrder', orderId: firestoreId }).catch(() => {})
+}
 
 const ordersRef = collection(db, 'serviceRequests')
 const usersRef = collection(db, 'users')
@@ -207,9 +214,20 @@ export function subscribeToCustomerOrders(customerUid, onNext, onError) {
   )
 }
 
-export function subscribeToOpenProviderOrders(onNext) {
-  onNext([])
-  return () => {}
+export function subscribeToOpenProviderOrders(onNext, onError) {
+  let stopped = false
+  let timer
+  const refresh = async () => {
+    try {
+      const result = await postJson('/api/jobs', { action: 'list' })
+      if (!stopped) onNext(result.jobs || [])
+    } catch (error) { if (!stopped) onError?.(error) }
+    if (!stopped) timer = setTimeout(refresh, 30000)
+  }
+  const wake = () => { clearTimeout(timer); refresh() }
+  window.addEventListener('carenest-order-update', wake)
+  refresh()
+  return () => { stopped = true; clearTimeout(timer); window.removeEventListener('carenest-order-update', wake) }
 }
 
 export function subscribeToProviderOrders(providerUid, onNext, onError) {
@@ -253,6 +271,9 @@ export async function assignServiceRequestToRider(firestoreId, rider) {
       riderAssignedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     })
+  }).then(async result => {
+    await postJson('/api/notifications', { action: 'syncOrder', orderId: firestoreId }).catch(() => {})
+    return result
   })
 }
 
@@ -268,7 +289,7 @@ export function updateRiderDeliveryStatus(firestoreId, riderStatus) {
     payload.completionRequestedAt = serverTimestamp()
     payload.deliveredAt = serverTimestamp()
   }
-  return updateDoc(doc(db, 'serviceRequests', firestoreId), payload)
+  return updateOrder(firestoreId, payload)
 }
 
 export function subscribeToUsers(onNext, onError) {
@@ -294,12 +315,12 @@ export function updateServiceRequestStatus(firestoreId, status) {
       : 'Provider payout held because the request was cancelled.'
   }
 
-  return updateDoc(doc(db, 'serviceRequests', firestoreId), payload)
+  return updateOrder(firestoreId, payload)
 }
 
 export function confirmCustomerCompletion(firestoreId) {
   if (!auth.currentUser) throw new Error('Please sign in again.')
-  return updateDoc(doc(db, 'serviceRequests', firestoreId), {
+  return updateOrder(firestoreId, {
     status: 'Completed',
     currentStep: statusSteps.Completed,
     completionConfirmedBy: auth.currentUser.uid,
@@ -314,7 +335,7 @@ export function submitCustomerComplaint(firestoreId, complaintText) {
   if (cleanText.length < 10) {
     throw new Error('Please describe the problem before submitting a complaint.')
   }
-  return updateDoc(doc(db, 'serviceRequests', firestoreId), {
+  return updateOrder(firestoreId, {
     status: 'Complaint',
     currentStep: statusSteps.Complaint,
     disputeStatus: 'Open',
@@ -349,38 +370,19 @@ export function updateProviderJobStatus(firestoreId, status, proofText = '') {
     payload.completionRequestedAt = serverTimestamp()
   }
 
-  return updateDoc(doc(db, 'serviceRequests', firestoreId), payload)
+  return updateOrder(firestoreId, payload)
 }
 
 export async function assignServiceRequestToProvider(firestoreId, provider) {
-  const orderRef = doc(db, 'serviceRequests', firestoreId)
-  return runTransaction(db, async (transaction) => {
-    const snapshot = await transaction.get(orderRef)
-    if (!snapshot.exists()) throw new Error('Service request was not found.')
-    const order = snapshot.data()
-    if (order.providerUid || order.status !== 'Pending') {
-      throw new Error('This job is no longer available.')
-    }
-    transaction.update(orderRef, {
-      providerUid: provider.uid,
-      providerName: provider.name,
-      providerEmail: provider.email,
-      providerPhone: provider.phone || '',
-      providerPayoutMethod: provider.payout?.method || provider.payoutMethod || 'MTN Mobile Money',
-      providerPayoutPhone: provider.payout?.phone || provider.payoutPhone || provider.phone || '',
-      status: 'Assigned',
-      currentStep: 1,
-      assignedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    })
-  })
+  if (provider.uid !== auth.currentUser?.uid) throw new Error('You can only accept a job for your own account.')
+  return postJson('/api/jobs', { action: 'accept', orderId: firestoreId })
 }
 
 export async function adminAssignServiceRequest(firestoreId, provider, adminUid) {
   if (!provider?.uid) {
     throw new Error('Choose a provider before assigning the request.')
   }
-  return updateDoc(doc(db, 'serviceRequests', firestoreId), {
+  return updateOrder(firestoreId, {
     providerUid: provider.uid,
     providerName: provider.name || 'Provider',
     providerEmail: provider.email || '',
@@ -396,7 +398,7 @@ export async function adminAssignServiceRequest(firestoreId, provider, adminUid)
 }
 
 export function adminClearServiceRequestProvider(firestoreId, adminUid) {
-  return updateDoc(doc(db, 'serviceRequests', firestoreId), {
+  return updateOrder(firestoreId, {
     providerUid: deleteField(),
     providerName: deleteField(),
     providerEmail: deleteField(),
@@ -412,7 +414,7 @@ export function adminClearServiceRequestProvider(firestoreId, adminUid) {
 }
 
 export function requestOrderRefund(firestoreId, reviewerUid, note) {
-  return updateDoc(doc(db, 'serviceRequests', firestoreId), {
+  return updateOrder(firestoreId, {
     refundStatus: 'Requested', refundRequestedBy: reviewerUid,
     refundRequestedAt: serverTimestamp(), refundNote: note,
     payoutStatus: 'Held', payoutNote: 'Refund requested; review required before settlement.',
@@ -444,7 +446,7 @@ export function updateProviderPayoutStatus(firestoreId, payoutStatus, reviewerUi
     payload.providerPayoutAmount = Number(payoutAmount || 0)
   }
 
-  return updateDoc(doc(db, 'serviceRequests', firestoreId), payload)
+  return updateOrder(firestoreId, payload)
 }
 
 export function updateProviderAvailability(uid, availability) {

@@ -1,3 +1,4 @@
+import { disableNotifications } from './messagingService'
 import {
   createUserWithEmailAndPassword,
   browserLocalPersistence,
@@ -102,7 +103,8 @@ export async function loginWithEmail(email, password) {
   return getUserProfile(credential.user.uid)
 }
 
-export function logout() {
+export async function logout() {
+  try { await disableNotifications() } catch { /* Signing out must remain possible when offline. */ }
   return signOut(auth)
 }
 

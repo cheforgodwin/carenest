@@ -1,3 +1,4 @@
+import NotificationControls from '../../components/NotificationControls'
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { FiBriefcase, FiCreditCard, FiGrid, FiLogOut, FiMenu, FiPlus, FiSettings, FiUsers, FiX } from 'react-icons/fi'
@@ -115,6 +116,7 @@ function DashboardShell({
             <button type="button" onClick={handleLogout}><FiLogOut />Logout</button>
           </div>
         </header>
+        <NotificationControls />
         {metrics.length > 0 && (
           <section className="metric-grid">
             {metrics.map(([label, value]) => <article className="metric-card" key={label}><span>{label}</span><strong>{value}</strong></article>)}

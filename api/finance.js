@@ -1,3 +1,4 @@
+import { notifyOrder } from './_notifications.js'
 import { randomUUID } from 'node:crypto'
 import { FieldValue } from 'firebase-admin/firestore'
 import { getAdminDb, requireAuthenticatedUser } from './_firebaseAdmin.js'
@@ -108,6 +109,7 @@ export default async function handler(req, res) {
         ...(party === 'refund' ? { refundStatus: totals.refund === order.amount ? 'Recorded' : 'Requested', payoutStatus: 'Held' } : {}),
       })
     })
+    await notifyOrder(db, orderId)
     return send(res, 200, { message: 'Transfer evidence recorded. This action does not send money.' })
   } catch (error) {
     return send(res, error.statusCode || 500, { error: error.statusCode ? error.message : 'Unable to complete the finance operation.' })

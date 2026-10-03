@@ -1,3 +1,4 @@
+import NotificationControls from '../../components/NotificationControls'
 import { paymentFailureMessage } from '../../utils/paymentFailure.js'
 import { detectPaymentNetwork, paymentNetworkLabel, unsupportedPaymentPhoneMessage } from '../../utils/paymentNetwork.js'
 import { useEffect, useMemo, useState } from 'react'
@@ -618,6 +619,7 @@ function CustomerAppPage() {
   return (
     <main className="mobile-app-page">
       <section className={`mobile-phone ${isCustomerMenuOpen ? 'customer-menu-open' : ''}`}>
+        <NotificationControls />
         {!isServices && !isRequest && !isMarketplaceRequest && !isOrder && !isApplication && (
           <section className="mobile-content mobile-content-home">
             <div className="app-header">

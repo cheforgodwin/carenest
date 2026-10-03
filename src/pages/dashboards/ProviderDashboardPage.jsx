@@ -119,7 +119,8 @@ function ProviderDashboardPage() {
           phone: availability.payoutPhone || availability.phone,
         },
       })
-      setMessage(`${order.id} assigned to you.`)
+      setOpenOrders(current => current.filter(job => job.firestoreId !== order.firestoreId))
+      setMessage(`${order.id} accepted. You can now start the job.`)
     } catch (nextError) {
       setError(nextError.message)
     }

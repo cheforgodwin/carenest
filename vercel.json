@@ -4,7 +4,7 @@
   "outputDirectory": "dist",
   "routes": [
     {
-      "src": "/(app-origin\\.js|sw\\.js|manifest\\.webmanifest)",
+      "src": "/(app-origin\\.js|sw\\.js|firebase-messaging-sw\\.js|manifest\\.webmanifest)",
       "headers": {
         "Cache-Control": "no-cache"
       },

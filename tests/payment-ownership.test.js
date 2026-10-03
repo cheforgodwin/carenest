@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+vi.mock('../api/_notifications.js', () => ({ notifyOrder: vi.fn(async () => {}) }))
 const mocks = vi.hoisted(() => ({ requireUser: vi.fn(), getDb: vi.fn() }))
 vi.mock('../api/_firebaseAdmin.js', () => ({ requireAuthenticatedUser: mocks.requireUser, getAdminDb: mocks.getDb }))
 import handler from '../api/fapshi.js'

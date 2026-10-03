@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+vi.mock('../api/_notifications.js', () => ({ notifyOrder: vi.fn(async () => {}) }))
 const mocks = vi.hoisted(() => ({ db: null, auth: vi.fn() }))
 vi.mock('../api/_firebaseAdmin.js', () => ({ getAdminDb: () => mocks.db, requireAuthenticatedUser: mocks.auth }))
 import handler from '../api/finance.js'

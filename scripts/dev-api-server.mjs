@@ -36,6 +36,9 @@ if (!fs.existsSync(apiPath)) {
 }
 
 const { default: handler } = await import(`file://${apiPath}`)
+const { default: jobsHandler } = await import('../api/jobs.js')
+const { default: notificationsHandler } = await import('../api/notifications.js')
+const handlers = { '/api/fapshi': handler, '/api/payments': handler, '/api/jobs': jobsHandler, '/api/notifications': notificationsHandler }
 
 const createResponseAdapter = (res) => {
   res.status = function (code) {
@@ -72,7 +75,7 @@ const server = http.createServer((req, res) => {
     return res.end()
   }
 
-  if (req.url !== '/api/fapshi' || req.method !== 'POST') {
+  if (!handlers[req.url] || req.method !== 'POST') {
     res.statusCode = 404
     res.setHeader('Content-Type', 'text/plain')
     return res.end('Not Found')
@@ -93,7 +96,7 @@ const server = http.createServer((req, res) => {
     createResponseAdapter(res)
 
     try {
-      await handler(req, res)
+      await handlers[req.url](req, res)
     } catch (error) {
       res.status(500).json({ error: String(error) })
     }

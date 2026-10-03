@@ -1,3 +1,4 @@
+import { notifyOrder } from './_notifications.js'
 import { paymentFailureCode } from './_paymentFailure.js'
 import { FieldValue } from 'firebase-admin/firestore'
 import { providerFee } from '../src/utils/finance.js'
@@ -42,7 +43,7 @@ export async function applyVerifiedPayment(db, payment, source, expectedOrderId 
   const providerStatus = String(payment.status || '').toUpperCase()
   if (!['CREATED', 'PENDING', 'SUCCESSFUL', 'FAILED', 'EXPIRED'].includes(providerStatus)) throw paymentError('Unknown payment status.', 502)
   const orderRef = db.collection('serviceRequests').doc(firestoreId)
-  return db.runTransaction(async (transaction) => {
+  const result = await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(orderRef)
     if (!snapshot.exists) throw paymentError('Matching CareNest order not found.', 404)
     const order = snapshot.data()
@@ -89,6 +90,8 @@ export async function applyVerifiedPayment(db, payment, source, expectedOrderId 
     })
     return { received: true, orderId: order.id || firestoreId, paymentStatus }
   })
+  await notifyOrder(db, firestoreId)
+  return result
 }
 
 export async function reconcileOrderPayment(db, orderRef, firestoreId, userUid) {

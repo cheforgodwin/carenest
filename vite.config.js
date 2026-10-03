@@ -6,11 +6,21 @@ import path from 'path'
 import fapshiHandler from './api/fapshi.js'
 import financeHandler from './api/finance.js'
 import translateHandler from './api/translate.js'
+import jobsHandler from './api/jobs.js'
+import notificationsHandler from './api/notifications.js'
 
 function fapshiDevApi() {
   return {
     name: 'carenest-fapshi-dev-api',
     configureServer(server) {
+      for (const [url, handler] of [['/api/jobs', jobsHandler], ['/api/notifications', notificationsHandler]]) {
+        server.middlewares.use(url, (req, res) => {
+          const chunks = []; req.on('data', chunk => chunks.push(chunk)); req.on('end', async () => {
+            try { req.body = JSON.parse(Buffer.concat(chunks).toString() || '{}') } catch { req.body = {} }
+            await handler(req, res)
+          })
+        })
+      }
       server.middlewares.use('/api/finance', (req, res) => {
         const chunks = []
         req.on('data', (chunk) => chunks.push(chunk))
@@ -72,6 +82,18 @@ function versionedServiceWorker() {
   }
 }
 
+
+function messagingWorker(env) {
+  const keys = { apiKey: 'VITE_FIREBASE_API_KEY', authDomain: 'VITE_FIREBASE_AUTH_DOMAIN', projectId: 'VITE_FIREBASE_PROJECT_ID', messagingSenderId: 'VITE_FIREBASE_MESSAGING_SENDER_ID', appId: 'VITE_FIREBASE_APP_ID' }
+  const config = Object.fromEntries(Object.entries(keys).map(([key, name]) => [key, env[name]]))
+  const source = () => fs.readFileSync('public/firebase-messaging-sw.js', 'utf8').replace('__FIREBASE_PUBLIC_CONFIG__', JSON.stringify(config))
+  return {
+    name: 'firebase-messaging-worker',
+    configureServer(server) { server.middlewares.use('/firebase-messaging-sw.js', (_req, res) => { res.setHeader('Content-Type', 'application/javascript'); res.setHeader('Cache-Control', 'no-cache'); res.end(source()) }) },
+    writeBundle(output) { fs.writeFileSync(path.join(output.dir || 'dist', 'firebase-messaging-sw.js'), source()) },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -79,7 +101,7 @@ export default defineConfig(({ mode }) => {
   const appVersion = env.VITE_APP_VERSION || process.env.npm_package_version || '0.0.0'
 
   return {
-    plugins: [react(), fapshiDevApi(), versionedServiceWorker()],
+    plugins: [react(), fapshiDevApi(), versionedServiceWorker(), messagingWorker(env)],
     define: {
       __APP_VERSION__: JSON.stringify(appVersion),
     },

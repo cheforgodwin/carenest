@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+vi.mock('../api/_notifications.js', () => ({ notifyOrder: vi.fn(async () => {}) }))
 import { applyVerifiedPayment, fetchVerifiedPayment, reconcileOrderPayment } from '../api/_paymentVerification.js'
 
 const payment = { transId: 'tx-a', externalId: 'order-a', userId: 'customer-a', amount: 1500, status: 'SUCCESSFUL', transType: 'Collection' }

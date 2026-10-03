@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+vi.mock('../api/_notifications.js', () => ({ notifyOrder: vi.fn(async () => {}) }))
 import handler from '../api/fapshi-webhook.js'
 
 function response() {
