@@ -2,6 +2,8 @@
 
 Open `/dashboard/admin?view=finance` as an administrator. The Notifications menu (`?view=notifications`) lists unresolved transaction issues and opens the matching order for review. All admin tables become labelled cards on phone/tablet screens, including requests, users, applications, financial allocations and history.
 
+- Obsolete SMS/pasted-receipt fields and duplicate Settings counters have been removed. Customer payments are verified automatically by Fapshi; Refresh Fapshi status repeats that independent check. Notifications have one dedicated page.
+- Transfer forms appear only for eligible outstanding earnings or an open refund review. Pricing percentages remain available in a collapsible section.
 - The order table includes every saved order, with filters for environment, collection status, date and customer/provider/rider/reference. Summary cards include verified live collections only (or sandbox only when explicitly selected). Unknown historical environments never count as real money until an independent Fapshi status check confirms the environment.
 - Fapshi collection fees are `amount - revenue` from the authenticated payment-status response. Missing or invalid revenue remains unknown, never zero. The displayed percentage is the actual effective percentage for that transaction, not a promise about future pricing.
 - Confirm provider and delivery/rider percentages and who absorbs the collection fee under Pricing percentages. The old 80/20 split is a draft only. Basis points are whole integers; shares cannot exceed 100%. A versioned allocation is frozen when payment starts. New settings do not rewrite old orders.

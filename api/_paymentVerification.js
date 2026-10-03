@@ -1,3 +1,4 @@
+import { paymentFailureCode } from './_paymentFailure.js'
 import { FieldValue } from 'firebase-admin/firestore'
 import { providerFee } from '../src/utils/finance.js'
 import { entryId, financialEntry } from './_finance.js'
@@ -23,6 +24,7 @@ export async function fetchVerifiedPayment(transactionId) {
   if (String(payment.transId || payment.transactionId || '') !== transactionId) {
     throw paymentError('Transaction verification mismatch.', 400)
   }
+  
   const expectedWebhook = String(process.env.FAPSHI_WEBHOOK_URL || '').trim().replace(/\/$/, '')
   const verifiedWebhook = String(payment.webhook || '').trim().replace(/\/$/, '')
   if (expectedWebhook && verifiedWebhook && expectedWebhook !== verifiedWebhook) throw paymentError('Payment belongs to a different webhook.', 400)
@@ -61,6 +63,8 @@ export async function applyVerifiedPayment(db, payment, source, expectedOrderId 
     }
     const paymentStatus = order.paymentStatus === 'Refunded' ? 'Refunded' : providerStatus === 'SUCCESSFUL' ? 'Paid'
       : ['FAILED', 'EXPIRED'].includes(providerStatus) ? 'Failed' : 'Submitted'
+    const failureCode = paymentStatus === 'Failed' ? paymentFailureCode(payment) : ''
+    const enrichFailure = failureCode === 'INSUFFICIENT_FUNDS' && order.paymentFailureCode !== failureCode
     const fee = providerStatus === 'SUCCESSFUL' ? providerFee(payment) : { amount: null }
     const eventRef = db.collection('financialEntries').doc(entryId('collection', firestoreId, reference, providerStatus))
     const event = await transaction.get(eventRef)
@@ -68,12 +72,13 @@ export async function applyVerifiedPayment(db, payment, source, expectedOrderId 
     const enrichFee = !feeKnown && fee.amount !== null
     if (feeKnown && fee.amount !== null && order.paymentFinancials.fapshiFee !== fee.amount) throw paymentError('Provider fee changed. Manual reconciliation is required.')
     if (bound && order.paymentVerifiedAt && order.paymentStatus === 'Failed' && paymentStatus === 'Submitted') return { received: true, orderId: order.id || firestoreId, paymentStatus: order.paymentStatus }
-    if (event.exists && !enrichFee && !enrichEnvironment) return { received: true, orderId: order.id || firestoreId, paymentStatus: order.paymentStatus }
+    if (event.exists && !enrichFee && !enrichEnvironment && !enrichFailure) return { received: true, orderId: order.id || firestoreId, paymentStatus: order.paymentStatus }
     if (!event.exists) transaction.set(eventRef, financialEntry(verifiedOrder, firestoreId, 'collection', { reference, amount: order.amount, status: providerStatus, fapshiFee: fee.amount, source }))
     if (enrichFee) transaction.set(db.collection('financialEntries').doc(entryId('fee', firestoreId, reference)), financialEntry(verifiedOrder, firestoreId, 'fapshi_fee', { reference, amount: fee.amount, status: 'Verified', source }))
     const paymentFinancials = feeKnown ? order.paymentFinancials : { fapshiFee: fee.amount, revenue: fee.revenue ?? null, feePercent: fee.percent ?? null, feeSource: fee.amount === null ? 'unknown' : 'provider-revenue' }
     transaction.update(orderRef, {
       paymentFinancials,
+      paymentFailureCode: failureCode,
       ...(payment.verifiedEnvironment ? { paymentEnvironment: payment.verifiedEnvironment } : {}),
       paymentReference: reference, paymentReceiptTransactionId: reference,
       paymentProvider: 'Fapshi', paymentInitiationState: 'Submitted', paymentStatus,

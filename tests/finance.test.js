@@ -1,3 +1,4 @@
+import { eligibleForPayout } from '../src/utils/finance.js'
 import { describe, it, expect } from 'vitest'
 import { validatePolicy, financialSnapshot, providerFee, splitMoney, orderFinance, financeTotals, attentionItems, csvCell } from '../src/utils/finance.js'
 const policy = { version: 'v1', providerBps: 8000, riderBps: 0, deliveryProviderBps: 6000, deliveryRiderBps: 2000, feeBearer: 'platform' }
@@ -37,4 +38,11 @@ describe('financial accounting', () => {
     for (const patch of [{ providerBps: 10001 }, { deliveryRiderBps: 5000 }, { riderBps: 1 }, { feeBearer: '' }]) expect(() => validatePolicy({ ...policy, ...patch })).toThrow()
     expect(csvCell('=SUM(A1)')).toBe('"\'=SUM(A1)"')
   })
+})
+
+it('requires verified collection, completion, allocation, fee and no hold for payout readiness', () => {
+  expect(eligibleForPayout(order)).toBe(true)
+  for (const patch of [{ paymentStatus: 'Refunded' }, { paymentVerifiedAt: null }, { paymentVerifiedBy: 'admin' }, { status: 'Pending' }, { completionConfirmedBy: 'admin' }, { paymentFinancials: {} }, { financialSnapshot: null }, { disputeStatus: 'Open' }, { refundStatus: 'Requested' }, { payoutStatus: 'Held' }]) {
+    expect(eligibleForPayout({ ...order, ...patch })).toBe(false)
+  }
 })

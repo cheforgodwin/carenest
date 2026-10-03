@@ -1,3 +1,4 @@
+import { detectPaymentNetwork, normalizePaymentPhone, unsupportedPaymentPhoneMessage } from '../src/utils/paymentNetwork.js'
 import { FieldValue } from 'firebase-admin/firestore'
 import { randomUUID } from 'node:crypto'
 import { getAdminDb, requireAuthenticatedUser } from './_firebaseAdmin.js'
@@ -48,14 +49,10 @@ export default async function handler(req, res) {
     if (['Paid', 'Refunded'].includes(order.paymentStatus)) return res.status(409).json({ error: 'This order has already been paid.' })
 
     const requestedPhone = String(req.body?.paymentPhone || req.body?.phone || req.body?.customerPhone || order.paymentPhone || order.customerPhone || '').trim()
-    const phone = requestedPhone.replace(/\D/g, '').replace(/^237/, '')
-    if (!/^6\d{8}$/.test(phone)) return res.status(400).json({ error: 'The order needs a valid Cameroon Mobile Money number.' })
-
-    const savedNetwork = String(order.paymentNetwork || '').trim().toLowerCase()
-    const requestedNetwork = String(req.body?.paymentNetwork || '').trim().toLowerCase()
-    const network = requestedNetwork || savedNetwork
-    if (!['', 'mtn', 'orange'].includes(network)) return res.status(400).json({ error: 'Choose a valid Mobile Money network.' })
-    const medium = network === 'mtn' ? 'mobile money' : network === 'orange' ? 'orange money' : undefined
+    const phone = normalizePaymentPhone(requestedPhone)
+    const network = detectPaymentNetwork(phone)
+    if (!network) return res.status(400).json({ error: unsupportedPaymentPhoneMessage })
+    const medium = network === 'mtn' ? 'mobile money' : 'orange money'
 
     const { apiUrl, apiUser, apiKey } = getFapshiConfig()
     const direct = getFapshiPaymentFlow() === 'direct'
@@ -127,6 +124,7 @@ export default async function handler(req, res) {
       transaction.set(db.collection('financialEntries').doc(entryId('attempt', initiationId)), financialEntry({ ...latest, paymentEnvironment: environment }, firestoreId, 'payment_attempt', { amount: latest.amount, reference: initiationId, status: 'Starting', paymentPhone: phone, paymentNetwork: network }))
       transaction.update(orderRef, {
         paymentPhone: phone,
+        paymentFailureCode: '',
         ...(replacingFailedAttempt ? {
           paymentRetiredReferences: [...(latest.paymentRetiredReferences || []), retryReference],
           paymentReference: '', paymentReceiptTransactionId: '',

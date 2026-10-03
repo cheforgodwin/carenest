@@ -22,7 +22,7 @@ import { useAuth } from '../../auth/useAuth'
 import DashboardShell from './DashboardShell'
 import FinancePanel from '../../components/finance/FinancePanel'
 import { useFinanceAlerts } from '../../components/finance/useFinanceAlerts'
-import { financeTotals, csvCell } from '../../utils/finance'
+import { financeTotals, csvCell, confirmedCollection } from '../../utils/finance'
 import { useEffect } from 'react'
 import './AdminMobile.css'
 
@@ -62,7 +62,8 @@ function AdminDashboardPage() {
   const [searchParams] = useSearchParams()
   const { user } = useAuth()
   const requestedView = searchParams.get('view') || 'overview'
-  const activeView = requestedView === 'payments' ? 'finance' : requestedView
+  const activeView = ['payments', 'payouts'].includes(requestedView) ? 'finance'
+    : ['overview', 'notifications', 'users', 'requests', 'finance', 'applications', 'marketplace'].includes(requestedView) ? requestedView : 'overview'
   const [orders, setOrders] = useState([])
   const [users, setUsers] = useState([])
   const [applications, setApplications] = useState([])
@@ -115,10 +116,7 @@ function AdminDashboardPage() {
   const providers = users.filter((user) => user.accountType === 'provider')
   const riders = users.filter((user) => user.accountType === 'rider')
   const customers = users.filter((user) => user.accountType === 'customer')
-  const admins = users.filter((user) => user.accountType === 'admin')
-  const completedOrders = orders.filter((order) => order.status === 'Completed')
   const openOrders = orders.filter((order) => !['Completed', 'Cancelled'].includes(order.status))
-  const complaints = orders.filter((order) => order.status === 'Complaint')
   const pendingApplications = applications.filter((application) => application.status === 'Pending')
   const bookingsToday = orders.filter((order) => order.createdAtDate?.toDateString() === todayKey).length
 
@@ -147,9 +145,8 @@ function AdminDashboardPage() {
         order.service,
         order.address,
         order.paymentReference,
-        order.paymentReceiptText,
-        order.paymentReceiptSenderPhone,
-        order.paymentReceiptTransactionId,
+        order.paymentPhone,
+        order.paymentNetwork,
       ].join(' ').toLowerCase()
       return matchesStatus && (!needle || haystack.includes(needle))
     })
@@ -187,7 +184,7 @@ function AdminDashboardPage() {
     }
 
     downloadCsv('carenest-service-requests.csv', [
-      ['Order', 'Customer', 'Email', 'Status', 'Service', 'Address', 'Amount', 'Payment method', 'Payment status', 'Payment reference', 'Customer payment message', 'Created'],
+      ['Order', 'Customer', 'Email', 'Status', 'Service', 'Address', 'Amount', 'Payment method', 'Payment status', 'Payment reference', 'Contact phone', 'Payment phone', 'Payment network', 'Created'],
       ...filteredOrders.map((order) => [
         order.id,
         order.customerName,
@@ -199,7 +196,9 @@ function AdminDashboardPage() {
         order.paymentMethod,
         order.paymentStatus,
         order.paymentReference,
-        order.paymentReceiptText,
+        order.customerPhone,
+        order.paymentPhone,
+        order.paymentNetwork,
         formatDate(order.createdAtDate),
       ]),
     ])
@@ -313,7 +312,6 @@ function AdminDashboardPage() {
     { label: 'Transactions & earnings', to: '/dashboard/admin?view=finance', icon: 'payments' },
     { label: 'Applications', to: '/dashboard/admin?view=applications', icon: 'users' },
     { label: 'Marketplace', to: '/dashboard/admin?view=marketplace', icon: 'bookings' },
-    { label: 'Settings', to: '/dashboard/admin?view=settings', icon: 'settings' },
   ]
 
   return (
@@ -321,7 +319,7 @@ function AdminDashboardPage() {
       className="admin-dashboard"
       title="Operations Dashboard"
       subtitle="Monitor bookings, users, providers, payments, and support."
-      action={['finance', 'payouts', 'notifications'].includes(activeView) ? undefined : { label: 'Export', onClick: exportData }}
+      action={['overview', 'requests', 'users'].includes(activeView) ? { label: 'Export', onClick: exportData } : undefined}
       nav={nav}
       metrics={metrics}
     >
@@ -416,7 +414,7 @@ function AdminDashboardPage() {
           </div>
           {filteredOrders.length > 0 ? (
             <table className="dashboard-table admin-requests-table">
-              <thead><tr><th>Order</th><th>Customer</th><th>Service</th><th>Address</th><th>Amount</th><th>Provider</th><th>Payment ref</th><th>Evidence</th><th>Status</th><th>Payment</th></tr></thead>
+              <thead><tr><th>Order</th><th>Customer</th><th>Service</th><th>Address</th><th>Amount</th><th>Provider</th><th>Payment ref</th><th>Service notes</th><th>Status</th><th>Payment</th></tr></thead>
               <tbody>
                 {filteredOrders.map((order) => (
                   <tr key={order.firestoreId}>
@@ -428,6 +426,7 @@ function AdminDashboardPage() {
                     <td className="admin-assignment-cell" data-label="Provider">
                       <select
                         className="dashboard-select"
+                        disabled={order.paymentStatus !== 'Paid' || !confirmedCollection(order) || !['Pending', 'Assigned'].includes(order.status)}
                         value={providerSelections[order.firestoreId] ?? order.providerUid ?? ''}
                         onChange={(event) => setProviderSelections((current) => ({ ...current, [order.firestoreId]: event.target.value }))}
                       >
@@ -437,28 +436,18 @@ function AdminDashboardPage() {
                         ))}
                       </select>
                       <div className="table-action-row">
-                        <button className="table-action" type="button" onClick={() => assignProvider(order)}>Assign</button>
-                        {order.providerUid && <button className="table-action secondary" type="button" onClick={() => clearProvider(order)}>Unassign</button>}
+                        <button className="table-action" type="button" disabled={order.paymentStatus !== 'Paid' || !confirmedCollection(order) || !['Pending', 'Assigned'].includes(order.status)} onClick={() => assignProvider(order)}>Assign</button>
+                        {order.providerUid && ['Pending', 'Assigned'].includes(order.status) && <button className="table-action secondary" type="button" onClick={() => clearProvider(order)}>Unassign</button>}
                       </div>
                       {order.providerName && <small>Current: {order.providerName}</small>}
                     </td>
-                    <td data-label="Payment ref">{order.paymentReference || order.paymentReceiverNumber || 'Not submitted'}</td>
-                    <td className="payment-receipt-cell" data-label="Evidence">
-                      {order.paymentReceiptText ? (
-                        <details>
-                          <summary>{order.paymentReceiptTransactionId || order.paymentReceiptSenderPhone || 'View message'}</summary>
-                          <p>{order.paymentReceiptText}</p>
-                          <small>
-                            {order.paymentReceiptAmount ? `Amount: ${formatAmount(order.paymentReceiptAmount)}` : 'Amount not read'}
-                            {order.paymentReceiptSenderPhone ? ` - Sender: ${order.paymentReceiptSenderPhone}` : ''}
-                          </small>
-                        </details>
-                      ) : 'Not pasted'}
+                    <td data-label="Payment ref">{order.paymentReference || 'Not submitted'}</td>
+                    <td data-label="Service notes">
                       {order.completionProofText && <details><summary>Completion proof</summary><p>{order.completionProofText}</p></details>}
                       {order.complaintText && <details><summary>Complaint</summary><p>{order.complaintText}</p></details>}
                     </td>
                     <td data-label="Status">
-                      {order.serviceType === 'delivery' && order.status === 'Out for Delivery' && !order.riderUid && order.paymentStatus === 'Paid' && <div>
+                      {order.serviceType === 'delivery' && order.status === 'Out for Delivery' && !order.riderUid && order.paymentStatus === 'Paid' && confirmedCollection(order) && <div>
                         <select aria-label="Choose rider" value={riderSelections[order.firestoreId] || ''} onChange={(event) => setRiderSelections((current) => ({ ...current, [order.firestoreId]: event.target.value }))}>
                           <option value="">Choose rider</option>{riders.map((rider) => <option key={rider.uid} value={rider.uid}>{rider.name || rider.email}</option>)}
                         </select><button type="button" className="table-action" onClick={() => assignRider(order)}>Assign rider</button>
@@ -470,17 +459,16 @@ function AdminDashboardPage() {
                       </select>
                     </td>
                     <td data-label="Payment">
-                      {order.paymentStatus === 'Paid' ? (
-                        <><span className="status-chip completed">Paid automatically</span><button className="table-action secondary" type="button" disabled={order.refundStatus === 'Requested'} onClick={() => requestRefund(order)}>Request refund review</button>{order.refundStatus && <small>Refund: {order.refundStatus}</small>}</>
+                      {order.paymentStatus === 'Paid' && confirmedCollection(order) ? (
+                        <><span className="status-chip completed">Verified by Fapshi</span><button className="table-action secondary" type="button" disabled={order.refundStatus === 'Requested'} onClick={() => requestRefund(order)}>Request refund review</button>{order.refundStatus && <small>Refund: {order.refundStatus}</small>}</>
                       ) : (
                         <>
                           <strong>{order.paymentStatus || 'Pending'}</strong>
-                          <div className="table-action-row">
-                          </div>
-                          {order.paymentStatus === 'Submitted' && <small className="dashboard-muted">Awaiting automatic provider verification.</small>}
+                          {order.paymentStatus === 'Submitted' && <small className="dashboard-muted">Awaiting automatic Fapshi verification.</small>}
                         </>
                       )}
-                      {order.paymentReviewNote && <small className="dashboard-muted">{order.paymentReviewNote}</small>}
+                      <small>Payment phone: {order.paymentPhone || 'Not recorded'}</small>
+                      <small>Network: {order.paymentNetwork || 'Not recorded'}</small>
                     </td>
                   </tr>
                 ))}
@@ -586,18 +574,8 @@ function AdminDashboardPage() {
         </section>
       )}
 
-      {['finance', 'payouts'].includes(activeView) && <FinancePanel key={searchParams.get('order') || 'all'} initialSelected={searchParams.get('order') || ''} orders={orders} {...financeAlerts} />}
+      {['finance', 'payouts'].includes(activeView) && <FinancePanel key={searchParams.get('order') || 'all'} initialSelected={searchParams.get('order') || ''} orders={orders} />}
 
-      {activeView === 'settings' && (
-        <section className="dashboard-card-grid">
-          <article className="dashboard-info-card"><span>Customers</span><strong>{customers.length}</strong></article>
-          <article className="dashboard-info-card"><span>Providers</span><strong>{providers.length}</strong></article>
-          <article className="dashboard-info-card"><span>Admins</span><strong>{admins.length}</strong></article>
-          <article className="dashboard-info-card"><span>Open requests</span><strong>{openOrders.length}</strong></article>
-          <article className="dashboard-info-card"><span>Completed requests</span><strong>{completedOrders.length}</strong></article>
-          <article className="dashboard-info-card"><span>Complaints</span><strong>{complaints.length}</strong></article>
-        </section>
-      )}
     </DashboardShell>
   )
 }

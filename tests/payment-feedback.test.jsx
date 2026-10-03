@@ -21,6 +21,21 @@ describe('verified customer payment feedback', () => {
     expect(html).toContain('650000001')
     expect(html).not.toContain('673000001')
   })
+  it('shows MTN fallback instructions only for an MTN payment phone', () => {
+    expect(renderToStaticMarkup(<PaymentFeedback phone="670000001" />)).toContain('*126#')
+    expect(renderToStaticMarkup(<PaymentFeedback phone="699000001" />)).not.toContain('*126#')
+    expect(renderToStaticMarkup(<PaymentFeedback phone="670000001" order={{ paymentStatus: 'Paid', paymentVerifiedAt: 1, paymentVerifiedBy: 'fapshi-poll' }} />)).not.toContain('*126#')
+  })
+  it('reports confirmed insufficient funds clearly', () => {
+    const html = renderToStaticMarkup(<PaymentFeedback order={{ paymentStatus: 'Failed', paymentFailureCode: 'INSUFFICIENT_FUNDS' }} />)
+    expect(html).toContain('Insufficient funds in your Mobile Money wallet')
+    expect(html).not.toContain('did not confirm')
+  })
+  it('offers a balance check without inventing the reason for an unknown failure', () => {
+    const html = renderToStaticMarkup(<PaymentFeedback order={{ paymentStatus: 'Failed' }} />)
+    expect(html).toContain('Check that your Mobile Money wallet has enough funds')
+    expect(html).toContain('did not confirm a specific failure reason')
+  })
   it('offers retry guidance for failed attempts', () => {
     const html = renderToStaticMarkup(<PaymentFeedback order={{ paymentStatus: 'Failed' }} />)
     expect(html).toContain('Payment failed or expired')

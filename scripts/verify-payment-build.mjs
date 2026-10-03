@@ -1,6 +1,10 @@
 // All diagnostics are opt-in and run only in the trusted server build environment.
 import { deleteApp, getApps } from 'firebase-admin/app'
 try {
+  if (process.env.CARENEST_PROTECT_PAYMENT_FAILURE === '1') {
+    const { protectPaymentFailure } = await import('./protect-payment-failure.mjs')
+    await protectPaymentFailure()
+  }
   if (process.env.CARENEST_VERIFY_PAYMENT_CONFIG === '1') {
     await import('./check-fapshi-credentials.mjs')
   }

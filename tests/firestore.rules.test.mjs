@@ -429,7 +429,7 @@ test('financial balances and pricing snapshots cannot be forged or paid orders d
   await seed()
   const customerDb = env.authenticatedContext('customer-a', { email: 'a@example.com' }).firestore()
   const admin = doc(env.authenticatedContext('admin-a').firestore(), 'serviceRequests/order-a')
-  for (const patch of [{ financialSnapshot: { state: 'confirmed' } }, { financeTotals: { provider: 1000 } }, { paymentFinancials: { fapshiFee: 0 } }, { paymentEnvironment: 'live' }]) {
+  for (const patch of [{ financialSnapshot: { state: 'confirmed' } }, { financeTotals: { provider: 1000 } }, { paymentFinancials: { fapshiFee: 0 } }, { paymentFailureCode: 'INSUFFICIENT_FUNDS' }, { paymentEnvironment: 'live' }]) {
     await assertFails(setDoc(doc(customerDb, 'serviceRequests/forged-finance'), { ...baseOrder, ...patch }))
     await assertFails(updateDoc(admin, patch))
   }

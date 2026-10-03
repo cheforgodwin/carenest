@@ -101,3 +101,8 @@ export function csvCell(value) {
   if (/^[=+@\-\t\r]/.test(text)) text = "'" + text
   return '"' + text.replace(/"/g, '""') + '"'
 }
+
+export function eligibleForPayout(order) {
+  const finance = orderFinance(order || {})
+  return order?.paymentStatus === 'Paid' && finance.earned && finance.fee !== null && finance.provider !== null && finance.rider !== null && !finance.legacyTransfer
+}

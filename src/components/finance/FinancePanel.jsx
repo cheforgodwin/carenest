@@ -11,12 +11,12 @@ const date = (value) => { const d = value?.toDate?.() || (value ? new Date(value
 const emptyPolicy = { provider: '80', deliveryProvider: '', deliveryRider: '', feeBearer: '' }
 const emptyTransfer = { kind: 'provider_payout', amount: '', reference: '', method: 'Mobile Money', recipient: '', occurredAt: '', transferFee: '', note: '' }
 
-export default function FinancePanel({ orders, alerts, permission, enableNotifications, initialSelected = '' }) {
+export default function FinancePanel({ orders, initialSelected = '' }) {
   const [entries, setEntries] = useState([])
   const [policy, setPolicy] = useState(null)
   const [draft, setDraft] = useState(emptyPolicy)
   const [search, setSearch] = useState('')
-  const [environment, setEnvironment] = useState('all')
+  const [environment, setEnvironment] = useState('live')
   const [status, setStatus] = useState('all')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
@@ -48,6 +48,12 @@ export default function FinancePanel({ orders, alerts, permission, enableNotific
   const totals = financeTotals(filtered.filter((order) => order.paymentEnvironment === (environment === 'sandbox' ? 'sandbox' : 'live')))
   const order = orders.find((item) => item.firestoreId === selected)
   const financial = order ? orderFinance(order) : null
+  const transferKinds = order?.paymentEnvironment === 'live' && financial?.paid ? [
+    ...(financial.earned && !financial.legacyTransfer && order.providerUid && financial.providerDue > 0 ? [['provider_payout', 'Provider payment']] : []),
+    ...(financial.earned && !financial.legacyTransfer && order.riderUid && financial.riderDue > 0 ? [['rider_payout', 'Rider payment']] : []),
+    ...(order.refundStatus === 'Requested' && financial.refund < order.amount ? [['refund', 'Customer refund']] : []),
+  ] : []
+  const transferKind = transferKinds.some(([kind]) => kind === transfer.kind) ? transfer.kind : transferKinds[0]?.[0] || ''
   const shownEntries = entries.filter((entry) => selected ? entry.orderId === selected : filtered.some((item) => item.firestoreId === entry.orderId))
   async function act(payload) {
     setBusy(true); setMessage(''); setError('')
@@ -72,7 +78,7 @@ export default function FinancePanel({ orders, alerts, permission, enableNotific
   }
   async function recordTransfer(event) {
     event.preventDefault()
-    const saved = await act({ action: 'recordTransfer', orderId: selected, ...transfer, amount: Number(transfer.amount), transferFee: transfer.transferFee === '' ? null : Number(transfer.transferFee), occurredAt: new Date(transfer.occurredAt).toISOString() })
+    const saved = await act({ action: 'recordTransfer', orderId: selected, ...transfer, kind: transferKind, amount: Number(transfer.amount), transferFee: transfer.transferFee === '' ? null : Number(transfer.transferFee), occurredAt: new Date(transfer.occurredAt).toISOString() })
     if (saved) setTransfer(emptyTransfer)
   }
   const choose = (id) => { setSelected(id); setMessage(''); setError(''); setTransfer(emptyTransfer); setNote(''); if (id) window.setTimeout(() => document.getElementById('finance-order-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0) }
@@ -98,20 +104,19 @@ export default function FinancePanel({ orders, alerts, permission, enableNotific
       <p>Customer: {order.customerName || order.customerUid} | Provider: {order.providerName || 'Unassigned'} | Rider: {order.riderName || 'Unassigned'}</p>
       <div className="finance-summary">{[['Provider outstanding', financial.providerDue], ['Rider outstanding', financial.riderDue], ['Refunded', financial.refund], ['Fapshi net collection', order.paymentFinancials?.revenue]].map(([label, value]) => <article key={label}><span>{label}</span><strong>{amount(value)}</strong></article>)}</div>
       <p>Pricing version: {order.financialSnapshot?.version || 'Not recorded'}. Fee charged to: {order.financialSnapshot?.feeBearer === 'platform' ? 'CareNest' : order.financialSnapshot?.feeBearer === 'proportional' ? 'All shares proportionally' : 'Not confirmed'}.</p>
-      <button className="table-action" type="button" disabled={busy || !order.paymentReference} onClick={() => act({ action: 'verifyPayment', orderId: selected })}>Verify collection and Fapshi fee</button>
+      <button className="table-action" type="button" disabled={busy || !order.paymentReference} onClick={() => act({ action: 'verifyPayment', orderId: selected })}>Refresh Fapshi status</button>
       {order.financialSnapshot?.state !== 'confirmed' && <form className="finance-form" onSubmit={(e) => { e.preventDefault(); act({ action: 'allocate', orderId: selected, note }) }}><h3>Record missing historical allocation</h3><p>This permanently applies the current approved split to this order. Confirm the original agreement first.</p><label>Reason<input minLength="8" maxLength="500" required value={note} onChange={(e) => setNote(e.target.value)} /></label><button disabled={busy || !policy}>Record allocation</button></form>}
-      <form className="finance-form" onSubmit={recordTransfer}><h3>Record a transfer already sent</h3><p>Use the actual payment receipt. Saving this form does not send money. Unknown-environment and sandbox orders cannot record real transfers.</p><div className="finance-filters">
-        <label>Type<select value={transfer.kind} onChange={(e) => setTransfer({ ...transfer, kind: e.target.value })}><option value="provider_payout">Provider payment</option><option value="rider_payout">Rider payment</option><option value="refund">Customer refund</option></select></label>
+      {transferKinds.length > 0 && <form className="finance-form" onSubmit={recordTransfer}><h3>Record a transfer already sent</h3><p>Use the actual payment receipt. Saving this form does not send money. Unknown-environment and sandbox orders cannot record real transfers.</p><div className="finance-filters">
+        <label>Type<select value={transferKind} onChange={(e) => setTransfer({ ...transfer, kind: e.target.value })}>{transferKinds.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         {['amount', 'reference', 'recipient', 'occurredAt', 'transferFee', 'note'].map((key) => <label key={key}>{({ amount: 'Amount sent (XAF)', reference: 'Transaction reference', recipient: 'Recipient phone / account', occurredAt: 'Transfer date', transferFee: 'Transfer fee (leave blank if unknown)', note: 'Note' })[key]}<input type={['amount', 'transferFee'].includes(key) ? 'number' : key === 'occurredAt' ? 'datetime-local' : 'text'} min={key === 'amount' ? '1' : '0'} step="1" maxLength="500" required={!['note', 'transferFee'].includes(key)} value={transfer[key]} onChange={(e) => setTransfer({ ...transfer, [key]: e.target.value })} /></label>)}
         <label>Method<select value={transfer.method} onChange={(e) => setTransfer({ ...transfer, method: e.target.value })}><option>Mobile Money</option><option>Bank transfer</option><option>Fapshi</option></select></label>
-      </div><button disabled={busy}>Record transfer evidence</button></form>
+      </div><button disabled={busy}>Record transfer evidence</button></form>}
     </section>}
-    <section className="dashboard-panel"><h2>Transaction history {selected ? 'for selected order' : ''}</h2><p>Payment attempts and status events are not additional money received. Transfer entries are records of payments attested by an admin.</p><div className="finance-table-wrap"><table className="dashboard-table"><thead><tr><th>Recorded</th><th>Order</th><th>Event</th><th>Amount</th><th>Reference / status</th><th>Evidence</th></tr></thead><tbody>{shownEntries.map((entry) => <tr key={entry.entryId}><td data-label="Recorded">{date(entry.recordedAt)}</td><td data-label="Order">{entry.orderLabel}</td><td data-label="Event">{entry.kind.replaceAll('_', ' ')}</td><td data-label="Amount">{amount(entry.amount)}</td><td data-label="Reference / status">{entry.reference}<small>{entry.status}</small></td><td data-label="Evidence">{entry.recipient || entry.source || entry.recordedBy}<small>{entry.method || ''} {entry.occurredAtMs ? date(entry.occurredAtMs) : ''}<br />{entry.note || ''}</small>{entry.kind.endsWith('payout') || entry.kind === 'refund' ? <small>Transfer fee: {amount(entry.transferFee)}</small> : null}</td></tr>)}</tbody></table></div>{!shownEntries.length && <p>No recorded events for this selection. Older orders remain in the order list; historical transfer evidence is not invented.</p>}</section>
-    <section className="dashboard-panel" id="finance-attention"><div className="dashboard-panel-header"><h2>Needs your attention ({alerts.length})</h2><button type="button" disabled={permission === 'unsupported'} onClick={enableNotifications}>{permission === 'granted' ? 'Enable alerts on this browser' : 'Enable browser notifications'}</button></div><p>In-app alerts update while you are signed in. Browser notifications require permission and an open admin dashboard; email and background push are not connected.</p>{alerts.map((alert) => <article className="finance-alert" key={alert.id}><div><strong>{alert.label}</strong><p>{alert.message}</p></div><button type="button" onClick={() => choose(alert.orderId)}>Review</button></article>)}{!alerts.length && <p>No transaction issues need attention.</p>}</section>
-    <section className="dashboard-panel"><h2>Pricing percentages</h2><p>{policy ? 'Current policy: ' + policy.version : 'No confirmed policy yet. 80% / 20% is the previous proposal; confirm all settings before applying it.'} Changes apply to future payment requests. Existing confirmed allocations remain unchanged.</p>
+    <section className="dashboard-panel"><h2>Transaction history {selected ? 'for selected order' : ''}</h2><p>Payment attempts and status events are not additional money received. Transfer entries are records of payments attested by an admin.</p><div className="finance-table-wrap"><table className="dashboard-table"><thead><tr><th>Recorded</th><th>Order</th><th>Event</th><th>Amount</th><th>Reference / status</th><th>Evidence</th></tr></thead><tbody>{shownEntries.map((entry) => <tr key={entry.entryId}><td data-label="Recorded">{date(entry.recordedAt)}</td><td data-label="Order">{entry.orderLabel}</td><td data-label="Event">{entry.kind.replaceAll('_', ' ')}</td><td data-label="Amount">{amount(entry.amount)}</td><td data-label="Reference / status">{entry.transactionId || entry.reference}<small>{entry.status}</small></td><td data-label="Evidence">{entry.paymentPhone || entry.recipient || entry.source || entry.recordedBy}<small>{entry.paymentNetwork || entry.method || ''} {entry.occurredAtMs ? date(entry.occurredAtMs) : ''}<br />{entry.note || ''}</small>{entry.kind.endsWith('payout') || entry.kind === 'refund' ? <small>Transfer fee: {amount(entry.transferFee)}</small> : null}</td></tr>)}</tbody></table></div>{!shownEntries.length && <p>No recorded events for this selection. Older orders remain in the order list; historical transfer evidence is not invented.</p>}</section>
+    <details className="dashboard-panel"><summary>Pricing percentages</summary><p>{policy ? 'Current policy: ' + policy.version : 'No confirmed policy yet. 80% / 20% is the previous proposal; confirm all settings before applying it.'} Changes apply to future payment requests. Existing confirmed allocations remain unchanged.</p>
       <form className="finance-form" onSubmit={savePolicy}><div className="finance-filters">{[['provider', 'Provider share: orders without a rider'], ['deliveryProvider', 'Provider share: delivery orders'], ['deliveryRider', 'Rider share: delivery orders']].map(([key, label]) => <label key={key}>{label} (%)<input type="number" min="0" max="100" step="0.01" required value={draft[key]} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} /></label>)}
         <label>Who pays Fapshi's collection fee?<select required value={draft.feeBearer} onChange={(e) => setDraft({ ...draft, feeBearer: e.target.value })}><option value="">Choose</option><option value="platform">Deduct from CareNest share</option><option value="proportional">Deduct proportionally from all shares</option></select></label>
       </div><p>CareNest share without rider: {draft.provider === '' ? 'Not set' : 100 - Number(draft.provider) + '%'}. Delivery CareNest share: {draft.deliveryProvider === '' || draft.deliveryRider === '' ? 'Not set' : 100 - Number(draft.deliveryProvider) - Number(draft.deliveryRider) + '%'}.</p><p>Fapshi sets its own fees. Actual fees and effective percentages are taken from verified collections; missing fees stay unconfirmed. <a href="https://www.fapshi.com/en/pricing" target="_blank" rel="noreferrer">Fapshi pricing</a></p><button disabled={busy}>Confirm and save pricing</button></form>
-    </section>
+    </details>
   </div>
 }

@@ -299,7 +299,7 @@ service cloud.firestore {
         && request.resource.data.paymentStatus == 'Pending'
         && request.resource.data.get('paymentReference', '') == ''
         && request.resource.data.get('paymentReceiptTransactionId', '') == ''
-        && !request.resource.data.keys().hasAny(['financialSnapshot', 'paymentFinancials', 'financeTotals', 'paymentEnvironment', 'paymentInitiationId', 'paymentInitiationState', 'paymentInitiationStartedAtMs', 'paymentInitiatedBy', 'paymentVerifiedAt', 'paymentVerifiedBy', 'paymentProviderStatus', 'paymentConfirmedAt', 'paidAt', 'paymentLastCheckedAtMs', 'paymentRetiredReferences', 'providerAcceptedBy', 'providerAcceptedAt', 'riderUid', 'riderStatus', 'refundStatus', 'disputeStatus'])
+        && !request.resource.data.keys().hasAny(['financialSnapshot', 'paymentFinancials', 'paymentFailureCode', 'financeTotals', 'paymentEnvironment', 'paymentInitiationId', 'paymentInitiationState', 'paymentInitiationStartedAtMs', 'paymentInitiatedBy', 'paymentVerifiedAt', 'paymentVerifiedBy', 'paymentProviderStatus', 'paymentConfirmedAt', 'paidAt', 'paymentLastCheckedAtMs', 'paymentRetiredReferences', 'providerAcceptedBy', 'providerAcceptedAt', 'riderUid', 'riderStatus', 'refundStatus', 'disputeStatus'])
         && !request.resource.data.keys().hasAny(['completionConfirmedBy', 'completionConfirmedAt', 'completionRequestedBy', 'completionRequestedAt', 'completedAt', 'deliveredAt'])
         && request.resource.data.get('customerName', '').size() <= 80
         && request.resource.data.get('customerPhone', '').size() <= 20

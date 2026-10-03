@@ -1,3 +1,4 @@
+import { eligibleForPayout } from '../utils/finance.js'
 import {
   addDoc,
   arrayUnion,
@@ -46,9 +47,7 @@ export function calculatePlatformFee(amount) {
 }
 
 export function isPayoutReady(order) {
-  return order?.status === 'Completed' && order?.paymentStatus === 'Paid'
-    && Boolean(order.customerUid) && order.completionConfirmedBy === order.customerUid
-    && Boolean(order.completionConfirmedAt) && order.payoutStatus !== 'Held'
+  return eligibleForPayout(order)
 }
 
 export function getPayoutStatus(order) {

@@ -26,6 +26,23 @@ function provider(responses) {
 }
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals() })
 describe('atomic payment verification', () => {
+  it.each(['Insufficient funds', { code: 'INSUFFICIENT_BALANCE' }, { description: 'Solde insuffisant' }])('stores confirmed low-funds evidence: %j', async reason => {
+    const { db, order } = fixture()
+    await applyVerifiedPayment(db, { ...payment, status: 'FAILED', reason }, 'fapshi-poll')
+    expect(order.paymentFailureCode).toBe('INSUFFICIENT_FUNDS')
+  })
+  it('does not infer low funds from a failed payment without a reason', async () => {
+    const { db, order } = fixture()
+    await applyVerifiedPayment(db, { ...payment, status: 'FAILED' }, 'fapshi-poll')
+    expect(order.paymentFailureCode).toBe('UNKNOWN')
+  })
+  it('enriches a previously unknown failure with verified low-funds evidence', async () => {
+    const { db, order } = fixture()
+    await applyVerifiedPayment(db, { ...payment, status: 'FAILED' }, 'fapshi-poll')
+    await applyVerifiedPayment(db, { ...payment, status: 'FAILED', reason: 'Insufficient funds' }, 'fapshi-poll')
+    expect(order.paymentFailureCode).toBe('INSUFFICIENT_FUNDS')
+  })
+
   it('applies simultaneous webhook and polling success only once', async () => {
     const { db, writes, order } = fixture()
     await Promise.all([applyVerifiedPayment(db, payment, 'fapshi-webhook'), applyVerifiedPayment(db, payment, 'fapshi-poll')])

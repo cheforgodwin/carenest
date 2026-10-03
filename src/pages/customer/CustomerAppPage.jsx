@@ -1,3 +1,5 @@
+import { paymentFailureMessage } from '../../utils/paymentFailure.js'
+import { detectPaymentNetwork, paymentNetworkLabel, unsupportedPaymentPhoneMessage } from '../../utils/paymentNetwork.js'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
@@ -290,7 +292,6 @@ function CustomerAppPage() {
     : viewedOrder
   const retryPayment = retryPayments[viewedOrder?.firestoreId] || {
     phone: viewedOrder?.paymentPhone || viewedOrder?.customerPhone || '',
-    network: viewedOrder?.paymentNetwork || '',
   }
   const canRetryPayment = viewedOrder && ['Pending', 'Failed'].includes(viewedOrder.paymentStatus || 'Pending')
     && !['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState)
@@ -370,12 +371,8 @@ function CustomerAppPage() {
       setRequestError('Please select an address, date, and time.')
       return
     }
-    if (!/^6\d{8}$/.test(String(form.paymentPhone ?? profile?.phone ?? '').replace(/\D/g, '').replace(/^237/, ''))) {
-      setRequestError('Enter a valid Cameroon Mobile Money number before saving the order.')
-      return
-    }
-    if (!['mtn', 'orange'].includes(form.paymentNetwork)) {
-      setRequestError('Choose MTN MoMo or Orange Money for this payment number.')
+    if (!detectPaymentNetwork(form.paymentPhone ?? profile?.phone ?? '')) {
+      setRequestError(unsupportedPaymentPhoneMessage)
       return
     }
     if (isSubmitting) return
@@ -392,6 +389,7 @@ function CustomerAppPage() {
       ...form,
       customerPhone: profile?.phone || '',
       paymentPhone: form.paymentPhone ?? profile?.phone ?? '',
+      paymentNetwork: detectPaymentNetwork(form.paymentPhone ?? profile?.phone ?? ''),
       serviceSpeed: selectedOption[0],
       itemSummary: primaryValue,
       amount: requestAmount,
@@ -470,12 +468,8 @@ function CustomerAppPage() {
       return
     }
     const paymentPhone = marketplaceForm.paymentPhone ?? profile?.phone ?? ''
-    if (!/^6\d{8}$/.test(String(paymentPhone).replace(/\D/g, '').replace(/^237/, ''))) {
-      setRequestError('Enter the Mobile Money number that should receive the payment prompt.')
-      return
-    }
-    if (!['mtn', 'orange'].includes(marketplaceForm.paymentNetwork)) {
-      setRequestError('Choose MTN MoMo or Orange Money for this payment number.')
+    if (!detectPaymentNetwork(paymentPhone)) {
+      setRequestError(unsupportedPaymentPhoneMessage)
       return
     }
     if (isSubmitting) return
@@ -488,7 +482,7 @@ function CustomerAppPage() {
       customerEmail: user.email,
       customerPhone: profile?.phone || '',
       paymentPhone,
-      paymentNetwork: marketplaceForm.paymentNetwork,
+      paymentNetwork: detectPaymentNetwork(paymentPhone),
       service: selectedListing.title,
       serviceType: 'marketplace',
       serviceSpeed: 'Standard',
@@ -576,15 +570,15 @@ function CustomerAppPage() {
 
   async function retryOrderPayment() {
     if (!viewedOrder?.firestoreId || !canRetryPayment) return
-    if (!/^6\d{8}$/.test(String(retryPayment.phone).replace(/\D/g, '').replace(/^237/, '')) || !['mtn', 'orange'].includes(retryPayment.network)) {
-      setRequestError('Enter a valid Mobile Money number and choose MTN MoMo or Orange Money.')
+    if (!detectPaymentNetwork(retryPayment.phone)) {
+      setRequestError(unsupportedPaymentPhoneMessage)
       return
     }
     if (isSubmitting) return
     setIsSubmitting(true)
     setRequestError('')
     try {
-      await postJson('/api/payments', { firestoreId: viewedOrder.firestoreId, paymentPhone: retryPayment.phone, paymentNetwork: retryPayment.network })
+      await postJson('/api/payments', { firestoreId: viewedOrder.firestoreId, paymentPhone: retryPayment.phone, paymentNetwork: detectPaymentNetwork(retryPayment.phone) })
       setPaymentSuccess({ id: viewedOrder.id, amount: viewedOrder.amount, phone: retryPayment.phone })
     } catch (error) {
       setRequestError('Payment could not start: ' + error.message)
@@ -841,7 +835,7 @@ function CustomerAppPage() {
                       <label>{marketplaceCategory.kind === 'product' ? 'Delivery address' : 'Service address'}<span className="request-input"><FiMapPin /><input name="address" maxLength="240" value={marketplaceForm.address} onChange={updateMarketplaceForm} required /></span></label>
                       <label>{marketplaceCategory.kind === 'product' ? 'Delivery date' : 'Service date'}<span className="request-input"><FiCalendar /><input name="pickupDate" type="date" min={minimumPickupDate} value={marketplaceForm.pickupDate} onChange={updateMarketplaceForm} required /></span></label>
                       <label>Preferred time<span className="request-input"><FiClock /><input name="pickupTime" type="time" value={marketplaceForm.pickupTime} onChange={updateMarketplaceForm} required /></span></label>
-                      <label>Payment network<span className="request-input"><select name="paymentNetwork" value={marketplaceForm.paymentNetwork} onChange={updateMarketplaceForm} required><option value="">Choose your network</option><option value="mtn">MTN MoMo</option><option value="orange">Orange Money</option></select><FiChevronDown /></span></label>
+                  <label>Payment network (automatic)<span className="request-input"><input value={paymentNetworkLabel(marketplaceForm.paymentPhone ?? profile?.phone ?? '')} readOnly aria-live="polite" /></span></label>
                   <label>Mobile Money number<span className="request-input"><FiPhone /><input name="paymentPhone" type="tel" maxLength="20" value={marketplaceForm.paymentPhone ?? profile?.phone ?? ''} onChange={updateMarketplaceForm} placeholder={phonePlaceholder} required /></span></label>
                       <p className="payment-phone-preview"><span>The approval request will be sent to:</span> <strong data-no-translate>{marketplaceForm.paymentPhone ?? profile?.phone ?? ''}</strong></p>
                       <label className="request-note-field">Instructions<textarea name="note" maxLength="1000" value={marketplaceForm.note} onChange={updateMarketplaceForm} placeholder="Delivery directions, preferences, or other details…" /></label>
@@ -889,7 +883,7 @@ function CustomerAppPage() {
                   <label>{currentServiceType === 'delivery' ? 'Delivery Address' : 'Service Address'}<span className="request-input"><FiMapPin /><input name="address" type="text" maxLength="240" list="service-addresses" value={form.address} onChange={updateForm} placeholder="Enter your pickup or service address" required /></span><datalist id="service-addresses">{addresses.map((address) => <option key={address} value={address} />)}</datalist></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Date' : 'Service Date'}<span className="request-input"><FiCalendar /><input name="pickupDate" type="date" min={minimumPickupDate} value={form.pickupDate} onChange={updateForm} /></span></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Time' : 'Service Time'}<span className="request-input"><FiClock /><input name="pickupTime" type="time" value={form.pickupTime} onChange={updateForm} /></span></label>
-                  <label>Payment network<span className="request-input"><select name="paymentNetwork" value={form.paymentNetwork} onChange={updateForm} required><option value="">Choose your network</option><option value="mtn">MTN MoMo</option><option value="orange">Orange Money</option></select><FiChevronDown /></span></label>
+                  <label>Payment network (automatic)<span className="request-input"><input value={paymentNetworkLabel(form.paymentPhone ?? profile?.phone ?? '')} readOnly aria-live="polite" /></span></label>
                   <label>Mobile Money Number<span className="request-input"><FiPhone /><input name="paymentPhone" type="tel" maxLength="20" value={form.paymentPhone ?? profile?.phone ?? ''} onChange={updateForm} placeholder={phonePlaceholder} required /></span></label>
                       <p className="payment-phone-preview"><span>The approval request will be sent to:</span> <strong data-no-translate>{form.paymentPhone ?? profile?.phone ?? ''}</strong></p>
                   <div className="manual-payment-panel">
@@ -972,13 +966,13 @@ function CustomerAppPage() {
                 {viewedOrder.paymentReference && !['Paid', 'Failed', 'Refunded'].includes(viewedOrder.paymentStatus) && <p>A payment request already exists. Check your phone for the Mobile Money prompt. If it failed or you received no prompt, contact CareNest with this order number before paying again.</p>}
                 {requestError && <p className="request-error" role="alert">{requestError}</p>}
                 {canRetryPayment && <div className="request-form-grid">
-                  <label>Payment network<span className="request-input"><select value={retryPayment.network} disabled={isSubmitting} onChange={(event) => setRetryPayments((current) => ({ ...current, [viewedOrder.firestoreId]: { ...retryPayment, network: event.target.value } }))}><option value="">Choose your network</option><option value="mtn">MTN MoMo</option><option value="orange">Orange Money</option></select></span></label>
+                  <label>Payment network (automatic)<span className="request-input"><input value={paymentNetworkLabel(retryPayment.phone)} readOnly aria-live="polite" /></span></label>
                   <label>Payment phone<span className="request-input"><FiPhone /><input type="tel" maxLength="20" value={retryPayment.phone} disabled={isSubmitting} onChange={(event) => setRetryPayments((current) => ({ ...current, [viewedOrder.firestoreId]: { ...retryPayment, phone: event.target.value } }))} /></span></label>
                   <button className="payment-retry-button" type="button" disabled={isSubmitting} onClick={retryOrderPayment}>{isSubmitting ? 'Starting payment...' : 'Retry payment'}</button>
                 </div>}
                 {['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState) && <p>Your previous payment is awaiting verification. Check its status or contact support before paying again.</p>}
                 {viewedOrder.paymentStatus !== 'Paid' && (viewedOrder.paymentReference || ['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState)) && <button className="payment-retry-button" type="button" disabled={isSubmitting} onClick={checkOrderPayment}>{isSubmitting ? 'Checking...' : 'Check payment status'}</button>}
-                {viewedOrder.paymentStatus === 'Failed' && viewedOrder.paymentReference && <p>This payment failed or expired. Select Retry payment to try again. CareNest checks the previous transaction before sending another prompt.</p>}
+                {viewedOrder.paymentStatus === 'Failed' && viewedOrder.paymentReference && <p>{paymentFailureMessage(viewedOrder)} CareNest checks the previous transaction before sending another prompt.</p>}
                 {viewedOrder.paymentReceiverNumber && <div><span>Paid to</span><strong>{viewedOrder.paymentReceiverNumber}</strong></div>}
                 {viewedOrder.paymentReference && <div><span>Payment ref</span><strong>{viewedOrder.paymentReference}</strong></div>}
                 {viewedOrder.paymentReceiptText && <div><span>Payment message</span><strong>{viewedOrder.paymentReceiptText}</strong></div>}

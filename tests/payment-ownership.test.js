@@ -49,9 +49,10 @@ describe('payment ownership', () => {
     expect(fetch).toHaveBeenCalledTimes(1)
   })
 
-  it.each([['mtn', 'mobile money'], ['orange', 'orange money']])('routes %s explicitly using the saved order network', async (network, medium) => {
+  it.each([['mtn', 'mobile money'], ['orange', 'orange money']])('detects %s from the payment phone', async (network, medium) => {
     const { order } = validOrder()
-    order.paymentNetwork = network
+    order.paymentNetwork = network === 'mtn' ? 'orange' : 'mtn'
+    order.customerPhone = network === 'mtn' ? '+237670000001' : '+237699000661'
     const fetch = vi.fn(async () => ({ ok: true, status: 200, text: async () => JSON.stringify({ transId: 'tx-network-test' }) }))
     vi.stubGlobal('fetch', fetch)
     const res = { setHeader: vi.fn(), end: vi.fn() }
@@ -70,7 +71,7 @@ describe('payment ownership', () => {
     const fetch = vi.fn(async () => ({ ok: true, status: 200, text: async () => JSON.stringify({ transId: 'tx-switch', status: 'SUCCESSFUL' }) }))
     vi.stubGlobal('fetch', fetch)
     const res = { setHeader: vi.fn(), end: vi.fn() }
-    await handler({ method: 'POST', headers: {}, body: { firestoreId: 'order-a', phone, paymentNetwork: ' ' + requested.toUpperCase() + ' ', amount: 100 } }, res)
+    await handler({ method: 'POST', headers: {}, body: { firestoreId: 'order-a', phone, paymentNetwork: saved, amount: 100 } }, res)
     expect(res.statusCode).toBe(202)
     expect(fetch).toHaveBeenCalledTimes(1)
     expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({ phone: phone.slice(4), medium, amount: 1500, externalId: 'order-a', userId: 'customer-a' })
@@ -81,12 +82,12 @@ describe('payment ownership', () => {
     expect(order.paymentStatus).toBe('Submitted')
   })
 
-  it('rejects an invalid requested network even when the saved network is valid', async () => {
+  it('rejects an unsupported phone even when the saved network is valid', async () => {
     const { order, runTransaction } = validOrder()
     order.paymentNetwork = 'mtn'
     const fetch = vi.fn(); vi.stubGlobal('fetch', fetch)
     const res = { setHeader: vi.fn(), end: vi.fn() }
-    await handler({ method: 'POST', headers: {}, body: { firestoreId: 'order-a', paymentNetwork: 'unsupported' } }, res)
+    await handler({ method: 'POST', headers: {}, body: { firestoreId: 'order-a', paymentNetwork: 'mtn', paymentPhone: '620000001' } }, res)
     expect(res.statusCode).toBe(400)
     expect(fetch).not.toHaveBeenCalled()
     expect(runTransaction).not.toHaveBeenCalled()
@@ -116,9 +117,10 @@ describe('payment ownership', () => {
     expect(order.paymentNetwork).toBe('mtn')
   })
 
-  it('rejects unsupported network settings before requesting money', async () => {
+  it('rejects unsupported phone prefixes before requesting money', async () => {
     const { order, runTransaction } = validOrder()
-    order.paymentNetwork = 'unsupported'
+    order.paymentNetwork = 'mtn'
+    order.customerPhone = '660000001'
     const fetch = vi.fn(); vi.stubGlobal('fetch', fetch)
     const res = { setHeader: vi.fn(), end: vi.fn() }
     await handler({ method: 'POST', headers: {}, body: { firestoreId: 'order-a' } }, res)
