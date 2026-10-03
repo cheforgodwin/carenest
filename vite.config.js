@@ -8,12 +8,13 @@ import financeHandler from './api/finance.js'
 import translateHandler from './api/translate.js'
 import jobsHandler from './api/jobs.js'
 import notificationsHandler from './api/notifications.js'
+import accountHandler from './api/account.js'
 
 function fapshiDevApi() {
   return {
     name: 'carenest-fapshi-dev-api',
     configureServer(server) {
-      for (const [url, handler] of [['/api/jobs', jobsHandler], ['/api/notifications', notificationsHandler]]) {
+      for (const [url, handler] of [['/api/account', accountHandler], ['/api/jobs', jobsHandler], ['/api/notifications', notificationsHandler]]) {
         server.middlewares.use(url, (req, res) => {
           const chunks = []; req.on('data', chunk => chunks.push(chunk)); req.on('end', async () => {
             try { req.body = JSON.parse(Buffer.concat(chunks).toString() || '{}') } catch { req.body = {} }

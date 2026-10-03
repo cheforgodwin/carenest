@@ -12,6 +12,8 @@ function getAdminApp() {
   return initializeApp({ credential: cert(credentials) })
 }
 
+export const getAdminAuth = () => getAuth(getAdminApp())
+
 export const getAdminDb = () => getFirestore(getAdminApp())
 
 export async function requireAuthenticatedUser(req) {

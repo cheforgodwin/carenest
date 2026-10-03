@@ -163,6 +163,7 @@ export async function createServiceRequest(order) {
   }, {})
 
   const docRef = await addDoc(ordersRef, sanitizedPayload)
+  await postJson('/api/notifications', { action: 'syncOrder', orderId: docRef.id }).catch(() => {})
   return { firestoreId: docRef.id, ...sanitizedPayload, createdAtDate: new Date(), updatedAtDate: new Date() }
 }
 
@@ -190,6 +191,7 @@ export async function createMarketplaceServiceRequest(order, listing) {
   }).filter(([, value]) => value !== undefined))
 
   const docRef = await addDoc(ordersRef, payload)
+  await postJson('/api/notifications', { action: 'syncOrder', orderId: docRef.id }).catch(() => {})
   return { firestoreId: docRef.id, ...payload, createdAtDate: new Date(), updatedAtDate: new Date() }
 }
 export function subscribeToAllOrders(onNext, onError) {

@@ -1,0 +1,10 @@
+.account-settings { display: grid; gap: 1.25rem; max-width: 800px; }
+.account-settings .dashboard-panel { margin: 0; padding: 1.5rem; }
+.account-settings p { line-height: 1.6; overflow-wrap: anywhere; }
+.account-settings button { border: 1px solid #c8ded3; border-radius: .75rem; padding: .8rem 1rem; background: white; color: #125a3c; cursor: pointer; }
+.account-settings button:disabled { opacity: .6; cursor: wait; }
+.account-settings label { display: grid; gap: .4rem; margin: 1rem 0; }
+.account-settings input { width: 100%; box-sizing: border-box; border: 1px solid #c8ded3; padding: .8rem; border-radius: .6rem; }
+.account-deletion button[type=submit], .account-deletion > button { color: #a21a1a; border-color: #e6bebe; }
+.settings-actions { display: flex; gap: .75rem; flex-wrap: wrap; }
+.settings-error { color: #a21a1a; }

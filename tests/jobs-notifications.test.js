@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createHash } from 'node:crypto'
 import { memoryDb } from './helpers/memory-db.js'
-const mocks = vi.hoisted(() => ({ db: null, auth: vi.fn(), notify: vi.fn() }))
+const mocks = vi.hoisted(() => ({ db: null, auth: vi.fn(), notify: vi.fn(), test: vi.fn() }))
 vi.mock('../api/_firebaseAdmin.js', () => ({ getAdminDb: () => mocks.db, requireAuthenticatedUser: mocks.auth }))
-vi.mock('../api/_notifications.js', () => ({ notifyOrder: mocks.notify }))
+vi.mock('../api/_notifications.js', () => ({ notifyOrder: mocks.notify, sendTestNotification: mocks.test }))
 import jobs from '../api/jobs.js'
 import notifications from '../api/notifications.js'
 let records
@@ -83,4 +83,17 @@ describe('FCM device ownership', () => {
     mocks.auth.mockRejectedValue(Object.assign(new Error('Sign in'), { statusCode: 401 }))
     expect((await call(notifications, { action: 'register', token })).statusCode).toBe(401)
   })
+})
+
+it('the test endpoint uses the authenticated UID and ignores recipient input', async () => {
+  mocks.test.mockResolvedValue({ accepted: 1 })
+  const result = await call(notifications, { action: 'test', uid: 'other', token: 'other-device' })
+  expect(result.statusCode).toBe(200)
+  expect(mocks.test).toHaveBeenCalledWith(mocks.db, 'provider')
+})
+
+it('cannot register a token while the account is being deleted', async () => {
+  records.set('users/provider', { accountType: 'deleted' })
+  expect((await call(notifications, { action: 'register', token })).statusCode).toBe(403)
+  expect(records.has('pushSubscriptions/' + hash)).toBe(false)
 })

@@ -38,7 +38,8 @@ if (!fs.existsSync(apiPath)) {
 const { default: handler } = await import(`file://${apiPath}`)
 const { default: jobsHandler } = await import('../api/jobs.js')
 const { default: notificationsHandler } = await import('../api/notifications.js')
-const handlers = { '/api/fapshi': handler, '/api/payments': handler, '/api/jobs': jobsHandler, '/api/notifications': notificationsHandler }
+const { default: accountHandler } = await import('../api/account.js')
+const handlers = { '/api/account': accountHandler, '/api/fapshi': handler, '/api/payments': handler, '/api/jobs': jobsHandler, '/api/notifications': notificationsHandler }
 
 const createResponseAdapter = (res) => {
   res.status = function (code) {

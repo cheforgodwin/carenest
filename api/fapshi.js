@@ -1,3 +1,4 @@
+import { notifyOrder } from './_notifications.js'
 import { detectPaymentNetwork, normalizePaymentPhone, unsupportedPaymentPhoneMessage } from '../src/utils/paymentNetwork.js'
 import { FieldValue } from 'firebase-admin/firestore'
 import { randomUUID } from 'node:crypto'
@@ -213,6 +214,7 @@ export default async function handler(req, res) {
       updatedAt: FieldValue.serverTimestamp(),
     })
 
+    await notifyOrder(db, firestoreId)
     console.info('payment_request_accepted', { orderId: firestoreId, attemptId: initiationId, transactionId, flow: 'direct', network: network || 'auto', phoneSuffix: phone.slice(-3), environment: apiUrl.includes('sandbox') ? 'sandbox' : 'live' })
     res.setHeader('Cache-Control', 'no-store')
     return res.status(202).json({ accepted: true, message: 'Payment request sent. Await server verification.' })

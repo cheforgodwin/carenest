@@ -19,7 +19,7 @@ export function memoryDb(initial = []) {
   const db = { collection, runTransaction: fn => {
     const result = queue.then(async () => {
       const writes = []
-      const value = await fn({ get: async ref => snapshot(ref), set: (ref, data) => writes.push(() => records.set(ref.path, data)), update: (ref, data) => writes.push(() => records.set(ref.path, { ...records.get(ref.path), ...data })), delete: ref => writes.push(() => records.delete(ref.path)) })
+      const value = await fn({ get: async ref => ref.path ? snapshot(ref) : ref.get(), set: (ref, data) => writes.push(() => records.set(ref.path, data)), update: (ref, data) => writes.push(() => records.set(ref.path, { ...records.get(ref.path), ...data })), delete: ref => writes.push(() => records.delete(ref.path)) })
       writes.forEach(write => write())
       return value
     })

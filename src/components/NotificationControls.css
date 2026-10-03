@@ -3,3 +3,5 @@
 .notification-controls button:disabled { opacity: .6; cursor: wait; }
 .notification-controls p { margin: 6px 0; }
 .notification-update { position: fixed; right: 16px; bottom: 85px; z-index: 120; max-width: 320px; padding: 16px; background: white; border: 1px solid #d6ded8; border-radius: 14px; box-shadow: 0 6px 28px #0002; }
+
+.notification-global { bottom: auto; position: fixed; z-index: 1200; top: 1rem; right: 1rem; max-width: min(360px, calc(100vw - 2rem)); background: white; padding: 1rem; border: 1px solid #c8ded3; border-radius: .8rem; box-shadow: 0 6px 25px #0002; }

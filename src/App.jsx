@@ -2,9 +2,11 @@ import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import HomePage from './pages/HomePage'
 import ProtectedRoute from './auth/ProtectedRoute'
+import NotificationListener from './components/NotificationListener'
 import NetworkStatus from './components/NetworkStatus'
 import { PublicFooter, SupportShortcut } from './components/SiteFooter'
 
+const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const SignupPage = lazy(() => import('./pages/SignupPage'))
 const ProviderDashboardPage = lazy(() => import('./pages/dashboards/ProviderDashboardPage'))
@@ -25,6 +27,7 @@ function App() {
     <>
       <NetworkStatus />
       <BrowserRouter>
+        <NotificationListener />
         <Suspense fallback={<main className="system-message"><p>Loading CareNest...</p></main>}><Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage />} />
@@ -33,6 +36,7 @@ function App() {
           <Route path="/support" element={<SupportPage />} />
           <Route path="/privacy" element={<LegalPage type="privacy" />} />
           <Route path="/terms" element={<LegalPage type="terms" />} />
+          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
           <Route path="/dashboard/customer/*" element={<ProtectedRoute role="customer"><CustomerAppPage /></ProtectedRoute>} />
           <Route path="/dashboard/provider" element={<ProtectedRoute role="provider"><ProviderDashboardPage /></ProtectedRoute>} />
           <Route path="/dashboard/rider" element={<ProtectedRoute role="rider"><RiderDashboardPage /></ProtectedRoute>} />

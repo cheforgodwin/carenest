@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { FieldValue } from 'firebase-admin/firestore'
 import { getAdminDb, requireAuthenticatedUser } from './_firebaseAdmin.js'
 import { handleCors } from './_cors.js'
-import { notifyOrder } from './_notifications.js'
+import { notifyOrder, sendTestNotification } from './_notifications.js'
 
 export default async function handler(req, res) {
   if (handleCors(req, res)) return
@@ -12,6 +12,7 @@ export default async function handler(req, res) {
   try {
     const user = await requireAuthenticatedUser(req)
     const db = getAdminDb()
+    if (req.body?.action === 'test') return send(200, await sendTestNotification(db, user.uid))
     if (req.body?.action === 'syncOrder') {
       const id = String(req.body.orderId || '')
       if (!/^[A-Za-z0-9_-]{1,128}$/.test(id)) return send(400, { error: 'Invalid order.' })
@@ -31,6 +32,8 @@ export default async function handler(req, res) {
     const profile = (await db.collection('users').doc(user.uid).get()).data()
     await db.runTransaction(async transaction => {
       const current = await transaction.get(ref)
+      const account = await transaction.get(db.collection('users').doc(user.uid))
+      if (req.body.action === 'register' && account.data()?.accountType === 'deleted') throw Object.assign(new Error('This account is being deleted.'), { statusCode: 403 })
       const oldUid = current.data()?.uid
       if (req.body.action === 'unregister') {
         if (oldUid && oldUid !== user.uid) throw Object.assign(new Error('This device is not registered to your account.'), { statusCode: 403 })

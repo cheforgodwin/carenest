@@ -20,9 +20,10 @@ describe('verified order notifications', () => {
     expect(JSON.stringify(messages)).not.toContain('Secret address')
     expect(JSON.stringify(messages)).not.toContain('673000001')
   })
-  it.each([{ paymentStatus: 'Submitted' }, { paymentVerifiedBy: 'admin' }])('does not announce unverified payment %j', async patch => {
+  it.each([{ paymentStatus: 'Submitted' }, { paymentVerifiedBy: 'admin' }])('does not advertise unverified payment %j', async patch => {
     await notifyOrder(setup(patch).db, 'order-a')
-    expect(mocks.send).not.toHaveBeenCalled()
+    expect(mocks.send.mock.calls[0][0]).toHaveLength(1)
+    expect(mocks.send.mock.calls[0][0][0].data.body).not.toContain('Payment confirmed')
   })
   it('does not advertise held work to providers', async () => {
     await notifyOrder(setup({ payoutStatus: 'Held' }).db, 'order-a')
@@ -40,4 +41,46 @@ describe('verified order notifications', () => {
     await expect(notifyOrder(setup().db, 'order-a')).resolves.toBeUndefined()
     warning.mockRestore()
   })
+})
+
+it('routes admin alerts to the admin dashboard', async () => {
+  const { db, records } = setup()
+  records.set('users/admin', { accountType: 'admin' })
+  records.set('pushSubscriptions/admin', { uid: 'admin', token: 'admin-token' })
+  await notifyOrder(db, 'order-a')
+  const message = mocks.send.mock.calls[0][0].find(item => item.token === 'admin-token')
+  expect(message.data.title).toBe('CareNest admin update')
+  expect(message.data.url).toBe('/dashboard/admin?view=requests')
+})
+it('notifies assigned riders and providers with their own dashboard paths', async () => {
+  const { db, records } = setup({ status: 'Assigned', providerUid: 'provider', riderUid: 'rider' })
+  records.set('pushSubscriptions/rider', { uid: 'rider', token: 'rider-token' })
+  await notifyOrder(db, 'order-a')
+  const messages = mocks.send.mock.calls[0][0]
+  expect(messages.find(item => item.token === 'rider-token').data.url).toBe('/dashboard/rider?view=deliveries')
+  expect(messages.find(item => item.token === 'provider-token').data.url).toBe('/dashboard/provider?view=jobs')
+})
+it('retries only transiently failed devices', async () => {
+  mocks.send.mockResolvedValueOnce({ responses: [{ success: true }, { error: { code: 'messaging/server-unavailable' } }] })
+  await notifyOrder(setup().db, 'order-a')
+  expect(mocks.send).toHaveBeenCalledTimes(2)
+  expect(mocks.send.mock.calls[1][0]).toHaveLength(1)
+  expect(mocks.send.mock.calls[1][0][0].token).toBe('provider-token')
+})
+it('a later retry skips devices that already accepted the message', async () => {
+  const { db, records } = setup()
+  mocks.send.mockResolvedValueOnce({ responses: [{ success: true }, { error: { code: 'messaging/mismatched-credential' } }] })
+  await notifyOrder(db, 'order-a')
+  expect([...records.values()].find(value => value.orderId === 'order-a').status).toBe('Retry pending')
+  await notifyOrder(db, 'order-a')
+  expect(mocks.send.mock.calls[1][0].map(message => message.token)).toEqual(['provider-token'])
+})
+
+it('test notifications target only the signed-in account and are rate limited', async () => {
+  const { sendTestNotification } = await import('../api/_notifications.js')
+  const { db, records } = setup()
+  records.set('users/customer', { accountType: 'customer' })
+  await sendTestNotification(db, 'customer')
+  expect(mocks.send.mock.calls[0][0].map(message => message.token)).toEqual(['customer-token'])
+  await expect(sendTestNotification(db, 'customer')).rejects.toMatchObject({ statusCode: 429 })
 })

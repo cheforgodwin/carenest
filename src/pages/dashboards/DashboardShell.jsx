@@ -1,7 +1,6 @@
-import NotificationControls from '../../components/NotificationControls'
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { FiBriefcase, FiCreditCard, FiGrid, FiLogOut, FiMenu, FiPlus, FiSettings, FiUsers, FiX } from 'react-icons/fi'
+import { FiBriefcase, FiCreditCard, FiGrid, FiMenu, FiPlus, FiSettings, FiUsers, FiX } from 'react-icons/fi'
 import { useAuth } from '../../auth/useAuth'
 import Logo from '../../components/Logo'
 import SiteFooter from '../../components/SiteFooter'
@@ -25,7 +24,7 @@ function DashboardShell({
 }) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { logout, profile } = useAuth()
+  const { profile } = useAuth()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   useEffect(() => {
@@ -37,10 +36,6 @@ function DashboardShell({
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [])
 
-  async function handleLogout() {
-    await logout()
-    navigate('/login', { replace: true })
-  }
 
   return (
     <main className={`dashboard-page ${className} ${isMenuOpen ? 'dashboard-menu-open' : ''}`}>
@@ -85,6 +80,7 @@ function DashboardShell({
               </NavLink>
             )
           })}
+          <NavLink to="/settings" onClick={() => setIsMenuOpen(false)}><FiSettings /><span>Settings</span></NavLink>
           <Link to="/support" onClick={() => setIsMenuOpen(false)}>Help &amp; support</Link>
         </nav>
       </aside>
@@ -113,10 +109,8 @@ function DashboardShell({
             {action && (action.onClick
               ? <button className="dashboard-action-button" type="button" onClick={action.onClick}><FiPlus />{action.label}</button>
               : <Link to={action.href}><FiPlus />{action.label}</Link>)}
-            <button type="button" onClick={handleLogout}><FiLogOut />Logout</button>
           </div>
         </header>
-        <NotificationControls />
         {metrics.length > 0 && (
           <section className="metric-grid">
             {metrics.map(([label, value]) => <article className="metric-card" key={label}><span>{label}</span><strong>{value}</strong></article>)}

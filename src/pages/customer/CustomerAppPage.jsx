@@ -1,4 +1,3 @@
-import NotificationControls from '../../components/NotificationControls'
 import { paymentFailureMessage } from '../../utils/paymentFailure.js'
 import { detectPaymentNetwork, paymentNetworkLabel, unsupportedPaymentPhoneMessage } from '../../utils/paymentNetwork.js'
 import { useEffect, useMemo, useState } from 'react'
@@ -19,6 +18,7 @@ import {
   FiPackage,
   FiPhone,
   FiShoppingBag,
+  FiSettings,
   FiTool,
   FiUserPlus,
   FiX,
@@ -619,7 +619,6 @@ function CustomerAppPage() {
   return (
     <main className="mobile-app-page">
       <section className={`mobile-phone ${isCustomerMenuOpen ? 'customer-menu-open' : ''}`}>
-        <NotificationControls />
         {!isServices && !isRequest && !isMarketplaceRequest && !isOrder && !isApplication && (
           <section className="mobile-content mobile-content-home">
             <div className="app-header">
@@ -1033,6 +1032,7 @@ function CustomerAppPage() {
             <Link className={isOrder ? 'active' : ''} aria-current={isOrder ? 'page' : undefined} to="/dashboard/customer/orders"><FiBriefcase />Orders</Link>
             <Link className={isServices || isRequest || isMarketplaceRequest ? 'active' : ''} aria-current={isServices || isRequest || isMarketplaceRequest ? 'page' : undefined} to="/dashboard/customer/services"><FiGift />Services</Link>
             <Link className={isApplication ? 'active' : ''} aria-current={isApplication ? 'page' : undefined} to="/dashboard/customer/apply"><FiUserPlus />Apply</Link>
+            <Link to="/settings"><FiSettings />Settings</Link>
           </div>
         </nav>
       </section>
