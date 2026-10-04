@@ -89,6 +89,20 @@
   transition: transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
 }
 
+.hero-explore-link {
+  align-self: center;
+  padding: 8px 4px;
+  color: var(--landing-green);
+  font-size: 14px;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.hero-explore-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
 .home-page .primary-action {
   color: #ffffff;
   background: linear-gradient(135deg, #087647, #005e37);
@@ -740,6 +754,10 @@
   .home-page .primary-action,
   .home-page .secondary-action {
     width: 100%;
+  }
+
+  .hero-explore-link {
+    justify-self: center;
   }
 
   .hero-visual {

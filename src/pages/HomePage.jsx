@@ -46,6 +46,7 @@ function HomePage() {
   const heroEyebrow = useT('home.hero.eyebrow')
   const heroHeadline = useT('home.hero.headline')
   const heroLead = useT('home.hero.lead')
+  const createAccount = useT('home.hero.createAccount')
   const bookService = useT('home.hero.bookService')
   const exploreServices = useT('home.hero.exploreServices')
   const heroImageAlt = useT('home.hero.imageAlt')
@@ -116,7 +117,8 @@ function HomePage() {
           <p className="lead">{heroLead}</p>
           <div className="hero-actions">
             <Link className="primary-action" to="/dashboard/customer/services">{bookService} <FiArrowRight /></Link>
-            <a className="secondary-action" href="#services">{exploreServices}</a>
+            <Link className="secondary-action" to="/signup">{createAccount} <FiArrowRight /></Link>
+            <a className="hero-explore-link" href="#services">{exploreServices}</a>
           </div>
           <div className="hero-assurance"><FiShield /> {trustProviders} <span /> <FiClock /> {trustConvenience}</div>
         </div>
