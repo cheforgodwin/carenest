@@ -1,6 +1,6 @@
 import { paymentFailureMessage } from '../../utils/paymentFailure.js'
 import { detectPaymentNetwork, paymentNetworkLabel, unsupportedPaymentPhoneMessage } from '../../utils/paymentNetwork.js'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   FiArrowLeft,
@@ -12,6 +12,7 @@ import {
   FiChevronDown,
   FiClock,
   FiGift,
+  FiHeadphones,
   FiHome,
   FiMapPin,
   FiMenu,
@@ -242,6 +243,9 @@ function CustomerAppPage() {
   const [isCustomerMenuOpen, setIsCustomerMenuOpen] = useState(false)
   const [activeBannerIndex, setActiveBannerIndex] = useState(0)
   const [isBannerPaused, setIsBannerPaused] = useState(false)
+  const bannerTouchStartX = useRef(null)
+  const bannerCarouselRef = useRef(null)
+  const [bannerSlideStep, setBannerSlideStep] = useState(0)
   const [providerApplications, setProviderApplications] = useState([])
   const [applicationForm, setApplicationForm] = useState({
     role: 'provider',
@@ -297,6 +301,23 @@ function CustomerAppPage() {
     }, 4500)
     return () => window.clearInterval(interval)
   }, [isBannerPaused, isServices, isRequest, isMarketplaceRequest, isOrder, isApplication])
+
+  useEffect(() => {
+    const carousel = bannerCarouselRef.current
+    if (!carousel) return undefined
+    const measureSlide = () => {
+      const slide = carousel.querySelector('.service-banner')
+      if (slide) setBannerSlideStep(slide.getBoundingClientRect().width + 12)
+    }
+    measureSlide()
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', measureSlide)
+      return () => window.removeEventListener('resize', measureSlide)
+    }
+    const observer = new ResizeObserver(measureSlide)
+    observer.observe(carousel)
+    return () => observer.disconnect()
+  }, [pathname])
 
   useEffect(() => subscribeToActiveListings(
     (listings) => {
@@ -691,9 +712,26 @@ function CustomerAppPage() {
                 <div className="hero-art hero-art-laundry"><FiShoppingBag /></div>
               </div>
               <section
+                ref={bannerCarouselRef}
                 className="service-banner-carousel"
                 aria-label="CareNest services"
                 aria-roledescription="carousel"
+                onTouchStart={(event) => {
+                  bannerTouchStartX.current = event.touches[0]?.clientX ?? null
+                  setIsBannerPaused(true)
+                }}
+                onTouchEnd={(event) => {
+                  const endX = event.changedTouches[0]?.clientX
+                  if (bannerTouchStartX.current !== null && endX !== undefined) {
+                    const distance = endX - bannerTouchStartX.current
+                    if (Math.abs(distance) > 40) {
+                      const direction = distance < 0 ? 1 : -1
+                      setActiveBannerIndex((current) => (current + direction + serviceBanners.length) % serviceBanners.length)
+                    }
+                  }
+                  bannerTouchStartX.current = null
+                  setIsBannerPaused(false)
+                }}
                 onMouseEnter={() => setIsBannerPaused(true)}
                 onMouseLeave={(event) => {
                   if (!event.currentTarget.contains(document.activeElement)) setIsBannerPaused(false)
@@ -705,7 +743,7 @@ function CustomerAppPage() {
               >
                 <div
                   className="service-banner-track"
-                  style={{ transform: `translateX(-${activeBannerIndex * 100}%)` }}
+                  style={{ transform: `translateX(-${activeBannerIndex * bannerSlideStep}px)` }}
                 >
                   {serviceBanners.map((service, index) => (
                     <Link
@@ -780,6 +818,14 @@ function CustomerAppPage() {
                 ))}
                 {!ordersLoading && completedOrders.length === 0 && <p className="dashboard-muted-empty">Your completed services will appear here.</p>}
               </div>
+              <section className="home-support-card" aria-label="Customer support">
+                <span className="home-support-icon"><FiHeadphones /></span>
+                <div>
+                  <strong>Need a hand?</strong>
+                  <p>CareNest support is here to help with a booking.</p>
+                </div>
+                <Link to="/support">Get support <FiArrowRight /></Link>
+              </section>
             </div>
 
           </section>
