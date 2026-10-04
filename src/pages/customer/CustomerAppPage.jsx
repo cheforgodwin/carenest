@@ -240,6 +240,8 @@ function CustomerAppPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [recentOrder, setRecentOrder] = useState(null)
   const [isCustomerMenuOpen, setIsCustomerMenuOpen] = useState(false)
+  const [activeBannerIndex, setActiveBannerIndex] = useState(0)
+  const [isBannerPaused, setIsBannerPaused] = useState(false)
   const [providerApplications, setProviderApplications] = useState([])
   const [applicationForm, setApplicationForm] = useState({
     role: 'provider',
@@ -285,6 +287,16 @@ function CustomerAppPage() {
       (error) => setApplicationStatus((current) => ({ ...current, error: error.message })),
     )
   }, [user?.uid])
+
+  useEffect(() => {
+    if (isBannerPaused || isServices || isRequest || isMarketplaceRequest || isOrder || isApplication) return undefined
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        setActiveBannerIndex((current) => (current + 1) % serviceBanners.length)
+      }
+    }, 4500)
+    return () => window.clearInterval(interval)
+  }, [isBannerPaused, isServices, isRequest, isMarketplaceRequest, isOrder, isApplication])
 
   useEffect(() => subscribeToActiveListings(
     (listings) => {
@@ -678,17 +690,52 @@ function CustomerAppPage() {
                 </div>
                 <div className="hero-art hero-art-laundry"><FiShoppingBag /></div>
               </div>
-              <section className="service-banner-grid" aria-label="CareNest services">
-                {serviceBanners.map((service) => (
-                  <Link className={`service-banner service-banner-${service.tone}`} to={`/dashboard/customer/request/${service.tone}`} key={service.tone}>
-                    <ServiceImage image={service.image} tone={service.tone} alt={service.title} />
-                    <span className="service-banner-copy">
-                      <strong>{service.title}</strong>
-                      <span>{service.description}</span>
-                      <span className="service-banner-link">Book a service <FiArrowRight /></span>
-                    </span>
-                  </Link>
-                ))}
+              <section
+                className="service-banner-carousel"
+                aria-label="CareNest services"
+                aria-roledescription="carousel"
+                onMouseEnter={() => setIsBannerPaused(true)}
+                onMouseLeave={(event) => {
+                  if (!event.currentTarget.contains(document.activeElement)) setIsBannerPaused(false)
+                }}
+                onFocus={() => setIsBannerPaused(true)}
+                onBlur={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) setIsBannerPaused(false)
+                }}
+              >
+                <div
+                  className="service-banner-track"
+                  style={{ transform: `translateX(-${activeBannerIndex * 100}%)` }}
+                >
+                  {serviceBanners.map((service, index) => (
+                    <Link
+                      className={`service-banner service-banner-${service.tone}`}
+                      to={`/dashboard/customer/request/${service.tone}`}
+                      key={service.tone}
+                      aria-hidden={index !== activeBannerIndex}
+                      inert={index !== activeBannerIndex}
+                    >
+                      <ServiceImage image={service.image} tone={service.tone} alt={service.title} />
+                      <span className="service-banner-copy">
+                        <strong>{service.title}</strong>
+                        <span>{service.description}</span>
+                        <span className="service-banner-link">Book a service <FiArrowRight /></span>
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+                <div className="service-banner-indicators" aria-label="Choose a service">
+                  {serviceBanners.map((service, index) => (
+                    <button
+                      className={index === activeBannerIndex ? 'active' : ''}
+                      type="button"
+                      aria-label={service.title}
+                      aria-current={index === activeBannerIndex ? 'true' : undefined}
+                      key={service.tone}
+                      onClick={() => setActiveBannerIndex(index)}
+                    />
+                  ))}
+                </div>
               </section>
             </div>
             <div className="home-secondary">
