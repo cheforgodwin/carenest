@@ -255,6 +255,124 @@
   gap: 18px;
 }
 
+.public-marketplace-section {
+  background: #f4f8f5;
+}
+
+.public-marketplace-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(100%, 620px);
+  min-height: 52px;
+  margin: -8px 0 22px;
+  padding: 0 16px;
+  border: 1px solid #cfe3d6;
+  border-radius: 14px;
+  color: var(--landing-green);
+  background: #ffffff;
+  box-shadow: 0 8px 22px rgba(7, 59, 37, 0.06);
+}
+
+.public-marketplace-search:focus-within {
+  border-color: var(--landing-green);
+  box-shadow: 0 0 0 3px rgba(7, 93, 56, 0.12);
+}
+
+.public-marketplace-search > svg {
+  flex: 0 0 auto;
+}
+
+.public-marketplace-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: var(--landing-ink);
+  background: transparent;
+  font: inherit;
+}
+
+.public-marketplace-search input::placeholder {
+  color: #718278;
+}
+
+.public-marketplace-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
+  gap: 16px;
+  min-height: 72px;
+}
+
+.public-marketplace-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 9px;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--landing-line);
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 14px 36px rgba(7, 59, 37, 0.06);
+}
+
+.public-marketplace-card > span {
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: var(--landing-green);
+  background: #e8f6ec;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.public-marketplace-card h3,
+.public-marketplace-card p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.public-marketplace-card h3 {
+  color: var(--landing-green-dark);
+  font-size: 19px;
+}
+
+.public-marketplace-card p,
+.public-marketplace-card small,
+.public-marketplace-message {
+  color: var(--landing-muted);
+  line-height: 1.55;
+}
+
+.public-marketplace-card strong {
+  margin-top: auto;
+  color: var(--landing-orange);
+  font-size: 17px;
+}
+
+.public-marketplace-card a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 42px;
+  margin-top: 5px;
+  padding: 0 14px;
+  border-radius: 10px;
+  color: #ffffff;
+  background: var(--landing-green);
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.public-marketplace-card a:hover {
+  background: var(--landing-green-dark);
+}
+
+.public-marketplace-message {
+  margin: 0;
+}
+
 .landing-service-card {
   min-width: 0;
   overflow: hidden;

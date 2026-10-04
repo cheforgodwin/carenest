@@ -38,6 +38,7 @@ import {
   supportPhoneHref,
 } from '../../config/businessConfig'
 import { formatMarketplaceAmount, getMarketplaceCategory } from '../../config/marketplaceConfig'
+import { filterMarketplaceListings } from '../../utils/marketplaceSearch'
 import Logo from '../../components/Logo'
 import PaymentFeedback from '../../components/PaymentFeedback'
 import { ListingCardSkeleton, OrderCardSkeleton, Skeleton } from '../../components/ContentSkeletons'
@@ -352,25 +353,10 @@ function CustomerAppPage() {
   const selectedListing = marketplaceListings.find((listing) => listing.firestoreId === marketplaceMatch?.[1]) || null
   const marketplaceCategory = selectedListing ? getMarketplaceCategory(selectedListing.category) : null
   const marketplaceAmount = selectedListing ? Number(selectedListing.price) * Number(marketplaceForm.quantity || 0) : 0
-  const filteredMarketplaceListings = useMemo(() => {
-    const query = marketplaceSearchQuery.trim().toLocaleLowerCase(locale)
-    if (!query) return marketplaceListings
-    const normalizedQuery = query.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    return marketplaceListings.filter((listing) => {
-      const category = getMarketplaceCategory(listing.category)
-      const searchableText = [
-        listing.title,
-        listing.description,
-        listing.providerName,
-        listing.serviceArea,
-        listing.turnaround,
-        category.label,
-        category.unitLabel,
-        ...(Array.isArray(listing.options) ? listing.options : []),
-      ].filter(Boolean).join(' ').toLocaleLowerCase(locale).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      return searchableText.includes(normalizedQuery)
-    })
-  }, [locale, marketplaceListings, marketplaceSearchQuery])
+  const filteredMarketplaceListings = useMemo(
+    () => filterMarketplaceListings(marketplaceListings, marketplaceSearchQuery, locale),
+    [locale, marketplaceListings, marketplaceSearchQuery],
+  )
   const requestConfig = serviceConfig[currentServiceType]
   const PrimaryIcon = requestConfig.icon
   const form = forms[currentServiceType]

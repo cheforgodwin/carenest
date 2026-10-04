@@ -5,6 +5,7 @@ export const translationCacheKey = 'carenest_translation_cache_v4'
 
 export const staticEnglishMessages = {
   'navbar.services': 'Services',
+  'navbar.marketplace': 'Marketplace',
   'navbar.how': 'How it works',
   'navbar.login': 'Login',
   'navbar.signup': 'Sign up',

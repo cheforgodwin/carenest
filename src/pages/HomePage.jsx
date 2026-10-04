@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react'
 import {
   FiArrowRight,
   FiCalendar,
@@ -7,6 +8,7 @@ import {
   FiHome,
   FiMapPin,
   FiPackage,
+  FiSearch,
   FiShield,
   FiShoppingBag,
   FiTool,
@@ -14,8 +16,11 @@ import {
   FiUserCheck,
 } from 'react-icons/fi'
 import { Link } from 'react-router-dom'
+import { formatMarketplaceAmount, getMarketplaceCategory } from '../config/marketplaceConfig'
 import Navbar from '../components/Navbar'
-import { useT } from '../i18n/useI18n.jsx'
+import { ListingCardSkeleton } from '../components/ContentSkeletons'
+import { useI18n, useT } from '../i18n/useI18n.jsx'
+import { filterMarketplaceListings } from '../utils/marketplaceSearch'
 import './HomePage.css'
 
 const serviceCards = [
@@ -33,6 +38,11 @@ const steps = [
 ]
 
 function HomePage() {
+  const { locale } = useI18n()
+  const [marketplaceListings, setMarketplaceListings] = useState([])
+  const [marketplaceSearchQuery, setMarketplaceSearchQuery] = useState('')
+  const [marketplaceListingsLoading, setMarketplaceListingsLoading] = useState(true)
+  const [marketplaceListingsError, setMarketplaceListingsError] = useState('')
   const heroEyebrow = useT('home.hero.eyebrow')
   const heroHeadline = useT('home.hero.headline')
   const heroLead = useT('home.hero.lead')
@@ -68,6 +78,33 @@ function HomePage() {
   const finalLead = useT('home.final.lead')
   const finalAction = useT('home.final.action')
   const serviceNames = [serviceLaundry, serviceHomeCleaning, serviceEssentialsDelivery, serviceRepairs]
+  const filteredMarketplaceListings = useMemo(
+    () => filterMarketplaceListings(marketplaceListings, marketplaceSearchQuery, locale),
+    [locale, marketplaceListings, marketplaceSearchQuery],
+  )
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    async function loadMarketplaceListings() {
+      try {
+        const response = await fetch('/api/marketplace', { signal: controller.signal })
+        const payload = await response.json()
+        if (!response.ok) throw new Error(payload.error || 'Unable to load storefronts.')
+        if (!Array.isArray(payload.listings)) throw new Error('The storefront response was invalid.')
+        setMarketplaceListings(payload.listings)
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          setMarketplaceListingsError('Storefront listings are temporarily unavailable. Please try again later.')
+        }
+      } finally {
+        if (!controller.signal.aborted) setMarketplaceListingsLoading(false)
+      }
+    }
+
+    loadMarketplaceListings()
+    return () => controller.abort()
+  }, [])
 
   return (
     <main className="home-page">
@@ -117,6 +154,43 @@ function HomePage() {
               </article>
             )
           })}
+        </div>
+      </section>
+
+      <section className="section public-marketplace-section" id="marketplace">
+        <div className="section-heading">
+          <p className="eyebrow">CareNest marketplace</p>
+          <h2>Find what your home needs.</h2>
+          <p className="section-description">Search products and services from active local provider storefronts.</p>
+        </div>
+        <label className="public-marketplace-search">
+          <FiSearch aria-hidden="true" />
+          <input
+            type="search"
+            value={marketplaceSearchQuery}
+            onChange={(event) => setMarketplaceSearchQuery(event.target.value)}
+            placeholder="Search shops, products, and services"
+            aria-label="Search shops, products, and services"
+          />
+        </label>
+        <div className="public-marketplace-grid">
+          {marketplaceListingsLoading
+            ? Array.from({ length: 3 }, (_, index) => <ListingCardSkeleton key={index} />)
+            : filteredMarketplaceListings.map((listing) => (
+              <article className="public-marketplace-card" key={listing.firestoreId}>
+                <span>{getMarketplaceCategory(listing.category).label}</span>
+                <h3>{listing.title}</h3>
+                <p>{listing.description}</p>
+                <small>Sold by {listing.providerName} · {listing.serviceArea}</small>
+                {listing.turnaround && <small>{listing.turnaround}</small>}
+                <strong>{formatMarketplaceAmount(listing.price)} / {listing.unit}</strong>
+                {listing.stockTracked && <small>{listing.stockQuantity > 0 ? `${listing.stockQuantity} available` : 'Out of stock'}</small>}
+                <Link to="/login">Sign in to order <FiArrowRight /></Link>
+              </article>
+            ))}
+          {!marketplaceListingsLoading && marketplaceListingsError && <p className="public-marketplace-message" role="alert">{marketplaceListingsError}</p>}
+          {!marketplaceListingsLoading && !marketplaceListingsError && marketplaceListings.length === 0 && <p className="public-marketplace-message">Provider storefronts are coming soon.</p>}
+          {!marketplaceListingsLoading && !marketplaceListingsError && marketplaceListings.length > 0 && filteredMarketplaceListings.length === 0 && <p className="public-marketplace-message">No matching listings. Try a different search.</p>}
         </div>
       </section>
 

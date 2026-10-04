@@ -10,6 +10,7 @@ function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const { locale, setLocale, supportedLocales } = useI18n()
   const servicesLabel = useT('navbar.services')
+  const marketplaceLabel = useT('navbar.marketplace')
   const howLabel = useT('navbar.how')
   const loginLabel = useT('navbar.login')
   const signupLabel = useT('navbar.signup')
@@ -45,6 +46,7 @@ function Navbar() {
         <div className="nav-menu" id="site-navigation">
           <div className="nav-links">
             <a href="/#services" onClick={() => setIsMenuOpen(false)}>{servicesLabel}</a>
+            <a href="/#marketplace" onClick={() => setIsMenuOpen(false)}>{marketplaceLabel}</a>
             <a href="/#how" onClick={() => setIsMenuOpen(false)}>{howLabel}</a>
             <Link to="/support" onClick={() => setIsMenuOpen(false)}>Support</Link>
           </div>
