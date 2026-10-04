@@ -731,6 +731,133 @@
   gap: 16px;
 }
 
+.service-banner-grid {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 2px 2px 8px;
+  scrollbar-width: thin;
+  scroll-snap-type: x proximity;
+}
+
+.service-banner {
+  flex: 0 0 clamp(176px, 31%, 220px);
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--cn-line);
+  border-radius: 16px;
+  color: var(--cn-ink);
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(7, 59, 37, 0.07);
+  text-decoration: none;
+  scroll-snap-align: start;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.service-banner:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 32px rgba(7, 59, 37, 0.12);
+}
+
+.service-banner-copy {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+}
+
+.service-banner-copy > strong {
+  color: var(--cn-green-dark);
+  font-size: 15px;
+}
+
+.service-banner-copy > span:not(.service-banner-link) {
+  min-height: 38px;
+  color: var(--cn-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.service-banner-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--cn-orange-dark);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.service-image-shell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-width: 0;
+  aspect-ratio: 8 / 5;
+  overflow: hidden;
+  background: #e8f2ec;
+}
+
+.service-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.service-image.is-loaded {
+  opacity: 1;
+}
+
+.service-image-placeholder {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, #e8eeea 25%, #f5f8f6 45%, #e8eeea 65%);
+  background-size: 220% 100%;
+  animation: content-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.service-image-fallback {
+  width: 42px;
+  height: 42px;
+  color: var(--cn-green);
+}
+
+.service-art .service-image-shell {
+  min-height: 112px;
+  border-radius: 14px;
+}
+
+.service-art .service-image-fallback {
+  width: 48px;
+  height: 48px;
+}
+
+.activity-row-skeleton {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 58px;
+  padding: 9px 0;
+}
+
+.activity-skeleton-icon {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+
+.activity-row-skeleton > span {
+  display: grid;
+  flex: 1;
+  gap: 8px;
+}
+
 .service-card {
   display: flex;
   flex: 1 1 280px;
@@ -1996,6 +2123,11 @@
     min-height: 220px;
   }
 
+  .service-card .service-art {
+    flex: 0 0 36%;
+    min-width: 0;
+  }
+
   .request-shell,
   .tracking-shell {
     flex-direction: column;
@@ -2055,6 +2187,23 @@
 
   .services-grid {
     gap: 10px;
+  }
+
+  .service-banner {
+    flex-basis: min(72vw, 260px);
+  }
+
+  .service-banner-copy {
+    padding: 10px;
+  }
+
+  .service-banner-copy > span:not(.service-banner-link) {
+    min-height: 34px;
+  }
+
+  .service-card .service-art {
+    flex-basis: 34%;
+    min-height: 128px;
   }
 
   .app-header {

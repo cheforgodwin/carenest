@@ -966,6 +966,14 @@
   gap: 14px;
 }
 
+.dashboard-table-skeleton {
+  min-width: 0;
+}
+
+.dashboard-table-skeleton .dashboard-row-skeleton {
+  padding-inline: 0;
+}
+
 .marketplace-listing-card {
   display: flex;
   flex-direction: column;

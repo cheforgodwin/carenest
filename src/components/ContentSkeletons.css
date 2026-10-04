@@ -1,0 +1,129 @@
+.content-skeleton {
+  display: block;
+  overflow: hidden;
+  border-radius: 8px;
+  background: linear-gradient(100deg, #e8eeea 25%, #f5f8f6 45%, #e8eeea 65%);
+  background-size: 220% 100%;
+  animation: content-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 999px;
+}
+
+.skeleton-line-long {
+  width: 88%;
+}
+
+.skeleton-line-medium {
+  width: 64%;
+}
+
+.skeleton-line-short {
+  width: 42%;
+}
+
+.order-card-skeleton {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-height: 104px;
+  padding: 16px;
+  border: 1px solid #e6ece8;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.order-skeleton-icon {
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+}
+
+.order-skeleton-copy {
+  display: grid;
+  flex: 1;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.order-skeleton-status {
+  flex: 0 0 64px;
+  width: 64px;
+  height: 20px;
+  border-radius: 999px;
+}
+
+.listing-card-skeleton {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-height: 204px;
+  padding: 18px;
+  border: 1px solid #dceee3;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.dashboard-metric-skeleton {
+  width: 70px;
+  height: 26px;
+  margin-top: 8px;
+}
+
+.dashboard-row-skeleton {
+  display: grid;
+  grid-template-columns: repeat(var(--skeleton-columns, 5), minmax(0, 1fr));
+  align-items: center;
+  gap: 14px;
+  min-height: 52px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #eef4f0;
+}
+
+.dashboard-row-cell-1 {
+  width: 64%;
+}
+
+.dashboard-row-cell-2,
+.dashboard-row-cell-4 {
+  width: 76%;
+}
+
+.dashboard-row-cell-3 {
+  width: 58%;
+}
+
+.dashboard-row-cell-5 {
+  width: 84%;
+}
+
+@keyframes content-skeleton-shimmer {
+  to {
+    background-position-x: -220%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content-skeleton {
+    animation: none;
+    background: #e8eeea;
+  }
+}
+
+@media (max-width: 640px) {
+  .order-card-skeleton {
+    gap: 10px;
+    padding: 13px;
+  }
+
+  .order-skeleton-status {
+    display: none;
+  }
+
+  .dashboard-row-skeleton {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

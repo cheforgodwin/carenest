@@ -1,21 +1,32 @@
 {
-  "installCommand": "npm ci",
-  "buildCommand": "node scripts/verify-payment-build.mjs && npm run build",
-  "outputDirectory": "dist",
-  "routes": [
-    {
-      "src": "/(app-origin\\.js|sw\\.js|firebase-messaging-sw\\.js|manifest\\.webmanifest)",
-      "headers": {
-        "Cache-Control": "no-cache"
-      },
-      "continue": true
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/.*",
-      "dest": "/index.html"
-    }
-  ]
+    "installCommand":  "npm ci",
+    "buildCommand":  "node scripts/verify-payment-build.mjs \u0026\u0026 npm run build",
+    "outputDirectory":  "dist",
+    "routes":  [
+                   {
+                       "src":  "/(app-origin\\.js|sw\\.js|firebase-messaging-sw\\.js|manifest\\.webmanifest)",
+                       "headers":  {
+                                       "Cache-Control":  "no-cache"
+                                   },
+                       "continue":  true
+                   },
+                   {
+                       "handle":  "filesystem"
+                   },
+                   {
+                       "src":  "/.*",
+                       "dest":  "/index.html"
+                   }
+               ],
+    "crons":  [
+                  {
+                      "path":  "/api/notification-retry",
+                      "schedule":  "0 4 * * *"
+                  }
+              ],
+    "functions":  {
+                      "api/notification-retry.js":  {
+                                                        "maxDuration":  60
+                                                    }
+                  }
 }

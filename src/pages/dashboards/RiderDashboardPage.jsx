@@ -8,6 +8,7 @@ import {
   updateRiderDeliveryStatus,
 } from '../../firebase/orderService'
 import DashboardShell from './DashboardShell'
+import { DashboardRowSkeleton, Skeleton } from '../../components/ContentSkeletons'
 
 function normalizeStatus(status) {
   return String(status || 'Pending').toLowerCase().replace(/\s+/g, '-')
@@ -25,19 +26,33 @@ function RiderDashboardPage() {
   const { profile, user } = useAuth()
   const [availableDeliveries, setAvailableDeliveries] = useState([])
   const [assignedDeliveries, setAssignedDeliveries] = useState([])
+  const [availableDeliveriesLoading, setAvailableDeliveriesLoading] = useState(true)
+  const [assignedDeliveriesLoading, setAssignedDeliveriesLoading] = useState(true)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [query, setQuery] = useState('')
 
   useEffect(() => {
     const unsubOpen = subscribeToOpenRiderDeliveries(
-      setAvailableDeliveries,
-      (nextError) => setError(getDeliveryErrorMessage(nextError)),
+      (deliveries) => {
+        setAvailableDeliveries(deliveries)
+        setAvailableDeliveriesLoading(false)
+      },
+      (nextError) => {
+        setError(getDeliveryErrorMessage(nextError))
+        setAvailableDeliveriesLoading(false)
+      },
     )
     const unsubAssigned = subscribeToRiderOrders(
       user?.uid,
-      setAssignedDeliveries,
-      (nextError) => setError(getDeliveryErrorMessage(nextError)),
+      (deliveries) => {
+        setAssignedDeliveries(deliveries)
+        setAssignedDeliveriesLoading(false)
+      },
+      (nextError) => {
+        setError(getDeliveryErrorMessage(nextError))
+        setAssignedDeliveriesLoading(false)
+      },
     )
 
     return () => {
@@ -48,11 +63,10 @@ function RiderDashboardPage() {
 
   const activeAssigned = assignedDeliveries.filter((order) => !['Completed', 'Cancelled'].includes(order.status))
   const completed = assignedDeliveries.filter((order) => order.status === 'Completed')
-
   const metrics = [
-    ['Open deliveries', String(availableDeliveries.length)],
-    ['Assigned deliveries', String(activeAssigned.length)],
-    ['Completed deliveries', String(completed.length)],
+    ['Open deliveries', availableDeliveriesLoading ? <Skeleton className="dashboard-metric-skeleton" /> : String(availableDeliveries.length)],
+    ['Assigned deliveries', assignedDeliveriesLoading ? <Skeleton className="dashboard-metric-skeleton" /> : String(activeAssigned.length)],
+    ['Completed deliveries', assignedDeliveriesLoading ? <Skeleton className="dashboard-metric-skeleton" /> : String(completed.length)],
   ]
 
   const nav = [
@@ -130,15 +144,15 @@ function RiderDashboardPage() {
           <div className="dashboard-simple-list">
             <div className="dashboard-summary-card">
               <h3>Available deliveries</h3>
-              <p>{availableDeliveries.length} jobs waiting for pickup</p>
+              {availableDeliveriesLoading ? <Skeleton className="skeleton-line skeleton-line-long" /> : <p>{availableDeliveries.length} jobs waiting for pickup</p>}
             </div>
             <div className="dashboard-summary-card">
               <h3>Assigned deliveries</h3>
-              <p>{activeAssigned.length} jobs currently in your route</p>
+              {assignedDeliveriesLoading ? <Skeleton className="skeleton-line skeleton-line-long" /> : <p>{activeAssigned.length} jobs currently in your route</p>}
             </div>
             <div className="dashboard-summary-card">
               <h3>Completed deliveries</h3>
-              <p>{completed.length} finished jobs</p>
+              {assignedDeliveriesLoading ? <Skeleton className="skeleton-line skeleton-line-long" /> : <p>{completed.length} finished jobs</p>}
             </div>
           </div>
         )}
@@ -149,7 +163,9 @@ function RiderDashboardPage() {
               <tr><th>ID</th><th>Customer</th><th>Service</th><th>Status</th><th>Address</th><th>Pickup</th><th>Action</th></tr>
             </thead>
             <tbody>
-              {(activeView === 'deliveries' ? visibleAssigned : visibleCompleted).map((order) => (
+              {assignedDeliveriesLoading
+                ? Array.from({ length: 4 }, (_, index) => <tr key={index}><td colSpan="7"><DashboardRowSkeleton columns={7} /></td></tr>)
+                : (activeView === 'deliveries' ? visibleAssigned : visibleCompleted).map((order) => (
                 <tr key={order.firestoreId}>
                   <td>{order.id}</td>
                   <td>{order.customerName || 'Customer'}</td>
@@ -173,11 +189,11 @@ function RiderDashboardPage() {
           </table>
         )}
 
-        {activeView === 'deliveries' && visibleAssigned.length === 0 && <p className="dashboard-empty">No assigned deliveries yet. Check available jobs in the overview.</p>}
-        {activeView === 'completed' && visibleCompleted.length === 0 && <p className="dashboard-empty">No completed deliveries yet.</p>}
+        {activeView === 'deliveries' && !assignedDeliveriesLoading && visibleAssigned.length === 0 && <p className="dashboard-empty">No assigned deliveries yet. Check available jobs in the overview.</p>}
+        {activeView === 'completed' && !assignedDeliveriesLoading && visibleCompleted.length === 0 && <p className="dashboard-empty">No completed deliveries yet.</p>}
       </section>
 
-      {activeView === 'overview' && availableDeliveries.length > 0 && (
+      {activeView === 'overview' && (availableDeliveriesLoading || availableDeliveries.length > 0) && (
         <section className="dashboard-panel">
           <div className="dashboard-panel-header">
             <div>
@@ -185,7 +201,11 @@ function RiderDashboardPage() {
               <p>Pick the job you want and accept it to start the delivery.</p>
             </div>
           </div>
-          {visibleAvailable.length > 0 ? (
+          {availableDeliveriesLoading ? (
+            <div className="dashboard-table-skeleton" aria-label="Loading deliveries">
+              {Array.from({ length: 4 }, (_, index) => <DashboardRowSkeleton key={index} columns={6} />)}
+            </div>
+          ) : visibleAvailable.length > 0 ? (
             <table className="dashboard-table">
               <thead><tr><th>ID</th><th>Customer</th><th>Service</th><th>Address</th><th>Pickup time</th><th>Action</th></tr></thead>
               <tbody>

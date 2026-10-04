@@ -38,6 +38,8 @@ import {
 import { formatMarketplaceAmount, getMarketplaceCategory } from '../../config/marketplaceConfig'
 import Logo from '../../components/Logo'
 import PaymentFeedback from '../../components/PaymentFeedback'
+import { ListingCardSkeleton, OrderCardSkeleton, Skeleton } from '../../components/ContentSkeletons'
+import ServiceImage from '../../components/ServiceImage'
 import { confirmCustomerCompletion, createMarketplaceServiceRequest, createRequestId, createServiceRequest, submitCustomerComplaint, subscribeToCustomerOrders } from '../../firebase/orderService'
 import { postJson } from '../../utils/networkUtils'
 import { inputLimits, sanitizeText } from '../../utils/securityUtils'
@@ -56,6 +58,12 @@ const services = [
   ['Laundry Service', 'We wash, iron and deliver to your door.', 'laundry', getStartingPrice('laundry')],
   ['Home Cleaning', 'Professional cleaning for your home.', 'cleaning', getStartingPrice('cleaning')],
   ['Essentials Delivery', 'Order household essentials and we deliver fast.', 'delivery', getStartingPrice('delivery')],
+]
+
+const serviceBanners = [
+  { title: 'Laundry', description: 'Laundry pickup and delivery, handled with care.', tone: 'laundry', image: '/images/services/laundry.webp' },
+  { title: 'Home Cleaning', description: 'A fresh, comfortable home without the hassle.', tone: 'cleaning', image: '/images/services/cleaning.webp' },
+  { title: 'Essentials Delivery', description: 'Everyday essentials delivered to your door.', tone: 'delivery', image: '/images/services/essentials.webp' },
 ]
 
 const timelineSteps = [
@@ -212,6 +220,8 @@ function CustomerAppPage() {
   const isOrdersIndex = pathname.endsWith('/orders')
   const [orders, setOrders] = useState([])
   const [marketplaceListings, setMarketplaceListings] = useState([])
+  const [marketplaceListingsLoading, setMarketplaceListingsLoading] = useState(true)
+  const [marketplaceListingsError, setMarketplaceListingsError] = useState('')
   const [marketplaceForm, setMarketplaceForm] = useState(() => ({
     quantity: 1, address: availableServiceAddresses[0] || defaultCustomerAddress || defaultCustomerCity,
     pickupDate: createEmptyForm('delivery').pickupDate, pickupTime: '10:00',
@@ -277,8 +287,15 @@ function CustomerAppPage() {
   }, [user?.uid])
 
   useEffect(() => subscribeToActiveListings(
-    setMarketplaceListings,
-    (error) => setRequestError(error.message),
+    (listings) => {
+      setMarketplaceListings(listings)
+      setMarketplaceListingsError('')
+      setMarketplaceListingsLoading(false)
+    },
+    (error) => {
+      setMarketplaceListingsError(error.message)
+      setMarketplaceListingsLoading(false)
+    },
   ), [])
 
   const activeOrder = useMemo(
@@ -661,6 +678,18 @@ function CustomerAppPage() {
                 </div>
                 <div className="hero-art hero-art-laundry"><FiShoppingBag /></div>
               </div>
+              <section className="service-banner-grid" aria-label="CareNest services">
+                {serviceBanners.map((service) => (
+                  <Link className={`service-banner service-banner-${service.tone}`} to={`/dashboard/customer/request/${service.tone}`} key={service.tone}>
+                    <ServiceImage image={service.image} tone={service.tone} alt={service.title} />
+                    <span className="service-banner-copy">
+                      <strong>{service.title}</strong>
+                      <span>{service.description}</span>
+                      <span className="service-banner-link">Book a service <FiArrowRight /></span>
+                    </span>
+                  </Link>
+                ))}
+              </section>
             </div>
             <div className="home-secondary">
               <div className="section-title"><strong>Quick Actions</strong><Link to="/dashboard/customer/services">See all</Link></div>
@@ -684,11 +713,16 @@ function CustomerAppPage() {
                   <div className="mini-progress"><i></i><i></i><i></i><i></i></div>
                 </Link>
               ) : ordersLoading
-                ? <p className="request-message" role="status">Loading your orders…</p>
+                ? <OrderCardSkeleton />
                 : <div className="customer-empty"><FiShoppingBag /><div><strong>No active orders</strong><p>Choose a service and create your first request in a few steps.</p></div><Link to="/dashboard/customer/services">Browse services</Link></div>}
               <div className="section-title"><strong>Recent Activity</strong><Link to="/dashboard/customer/orders">See all</Link></div>
               <div className="activity-list">
-                {completedOrders.slice(0, 2).map((order) => (
+                {ordersLoading ? Array.from({ length: 2 }, (_, index) => (
+                  <div className="activity-row-skeleton" role="status" aria-label="Loading recent activity" key={index}>
+                    <Skeleton className="activity-skeleton-icon" />
+                    <span><Skeleton className="skeleton-line skeleton-line-medium" /><Skeleton className="skeleton-line skeleton-line-short" /></span>
+                  </div>
+                )) : completedOrders.slice(0, 2).map((order) => (
                   <Link to={`/dashboard/customer/orders/${order.id}`} key={order.id}>
                     {order.service === 'Laundry' ? <FiShoppingBag /> : <FiTool />}
                     <strong>{order.id}</strong>
@@ -697,7 +731,7 @@ function CustomerAppPage() {
                     <small>{formatPlacedAt(order, locale)}<br />{formatAmount(order.amount)}</small>
                   </Link>
                 ))}
-                {completedOrders.length === 0 && <p className="dashboard-muted-empty">Your completed services will appear here.</p>}
+                {!ordersLoading && completedOrders.length === 0 && <p className="dashboard-muted-empty">Your completed services will appear here.</p>}
               </div>
             </div>
 
@@ -715,9 +749,7 @@ function CustomerAppPage() {
                 {services.map(([service, description, tone, startingPrice]) => (
                   <article className={`service-card service-card-${tone}`} key={service}>
                     <div className={`service-art service-art-${tone}`}>
-                      {tone === 'laundry' && <FiShoppingBag />}
-                      {tone === 'cleaning' && <FiTool />}
-                      {tone === 'delivery' && <FiPackage />}
+                      <ServiceImage image={serviceBanners.find((item) => item.tone === tone).image} tone={tone} alt={service} />
                     </div>
                     <div><h2>{service}</h2><p>{description}</p><strong className="service-price">From {formatAmount(startingPrice)}</strong><Link to={`/dashboard/customer/request/${tone}`}>Book Now <FiArrowRight /></Link></div>
                   </article>
@@ -728,7 +760,9 @@ function CustomerAppPage() {
                 <p>Order directly from verified home-essential shops and service businesses.</p>
               </div>
               <div className="marketplace-customer-grid">
-                {marketplaceListings.map((listing) => (
+                {marketplaceListingsLoading
+                  ? Array.from({ length: 2 }, (_, index) => <ListingCardSkeleton key={index} />)
+                  : marketplaceListings.map((listing) => (
                   <article className="marketplace-customer-card" key={listing.firestoreId}>
                     <span>{getMarketplaceCategory(listing.category).label}</span>
                     <h3>{listing.title}</h3>
@@ -740,7 +774,8 @@ function CustomerAppPage() {
                     <Link className={listing.stockTracked && listing.stockQuantity < 1 ? 'disabled' : ''} aria-disabled={listing.stockTracked && listing.stockQuantity < 1} to={'/dashboard/customer/shop/' + listing.firestoreId}>View and order <FiArrowRight /></Link>
                   </article>
                 ))}
-                {marketplaceListings.length === 0 && <div className="marketplace-empty"><FiShoppingBag /><strong>Provider shops are coming soon</strong><p>Approved providers can publish products and services from their dashboard.</p></div>}
+                {!marketplaceListingsLoading && marketplaceListingsError && <div className="marketplace-empty" role="alert">{marketplaceListingsError}</div>}
+                {!marketplaceListingsLoading && !marketplaceListingsError && marketplaceListings.length === 0 && <div className="marketplace-empty"><FiShoppingBag /><strong>Provider shops are coming soon</strong><p>Approved providers can publish products and services from their dashboard.</p></div>}
               </div>              <div className="service-support-strip">
                 <span><FiCheck /> Verified providers</span>
                 <span><FiClock /> Reliable pickup times</span>
@@ -926,7 +961,7 @@ function CustomerAppPage() {
           <section className="mobile-content mobile-content-order">
             <div className="orders-history-shell">
               <div className="page-heading"><h1>Your orders</h1><p>Track active requests and review completed services.</p></div>
-              {ordersLoading ? <p className="request-message" role="status">Loading your orders…</p> : orders.length > 0 ? (
+              {ordersLoading ? <div className="orders-history-grid" aria-label="Loading order history">{Array.from({ length: 3 }, (_, index) => <OrderCardSkeleton key={index} />)}</div> : orders.length > 0 ? (
                 <div className="orders-history-grid">
                   {orders.map((order) => (
                     <Link className="order-card" to={`/dashboard/customer/orders/${order.id}`} key={order.firestoreId || order.id}>

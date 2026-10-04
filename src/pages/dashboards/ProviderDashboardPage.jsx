@@ -19,6 +19,7 @@ import {
 
 import DashboardShell from './DashboardShell'
 import { orderFinance } from '../../utils/finance'
+import { DashboardRowSkeleton, ListingCardSkeleton, Skeleton } from '../../components/ContentSkeletons'
 
 function providerStatuses(order) {
   if (order.paymentStatus !== 'Paid' || !order.paymentVerifiedAt) return [order.status]
@@ -49,10 +50,13 @@ function ProviderDashboardPage() {
   const { profile, user } = useAuth()
   const [orders, setOrders] = useState([])
   const [openOrders, setOpenOrders] = useState([])
+  const [ordersLoading, setOrdersLoading] = useState(true)
+  const [openOrdersLoading, setOpenOrdersLoading] = useState(true)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [query, setQuery] = useState('')
   const [listings, setListings] = useState([])
+  const [listingsLoading, setListingsLoading] = useState(true)
   const [listingForm, setListingForm] = useState(emptyListing)
   const [availability, setAvailability] = useState(() => ({
     status: profile?.availability?.status || 'Available',
@@ -65,13 +69,25 @@ function ProviderDashboardPage() {
 
   useEffect(() => {
     const unsubOpen = subscribeToOpenProviderOrders(
-      setOpenOrders,
-      (nextError) => setError(nextError.message),
+      (nextOrders) => {
+        setOpenOrders(nextOrders)
+        setOpenOrdersLoading(false)
+      },
+      (nextError) => {
+        setError(nextError.message)
+        setOpenOrdersLoading(false)
+      },
     )
     const unsubMine = subscribeToProviderOrders(
       user?.uid,
-      setOrders,
-      (nextError) => setError(nextError.message),
+      (nextOrders) => {
+        setOrders(nextOrders)
+        setOrdersLoading(false)
+      },
+      (nextError) => {
+        setError(nextError.message)
+        setOrdersLoading(false)
+      },
     )
     return () => {
       unsubOpen()
@@ -81,8 +97,14 @@ function ProviderDashboardPage() {
 
   useEffect(() => subscribeToProviderListings(
     user?.uid,
-    setListings,
-    (nextError) => setError(nextError.message),
+    (nextListings) => {
+      setListings(nextListings)
+      setListingsLoading(false)
+    },
+    (nextError) => {
+      setError(nextError.message)
+      setListingsLoading(false)
+    },
   ), [user?.uid])
 
   const openJobs = openOrders.filter((order) => !order.providerUid && order.status === 'Pending')
@@ -91,6 +113,7 @@ function ProviderDashboardPage() {
   const completedJobs = myJobs.filter((order) => order.status === 'Completed')
   const readyPayoutJobs = completedJobs.filter((order) => order.paymentEnvironment === 'live' && orderFinance(order).earned && !orderFinance(order).legacyTransfer)
   const earnings = readyPayoutJobs.reduce((total, order) => total + Number(orderFinance(order).providerDue || 0), 0)
+  const jobsLoading = ordersLoading || openOrdersLoading
   const sourceJobs = activeView === 'jobs' ? [...openJobs, ...myJobs] : [...activeJobs, ...openJobs].slice(0, 8)
   const needle = query.trim().toLowerCase()
   const visibleJobs = sourceJobs.filter((order) => {
@@ -99,10 +122,10 @@ function ProviderDashboardPage() {
   })
 
   const metrics = [
-    ['Open jobs', String(openJobs.length)],
-    ['Active jobs', String(activeJobs.length)],
-    ['Completed', String(completedJobs.length)],
-    ['Confirmed outstanding', formatAmount(earnings)],
+    ['Open jobs', jobsLoading ? <Skeleton className="dashboard-metric-skeleton" /> : String(openJobs.length)],
+    ['Active jobs', ordersLoading ? <Skeleton className="dashboard-metric-skeleton" /> : String(activeJobs.length)],
+    ['Completed', ordersLoading ? <Skeleton className="dashboard-metric-skeleton" /> : String(completedJobs.length)],
+    ['Confirmed outstanding', ordersLoading ? <Skeleton className="dashboard-metric-skeleton" /> : formatAmount(earnings)],
   ]
 
   async function acceptJob(order) {
@@ -220,7 +243,11 @@ function ProviderDashboardPage() {
             </div>
             <input className="dashboard-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search jobs" />
           </div>
-          {visibleJobs.length > 0 ? (
+          {jobsLoading ? (
+            <div className="dashboard-table-skeleton" aria-label="Loading jobs">
+              {Array.from({ length: 4 }, (_, index) => <DashboardRowSkeleton key={index} columns={8} />)}
+            </div>
+          ) : visibleJobs.length > 0 ? (
             <table className="dashboard-table">
               <thead><tr><th>Job</th><th>Customer</th><th>Type</th><th>Status</th><th>Area</th><th>Provider pay</th><th>Payout</th><th>Action</th></tr></thead>
               <tbody>
@@ -280,7 +307,9 @@ function ProviderDashboardPage() {
             <button className="dashboard-action-button form-action" type="submit">Add to storefront</button>
           </form>
           <div className="marketplace-listing-grid">
-            {listings.map((listing) => (
+            {listingsLoading
+              ? Array.from({ length: 2 }, (_, index) => <ListingCardSkeleton key={index} />)
+              : listings.map((listing) => (
               <article className="marketplace-listing-card" key={listing.firestoreId}>
                 <span>{getMarketplaceCategory(listing.category).label}</span>
                 <h3>{listing.title}</h3>
@@ -291,7 +320,7 @@ function ProviderDashboardPage() {
                 <button className={listing.active ? 'table-action secondary' : 'table-action'} type="button" onClick={() => toggleListing(listing)}>{listing.active ? 'Hide listing' : 'Publish listing'}</button>
               </article>
             ))}
-            {listings.length === 0 && <p className="dashboard-empty">Your storefront is empty. Add your first product or service above.</p>}
+            {!listingsLoading && listings.length === 0 && <p className="dashboard-empty">Your storefront is empty. Add your first product or service above.</p>}
           </div>
         </section>
       )}

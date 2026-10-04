@@ -30,22 +30,38 @@ async function sendWithRetry(messages) {
 }
 
 // Always read saved state; never trust a client-supplied notification or recipient.
-export async function notifyOrder(db, orderId) {
+export async function notifyOrder(db, orderId, { retryEventId } = {}) {
   let guard
+  let ownsLease = false
+  let attemptCount = 0
   try {
     const order = (await db.collection('serviceRequests').doc(orderId).get()).data()
-    if (!order) return
+    if (!order) {
+      if (retryEventId) await db.collection('pushEvents').doc(retryEventId).update({ status: 'Order missing' })
+      return
+    }
     const paid = order.paymentStatus === 'Paid' && confirmedCollection(order)
     const eventId = createHash('sha256').update(JSON.stringify([orderId, order.paymentReference, order.paymentStatus, order.status, order.providerUid || '', order.riderUid || '', order.riderStatus || '', order.refundStatus || '', order.disputeStatus || '', order.payoutStatus || '', order.completionConfirmedBy || '', order.financeTotals?.provider || 0, order.financeTotals?.rider || 0, order.financeTotals?.refund || 0])).digest('hex')
+    if (retryEventId && retryEventId !== eventId) {
+      await db.collection('pushEvents').doc(retryEventId).update({ status: 'Superseded', updatedAt: FieldValue.serverTimestamp() })
+      return
+    }
     guard = db.collection('pushEvents').doc(eventId)
     const reserved = await db.runTransaction(async transaction => {
       const current = (await transaction.get(guard)).data()
       if (current && (current.status !== 'Retry pending' && !(current.status === 'Sending' && Date.now() - (current.startedAtMs || 0) > 180000))) return null
+      const firstCreatedAtMs = current?.firstCreatedAtMs || current?.startedAtMs || Date.now()
+      attemptCount = (current?.attemptCount || 0) + 1
+      if (attemptCount > 8 || Date.now() - firstCreatedAtMs > 72 * 3600000) {
+        transaction.update(guard, { status: 'Expired', updatedAt: FieldValue.serverTimestamp() })
+        return null
+      }
       const completed = current?.completedDeviceIds || []
-      transaction.set(guard, { orderId, createdAt: FieldValue.serverTimestamp(), status: 'Sending', startedAtMs: Date.now(), completedDeviceIds: completed })
+      transaction.set(guard, { orderId, createdAt: current?.createdAt || FieldValue.serverTimestamp(), firstCreatedAtMs, attemptCount, status: 'Sending', startedAtMs: Date.now(), completedDeviceIds: completed })
       return completed
     })
     if (!reserved) return
+    ownsLease = true
     const completed = new Set(reserved)
     const admins = await db.collection('users').where('accountType', '==', 'admin').get()
     const adminUids = new Set(admins.docs.map(doc => doc.id))
@@ -92,9 +108,9 @@ export async function notifyOrder(db, orderId) {
       }
       await guard.update({ completedDeviceIds: [...completed], updatedAt: FieldValue.serverTimestamp() })
     }
-    await guard.update({ status: retryPending ? 'Retry pending' : !subscriptions.length && !completed.size ? 'No devices' : 'Accepted', deviceCount: subscriptions.length, acceptedCount, completedDeviceIds: [...completed], updatedAt: FieldValue.serverTimestamp() })
+    await guard.update({ status: retryPending ? 'Retry pending' : !subscriptions.length && !completed.size ? 'No devices' : 'Accepted', nextAttemptAtMs: retryPending ? Date.now() + Math.min(3600000, 60000 * 2 ** Math.max(0, attemptCount - 1)) : 0, deviceCount: subscriptions.length, acceptedCount, completedDeviceIds: [...completed], updatedAt: FieldValue.serverTimestamp() })
   } catch {
-    if (guard) await guard.update({ status: 'Retry pending', updatedAt: FieldValue.serverTimestamp() }).catch(() => {})
+    if (guard && ownsLease) await guard.update({ status: 'Retry pending', nextAttemptAtMs: Date.now() + 60000, updatedAt: FieldValue.serverTimestamp() }).catch(() => {})
     console.warn('push_delivery_unavailable', { orderId })
   }
 }
