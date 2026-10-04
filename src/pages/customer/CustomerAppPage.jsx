@@ -696,6 +696,7 @@ function CustomerAppPage() {
                 <Link to="/dashboard/customer/orders" onClick={() => setIsCustomerMenuOpen(false)}><FiBriefcase />Orders</Link>
                 <Link to="/dashboard/customer/services" onClick={() => setIsCustomerMenuOpen(false)}><FiGift />Services</Link>
                 <Link to="/dashboard/customer/apply" onClick={() => setIsCustomerMenuOpen(false)}><FiUserPlus />Apply to work</Link>
+                <Link to="/settings" onClick={() => setIsCustomerMenuOpen(false)}><FiSettings />Settings &amp; notifications</Link>
                 <Link to="/support" onClick={() => setIsCustomerMenuOpen(false)}>Help &amp; support</Link>
                 <a href={supportPhoneHref} onClick={() => setIsCustomerMenuOpen(false)}><FiPhone />Call CareNest</a>
               </div>

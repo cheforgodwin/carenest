@@ -94,7 +94,7 @@ export const staticEnglishMessages = {
   'signup.link.alreadyHave': 'Already have an account?',
 
   'legal.back': '← Back to CareNest',
-  'legal.effectiveDate': 'Effective date: 16 July 2026. This document should be reviewed for the laws that apply to the final CareNest business entity and service area.',
+  'legal.effectiveDate': 'Effective date: 4 October 2026. These terms and policy describe CareNest’s current app features. They should be reviewed by qualified local counsel for the final business entity and applicable laws.',
   'legal.contactHeading': 'Contact',
   'legal.contact': 'Contact CareNest support for policy or account requests.',
 
