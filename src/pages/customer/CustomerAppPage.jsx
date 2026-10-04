@@ -18,6 +18,7 @@ import {
   FiMenu,
   FiPackage,
   FiPhone,
+  FiSearch,
   FiShoppingBag,
   FiSettings,
   FiTool,
@@ -223,6 +224,7 @@ function CustomerAppPage() {
   const [marketplaceListings, setMarketplaceListings] = useState([])
   const [marketplaceListingsLoading, setMarketplaceListingsLoading] = useState(true)
   const [marketplaceListingsError, setMarketplaceListingsError] = useState('')
+  const [marketplaceSearchQuery, setMarketplaceSearchQuery] = useState('')
   const [marketplaceForm, setMarketplaceForm] = useState(() => ({
     quantity: 1, address: availableServiceAddresses[0] || defaultCustomerAddress || defaultCustomerCity,
     pickupDate: createEmptyForm('delivery').pickupDate, pickupTime: '10:00',
@@ -350,6 +352,25 @@ function CustomerAppPage() {
   const selectedListing = marketplaceListings.find((listing) => listing.firestoreId === marketplaceMatch?.[1]) || null
   const marketplaceCategory = selectedListing ? getMarketplaceCategory(selectedListing.category) : null
   const marketplaceAmount = selectedListing ? Number(selectedListing.price) * Number(marketplaceForm.quantity || 0) : 0
+  const filteredMarketplaceListings = useMemo(() => {
+    const query = marketplaceSearchQuery.trim().toLocaleLowerCase(locale)
+    if (!query) return marketplaceListings
+    const normalizedQuery = query.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    return marketplaceListings.filter((listing) => {
+      const category = getMarketplaceCategory(listing.category)
+      const searchableText = [
+        listing.title,
+        listing.description,
+        listing.providerName,
+        listing.serviceArea,
+        listing.turnaround,
+        category.label,
+        category.unitLabel,
+        ...(Array.isArray(listing.options) ? listing.options : []),
+      ].filter(Boolean).join(' ').toLocaleLowerCase(locale).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      return searchableText.includes(normalizedQuery)
+    })
+  }, [locale, marketplaceListings, marketplaceSearchQuery])
   const requestConfig = serviceConfig[currentServiceType]
   const PrimaryIcon = requestConfig.icon
   const form = forms[currentServiceType]
@@ -852,10 +873,22 @@ function CustomerAppPage() {
                 <div><span>Local marketplace</span><h2>Provider storefronts</h2></div>
                 <p>Order directly from verified home-essential shops and service businesses.</p>
               </div>
+              {!marketplaceListingsLoading && marketplaceListings.length > 0 && (
+                <label className="marketplace-search">
+                  <FiSearch aria-hidden="true" />
+                  <input
+                    type="search"
+                    value={marketplaceSearchQuery}
+                    onChange={(event) => setMarketplaceSearchQuery(event.target.value)}
+                    placeholder="Search products, services, or providers"
+                    aria-label="Search products, services, or providers"
+                  />
+                </label>
+              )}
               <div className="marketplace-customer-grid">
                 {marketplaceListingsLoading
                   ? Array.from({ length: 2 }, (_, index) => <ListingCardSkeleton key={index} />)
-                  : marketplaceListings.map((listing) => (
+                  : filteredMarketplaceListings.map((listing) => (
                   <article className="marketplace-customer-card" key={listing.firestoreId}>
                     <span>{getMarketplaceCategory(listing.category).label}</span>
                     <h3>{listing.title}</h3>
@@ -869,6 +902,7 @@ function CustomerAppPage() {
                 ))}
                 {!marketplaceListingsLoading && marketplaceListingsError && <div className="marketplace-empty" role="alert">{marketplaceListingsError}</div>}
                 {!marketplaceListingsLoading && !marketplaceListingsError && marketplaceListings.length === 0 && <div className="marketplace-empty"><FiShoppingBag /><strong>Provider shops are coming soon</strong><p>Approved providers can publish products and services from their dashboard.</p></div>}
+                {!marketplaceListingsLoading && !marketplaceListingsError && marketplaceListings.length > 0 && filteredMarketplaceListings.length === 0 && <div className="marketplace-empty"><FiSearch /><strong>No listings found</strong><p>Try another product, service, or provider name.</p></div>}
               </div>              <div className="service-support-strip">
                 <span><FiCheck /> Verified providers</span>
                 <span><FiClock /> Reliable pickup times</span>

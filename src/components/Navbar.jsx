@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { FiMenu, FiX } from 'react-icons/fi'
+import { FiLogIn, FiMenu, FiUserPlus, FiX } from 'react-icons/fi'
 import Logo from './Logo'
 import { appVersion } from '../config/appVersion'
 import { useI18n, useT } from '../i18n/useI18n.jsx'
@@ -28,6 +28,10 @@ function Navbar() {
     <header className={`site-header ${isMenuOpen ? 'nav-open' : ''}`}>
       <nav className="navbar">
         <Logo />
+        <div className="nav-quick-auth">
+          <NavLink to="/login" aria-label={loginLabel} title={loginLabel} onClick={() => setIsMenuOpen(false)}><FiLogIn /><span>{loginLabel}</span></NavLink>
+          <Link className="nav-quick-signup" to="/signup" aria-label={signupLabel} title={signupLabel} onClick={() => setIsMenuOpen(false)}><FiUserPlus /><span>{signupLabel}</span></Link>
+        </div>
         <button
           className="nav-toggle"
           type="button"
