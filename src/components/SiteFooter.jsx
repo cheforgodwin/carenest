@@ -31,5 +31,10 @@ export function SupportShortcut() {
   const { locale } = useI18n()
   const { pathname } = useLocation()
   if (pathname === '/support') return null
-  return <Link to="/support" className={'support-shortcut' + (pathname.startsWith('/dashboard/customer') ? ' support-shortcut-customer' : '')}><FiHelpCircle aria-hidden="true" /><span data-no-translate>{locale === 'fr' ? 'Assistance' : 'Support'}</span></Link>
+  const routeClass = pathname === '/'
+    ? ' support-shortcut-home'
+    : pathname.startsWith('/dashboard/customer')
+      ? ' support-shortcut-customer'
+      : ''
+  return <Link to="/support" className={'support-shortcut' + routeClass}><FiHelpCircle aria-hidden="true" /><span data-no-translate>{locale === 'fr' ? 'Assistance' : 'Support'}</span></Link>
 }
