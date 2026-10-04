@@ -888,7 +888,8 @@
   place-items: center;
   width: 100%;
   min-width: 0;
-  aspect-ratio: 8 / 5;
+  aspect-ratio: 2 / 1;
+  max-height: 160px;
   overflow: hidden;
   background: #e8f2ec;
 }
