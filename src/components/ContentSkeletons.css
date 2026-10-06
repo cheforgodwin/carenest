@@ -67,6 +67,63 @@
   background: #ffffff;
 }
 
+.tracking-skeleton-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr);
+  gap: 18px;
+  width: 100%;
+  min-height: 420px;
+}
+
+.tracking-skeleton-main,
+.tracking-skeleton-aside {
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid #e6ece8;
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.tracking-skeleton-header {
+  width: min(180px, 60%);
+}
+
+.tracking-skeleton-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.tracking-skeleton-copy {
+  display: grid;
+  flex: 1;
+  gap: 10px;
+}
+
+.tracking-skeleton-steps {
+  display: grid;
+  gap: 14px;
+}
+
+.tracking-skeleton-step {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.tracking-skeleton-bullet {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+}
+
+.tracking-skeleton-step-copy {
+  display: grid;
+  gap: 8px;
+  flex: 1;
+}
+
 .dashboard-metric-skeleton {
   width: 70px;
   height: 26px;

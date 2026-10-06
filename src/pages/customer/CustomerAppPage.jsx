@@ -41,7 +41,7 @@ import { formatMarketplaceAmount, getMarketplaceCategory } from '../../config/ma
 import { filterMarketplaceListings } from '../../utils/marketplaceSearch'
 import Logo from '../../components/Logo'
 import PaymentFeedback from '../../components/PaymentFeedback'
-import { ListingCardSkeleton, OrderCardSkeleton, Skeleton } from '../../components/ContentSkeletons'
+import { ListingCardSkeleton, OrderCardSkeleton, OrderTrackingSkeleton, Skeleton } from '../../components/ContentSkeletons'
 import ServiceImage from '../../components/ServiceImage'
 import { confirmCustomerCompletion, createMarketplaceServiceRequest, createRequestId, createServiceRequest, submitCustomerComplaint, subscribeToCustomerOrders } from '../../firebase/orderService'
 import { postJson } from '../../utils/networkUtils'
@@ -1154,10 +1154,14 @@ function CustomerAppPage() {
         {isOrder && !isOrdersIndex && !viewedOrder && (
           <section className="mobile-content mobile-content-order">
             <div className="tracking-shell">
-              <div className="tracking-main">
-                <div className="top-title"><Link to="/dashboard/customer"><FiArrowLeft /></Link><h1>Order Tracking</h1></div>
-                <p className="request-message" role="status">{ordersLoading ? 'Loading order details…' : 'This order could not be found. Return home or create a new request.'}</p>
-              </div>
+              {ordersLoading ? (
+                <OrderTrackingSkeleton />
+              ) : (
+                <div className="tracking-main">
+                  <div className="top-title"><Link to="/dashboard/customer"><FiArrowLeft /></Link><h1>Order Tracking</h1></div>
+                  <p className="request-message" role="status">This order could not be found. Return home or create a new request.</p>
+                </div>
+              )}
             </div>
           </section>
         )}
