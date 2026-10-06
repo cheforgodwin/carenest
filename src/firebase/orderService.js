@@ -273,7 +273,7 @@ export async function assignServiceRequestToRider(firestoreId, rider) {
     if (!snapshot.exists()) throw new Error('Service request was not found.')
     const order = snapshot.data()
     if (order.paymentStatus !== 'Paid' || !order.paymentVerifiedAt) throw new Error('Payment must be verified before rider assignment.')
-    if (order.riderUid || order.status !== 'Out for Delivery') {
+    if (order.serviceType !== 'delivery' || order.riderUid || order.status !== 'Out for Delivery') {
       throw new Error('This delivery is not available for rider assignment.')
     }
     transaction.update(orderRef, {
@@ -290,12 +290,33 @@ export async function assignServiceRequestToRider(firestoreId, rider) {
   })
 }
 
+export function updateRiderLiveLocation(firestoreId, position) {
+  const lat = Number(position?.lat)
+  const lng = Number(position?.lng)
+  const accuracy = Number(position?.accuracy || 0)
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180 || !Number.isFinite(accuracy) || accuracy < 0 || accuracy > 100000) {
+    return Promise.reject(new Error('The device returned an invalid location.'))
+  }
+  return updateDoc(doc(db, 'serviceRequests', firestoreId), {
+    riderLocation: { lat, lng, accuracy, updatedAt: serverTimestamp() },
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export function clearRiderLiveLocation(firestoreId) {
+  return updateDoc(doc(db, 'serviceRequests', firestoreId), {
+    riderLocation: deleteField(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
 export function updateRiderDeliveryStatus(firestoreId, riderStatus) {
   const payload = {
     riderStatus,
     updatedAt: serverTimestamp(),
   }
   if (riderStatus === 'Delivered') {
+    payload.riderLocation = deleteField()
     payload.status = 'Awaiting confirmation'
     payload.currentStep = statusSteps['Awaiting confirmation']
     payload.completionRequestedBy = auth.currentUser?.uid || ''
@@ -320,6 +341,7 @@ export function updateServiceRequestStatus(firestoreId, status) {
     updatedAt: serverTimestamp(),
   }
 
+  if (status === 'Complaint' || status === 'Cancelled' || status === 'Completed') payload.riderLocation = deleteField()
   if (status === 'Complaint') payload.disputeStatus = 'Open'
   if (status === 'Complaint' || status === 'Cancelled') {
     payload.payoutStatus = 'Held'
@@ -340,6 +362,7 @@ export function confirmCustomerCompletion(firestoreId) {
     completionConfirmedAt: serverTimestamp(),
     completedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
+    riderLocation: deleteField(),
   })
 }
 
@@ -356,6 +379,7 @@ export function submitCustomerComplaint(firestoreId, complaintText) {
     complaintSubmittedAt: serverTimestamp(),
     payoutStatus: 'Held',
     payoutNote: 'Provider payout held while customer complaint is reviewed.',
+    riderLocation: deleteField(),
     updatedAt: serverTimestamp(),
   })
 }

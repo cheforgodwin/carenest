@@ -20,3 +20,9 @@ The picker currently restricts suggestions to Cameroon. New order documents save
 Customers can save one reusable home address to their own CareNest profile and choose it again on either service or marketplace orders. Providers can save one business/shop address in the provider Settings view. These profile fields are private to the account owner and administrators under the current user-document rules.
 
 Customers and providers can also choose the device's current location for an address. This uses the browser Geolocation API after the user grants permission; it does not call Google Places or Geocoding. Coordinates are stored with the order, and selecting the current location does not overwrite a saved home address unless the user explicitly saves it. Geolocation requires a secure context (HTTPS, or localhost during development).
+
+## Rider and dispatch roles
+
+CareNest's rider role covers on-foot, bicycle, motorbike, and car couriers. The rider's approved transport mode is saved in the rider profile and shown to the administrator making assignments. Foot riders receive walking directions. Rider location sharing is opt-in per active delivery and writes to that order only after browser permission; updates are throttled to a minimum of 50 metres movement or one minute. The assigned customer and admins can see the latest shared position while the delivery is active. It is removed when the rider marks the delivery delivered, when the customer confirms completion, or when an administrator cancels or closes the job.
+
+Delivery assignment remains in the administrator's Requests view. There is no separate dispatcher account; the person delivering on foot uses the rider account.

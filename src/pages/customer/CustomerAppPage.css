@@ -3476,3 +3476,21 @@
 .customer-address-field > label {
   width: 100%;
 }
+
+
+.customer-live-rider-location {
+  display: grid !important;
+  gap: 5px !important;
+  align-items: start !important;
+}
+
+.customer-live-rider-location a {
+  color: var(--cn-green);
+  font-weight: 800;
+  text-decoration: underline;
+}
+
+.customer-live-rider-location small {
+  color: var(--cn-muted);
+  font-size: 12px;
+}

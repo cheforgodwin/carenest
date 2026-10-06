@@ -47,6 +47,7 @@ import AddressLocationTools from '../../components/AddressLocationTools'
 import { confirmCustomerCompletion, createMarketplaceServiceRequest, createRequestId, createServiceRequest, submitCustomerComplaint, subscribeToCustomerOrders } from '../../firebase/orderService'
 import { postJson } from '../../utils/networkUtils'
 import { inputLimits, sanitizeText } from '../../utils/securityUtils'
+import { googleMapsPointUrl } from '../../utils/googleMapsLinks'
 import { subscribeToActiveListings } from '../../firebase/marketplaceService'
 import { createProviderApplication, subscribeToMyProviderApplications } from '../../firebase/providerApplicationService'
 import './CustomerAppPage.css'
@@ -1156,6 +1157,7 @@ function CustomerAppPage() {
                 {viewedOrder.paymentReceiptText && <div><span>Payment message</span><strong>{viewedOrder.paymentReceiptText}</strong></div>}
                 <div><span>Amount</span><strong>{formatAmount(viewedOrder.amount)}</strong></div>
                 {viewedOrder.providerName && <div><span>Provider</span><strong>{viewedOrder.providerName} · Verified</strong></div>}
+                {viewedOrder.status === 'Out for Delivery' && viewedOrder.riderLocation && <div className="customer-live-rider-location"><span>Delivery rider</span><strong>{viewedOrder.riderName || 'Your rider'} is sharing their location</strong><a href={googleMapsPointUrl(viewedOrder.riderLocation)} target="_blank" rel="noreferrer">View latest rider position</a><small>The link follows the latest position CareNest has received.</small></div>}
                 {['Awaiting confirmation', 'Completed'].includes(viewedOrder.status) && !viewedOrder.completionConfirmedBy && <section className="completion-confirmation">
                   <h3>Was your order completed?</h3>
                   <p>The provider or rider reported completion. Confirm only if you received the service or delivery. Their payout stays blocked until you confirm.</p>

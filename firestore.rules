@@ -376,7 +376,7 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'status', 'currentStep', 'updatedAt', 'providerUid', 'providerName', 'providerEmail', 'providerPhone',
             'providerPayoutMethod', 'providerPayoutPhone', 'assignedBy', 'assignedAt',
-            'riderUid', 'riderName', 'riderPhone', 'riderStatus', 'riderAssignedAt',
+            'riderUid', 'riderName', 'riderPhone', 'riderStatus', 'riderAssignedAt', 'riderLocation',
             'payoutStatus', 'payoutNote',
             'refundStatus', 'refundRequestedBy', 'refundRequestedAt', 'refundNote', 'disputeStatus'
           ])
@@ -462,7 +462,7 @@ service cloud.firestore {
               && request.resource.data.completionConfirmedAt == request.time
               && request.resource.data.completedAt == request.time
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                'status', 'currentStep', 'completionConfirmedBy', 'completionConfirmedAt', 'completedAt', 'updatedAt'
+                'status', 'currentStep', 'completionConfirmedBy', 'completionConfirmedAt', 'completedAt', 'updatedAt', 'riderLocation'
               ])
             )
             || (
@@ -481,8 +481,54 @@ service cloud.firestore {
                 'complaintSubmittedAt',
                 'payoutStatus',
                 'payoutNote',
-                'updatedAt'
+                'updatedAt',
+                'riderLocation'
               ])
+            )
+          );
+      }
+
+      function validRiderLocation(location) {
+        return location is map
+          && location.lat is number && location.lat >= -90 && location.lat <= 90
+          && location.lng is number && location.lng >= -180 && location.lng <= 180
+          && location.accuracy is number && location.accuracy >= 0 && location.accuracy <= 100000
+          && location.updatedAt == request.time;
+      }
+
+      function riderLocationOnlyUpdate() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return request.resource.data.riderStatus == resource.data.riderStatus
+          && request.resource.data.status == resource.data.status
+          && request.resource.data.currentStep == resource.data.currentStep
+          && changed.hasAny(['riderLocation'])
+          && changed.hasOnly(['riderLocation', 'updatedAt'])
+          && request.resource.data.updatedAt == request.time
+          && (!request.resource.data.keys().hasAny(['riderLocation']) || validRiderLocation(request.resource.data.riderLocation));
+      }
+
+      function riderStatusUpdate() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return (
+          (resource.data.riderStatus == 'Accepted' && request.resource.data.riderStatus == 'Picked up')
+          || (resource.data.riderStatus == 'Picked up' && request.resource.data.riderStatus == 'Delivered')
+        ) && validRiderStatus(request.resource.data.riderStatus)
+          && request.resource.data.updatedAt == request.time
+          && (
+            (
+              request.resource.data.riderStatus == 'Picked up'
+              && request.resource.data.status == resource.data.status
+              && request.resource.data.currentStep == resource.data.currentStep
+              && changed.hasOnly(['riderStatus', 'updatedAt'])
+            )
+            || (
+              request.resource.data.riderStatus == 'Delivered'
+              && request.resource.data.status == 'Awaiting confirmation'
+              && request.resource.data.currentStep == 4
+              && request.resource.data.completionRequestedBy == request.auth.uid
+              && request.resource.data.completionRequestedAt == request.time
+              && !request.resource.data.keys().hasAny(['riderLocation'])
+              && changed.hasOnly(['riderStatus', 'status', 'currentStep', 'deliveredAt', 'completionRequestedBy', 'completionRequestedAt', 'updatedAt', 'riderLocation'])
             )
           );
       }
@@ -490,9 +536,6 @@ service cloud.firestore {
       function riderCanUpdateOrder() {
         return verifiedPayment()
           && resource.data.status == 'Out for Delivery'
-          && ((resource.data.riderStatus == 'Accepted' && request.resource.data.riderStatus == 'Picked up')
-            || (resource.data.riderStatus == 'Picked up' && request.resource.data.riderStatus == 'Delivered'))
-          && !(resource.data.status in ['Complaint', 'Cancelled', 'Completed', 'Awaiting confirmation'])
           && resource.data.serviceType == 'delivery'
           && request.resource.data.customerUid == resource.data.customerUid
           && request.resource.data.customerEmail == resource.data.customerEmail
@@ -502,31 +545,9 @@ service cloud.firestore {
           && request.resource.data.itemSummary == resource.data.itemSummary
           && request.resource.data.serviceSpeed == resource.data.serviceSpeed
           && request.resource.data.paymentMethod == resource.data.paymentMethod
-          && (
-              resource.data.get('riderUid', '') == request.auth.uid
-              && request.resource.data.riderUid == request.auth.uid
-              && validRiderStatus(request.resource.data.riderStatus)
-              && (
-                (
-                  request.resource.data.riderStatus != 'Delivered'
-                  && request.resource.data.status == resource.data.status
-                  && request.resource.data.currentStep == resource.data.currentStep
-                  && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                    'riderStatus', 'updatedAt'
-                  ])
-                )
-                || (
-                  request.resource.data.riderStatus == 'Delivered'
-                  && request.resource.data.status == 'Awaiting confirmation'
-                  && request.resource.data.currentStep == 4
-                  && request.resource.data.completionRequestedBy == request.auth.uid
-                  && request.resource.data.completionRequestedAt == request.time
-                  && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                    'riderStatus', 'status', 'currentStep', 'deliveredAt', 'completionRequestedBy', 'completionRequestedAt', 'updatedAt'
-                  ])
-                )
-              )
-            );
+          && resource.data.get('riderUid', '') == request.auth.uid
+          && request.resource.data.riderUid == request.auth.uid
+          && (riderLocationOnlyUpdate() || riderStatusUpdate());
       }
 
       function canUpdateOrder() {

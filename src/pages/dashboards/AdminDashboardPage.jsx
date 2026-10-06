@@ -23,6 +23,7 @@ import DashboardShell from './DashboardShell'
 import FinancePanel from '../../components/finance/FinancePanel'
 import { useFinanceAlerts } from '../../components/finance/useFinanceAlerts'
 import { financeTotals, csvCell, confirmedCollection } from '../../utils/finance'
+import { googleMapsPointUrl } from '../../utils/googleMapsLinks'
 import { useEffect } from 'react'
 import './AdminMobile.css'
 
@@ -421,7 +422,7 @@ function AdminDashboardPage() {
                     <td data-label="Order">{order.id}</td>
                     <td data-label="Customer">{order.customerName || order.customerEmail || 'Customer'}</td>
                     <td data-label="Service">{order.service}</td>
-                    <td data-label="Address">{order.address}</td>
+                    <td data-label="Address">{order.address}{order.addressCoordinates && <small><a href={googleMapsPointUrl(order.addressCoordinates)} target="_blank" rel="noreferrer">Open delivery location</a></small>}</td>
                     <td data-label="Amount">{formatAmount(order.amount)}</td>
                     <td className="admin-assignment-cell" data-label="Provider">
                       <select
@@ -449,10 +450,10 @@ function AdminDashboardPage() {
                     <td data-label="Status">
                       {order.serviceType === 'delivery' && order.status === 'Out for Delivery' && !order.riderUid && order.paymentStatus === 'Paid' && confirmedCollection(order) && <div>
                         <select aria-label="Choose rider" value={riderSelections[order.firestoreId] || ''} onChange={(event) => setRiderSelections((current) => ({ ...current, [order.firestoreId]: event.target.value }))}>
-                          <option value="">Choose rider</option>{riders.map((rider) => <option key={rider.uid} value={rider.uid}>{rider.name || rider.email}</option>)}
+                          <option value="">Choose rider (walkers included)</option>{riders.map((rider) => <option key={rider.uid} value={rider.uid}>{rider.name || rider.email} - {rider.riderProfile?.transportType || 'transport mode not set'} - {rider.riderProfile?.area || 'area not set'}</option>)}
                         </select><button type="button" className="table-action" onClick={() => assignRider(order)}>Assign rider</button>
                       </div>}
-                      {order.riderUid && <small>Rider: {order.riderName} - {order.riderStatus}</small>}
+                      {order.riderUid && <><small>Rider: {order.riderName} - {order.riderStatus} ({riders.find((rider) => rider.uid === order.riderUid)?.riderProfile?.transportType || 'mode not recorded'})</small>{order.riderLocation && <a href={googleMapsPointUrl(order.riderLocation)} target="_blank" rel="noreferrer">View latest rider position</a>}</>}
 
                       <select className="dashboard-select" value={order.status} onChange={(event) => updateStatus(order, event.target.value)}>
                         {[order.status, ...(!['Completed', 'Cancelled', 'Complaint'].includes(order.status) ? ['Complaint', 'Cancelled'] : [])].map((status) => <option key={status} value={status}>{status}</option>)}
@@ -544,14 +545,14 @@ function AdminDashboardPage() {
           </div>
           {applications.length > 0 ? (
             <table className="dashboard-table">
-              <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Services</th><th>Area</th><th>Verification</th><th>Status</th><th>Action</th></tr></thead>
+              <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Services / transport</th><th>Area</th><th>Verification</th><th>Status</th><th>Action</th></tr></thead>
               <tbody>
                 {applications.map((application) => (
                   <tr key={application.firestoreId}>
                     <td data-label="Name">{application.name}</td>
                     <td data-label="Email">{application.email}</td>
                     <td data-label="Phone">{application.phone}</td>
-                    <td data-label="Services">{application.services}</td>
+                    <td data-label="Services / transport">{application.role === 'rider' ? application.transportType || 'Not specified' : application.services}</td>
                     <td data-label="Area">{application.area}</td>
                     <td data-label="Verification">
                       <label><input type="checkbox" checked={Boolean(application.identityVerified)} onChange={(event) => setProviderCheck(application, 'identityVerified', event.target.checked)} /> Identity reviewed</label>
