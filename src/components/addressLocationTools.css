@@ -1,0 +1,35 @@
+.address-location-tools {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.address-location-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.address-location-actions button {
+  border: 1px solid #d7e2db;
+  border-radius: 10px;
+  padding: 8px 11px;
+  background: #fff;
+  color: #245e43;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.address-location-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.address-location-tools small {
+  font-size: 0.78rem;
+}
+
+.address-location-error { color: #a32929; }
+.address-location-success { color: #24784f; }
+.address-location-coordinate-note { color: #51645a; }

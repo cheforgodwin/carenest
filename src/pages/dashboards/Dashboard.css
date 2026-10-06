@@ -1167,3 +1167,23 @@
 @media (max-width: 480px) {
   .dashboard-panel { max-width: calc(100vw - 24px); }
 }
+
+
+.provider-business-address {
+  display: grid;
+  gap: 10px;
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid #e2ebe5;
+}
+
+.provider-business-address h3,
+.provider-business-address p {
+  margin: 0;
+}
+
+.provider-business-address > label {
+  display: grid;
+  gap: 8px;
+  max-width: 640px;
+}

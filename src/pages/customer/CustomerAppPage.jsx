@@ -43,6 +43,7 @@ import Logo from '../../components/Logo'
 import PaymentFeedback from '../../components/PaymentFeedback'
 import { ListingCardSkeleton, OrderCardSkeleton, OrderTrackingSkeleton, Skeleton } from '../../components/ContentSkeletons'
 import ServiceImage from '../../components/ServiceImage'
+import AddressLocationTools from '../../components/AddressLocationTools'
 import { confirmCustomerCompletion, createMarketplaceServiceRequest, createRequestId, createServiceRequest, submitCustomerComplaint, subscribeToCustomerOrders } from '../../firebase/orderService'
 import { postJson } from '../../utils/networkUtils'
 import { inputLimits, sanitizeText } from '../../utils/securityUtils'
@@ -191,6 +192,9 @@ const createEmptyForm = (serviceType = 'laundry') => {
     serviceSpeed: config.serviceOptions[0][0],
     [config.primaryField]: Object.keys(config.primaryOptions)[0],
     address: availableServiceAddresses[0] || defaultCustomerAddress || defaultCustomerCity,
+    addressCoordinates: null,
+    addressPlaceId: '',
+    addressSource: 'manual',
     pickupDate,
     pickupTime: '10:00',
     paymentMethod: 'Mobile Money',
@@ -227,13 +231,23 @@ function CustomerAppPage() {
   const [marketplaceListingsError, setMarketplaceListingsError] = useState('')
   const [marketplaceSearchQuery, setMarketplaceSearchQuery] = useState('')
   const [marketplaceForm, setMarketplaceForm] = useState(() => ({
-    quantity: 1, address: availableServiceAddresses[0] || defaultCustomerAddress || defaultCustomerCity,
+    quantity: 1, address: profile?.homeAddress?.address || availableServiceAddresses[0] || defaultCustomerAddress || defaultCustomerCity,
+    addressCoordinates: profile?.homeAddress?.coordinates || null, addressPlaceId: profile?.homeAddress?.placeId || '', addressSource: profile?.homeAddress ? 'saved' : 'manual',
     pickupDate: createEmptyForm('delivery').pickupDate, pickupTime: '10:00',
     paymentNetwork: '', paymentPhone: null, note: '', orderType: '', variant: '', returnableContainers: 0, rooms: 1, fabricNotes: '', problem: '',
   }))
   const [ordersLoading, setOrdersLoading] = useState(true)
   const [forms, setForms] = useState(() => Object.fromEntries(
-    serviceSlugs.map((serviceType) => [serviceType, createEmptyForm(serviceType)]),
+    serviceSlugs.map((serviceType) => {
+      const initial = createEmptyForm(serviceType)
+      if (profile?.homeAddress?.address) {
+        initial.address = profile.homeAddress.address
+        initial.addressCoordinates = profile.homeAddress.coordinates || null
+        initial.addressPlaceId = profile.homeAddress.placeId || ''
+        initial.addressSource = 'saved'
+      }
+      return [serviceType, initial]
+    }),
   ))
   const [requestMessage, setRequestMessage] = useState('')
   const [requestError, setRequestError] = useState('')
@@ -408,6 +422,7 @@ function CustomerAppPage() {
       [currentServiceType]: {
         ...current[currentServiceType],
         [name]: safeValue,
+        ...(name === 'address' ? { addressCoordinates: null, addressPlaceId: '', addressSource: 'manual' } : {}),
       },
     }))
     setRequestMessage('')
@@ -492,7 +507,15 @@ function CustomerAppPage() {
     setRecentOrder(createdOrder)
     setForms((current) => ({
       ...current,
-      [currentServiceType]: createEmptyForm(currentServiceType),
+      [currentServiceType]: {
+        ...createEmptyForm(currentServiceType),
+        ...(profile?.homeAddress?.address ? {
+          address: profile.homeAddress.address,
+          addressCoordinates: profile.homeAddress.coordinates || null,
+          addressPlaceId: profile.homeAddress.placeId || '',
+          addressSource: 'saved',
+        } : {}),
+      },
     }))
     setPaymentSuccess({ id: nextOrder.id, amount: nextOrder.amount, phone: nextOrder.paymentPhone })
     setIsSubmitting(false)
@@ -501,7 +524,7 @@ function CustomerAppPage() {
   function updateMarketplaceForm(event) {
     const { name, value } = event.target
     const safeValue = sanitizeText(value, name === 'note' ? inputLimits.note : inputLimits.address)
-    setMarketplaceForm((current) => ({ ...current, [name]: safeValue }))
+    setMarketplaceForm((current) => ({ ...current, [name]: safeValue, ...(name === 'address' ? { addressCoordinates: null, addressPlaceId: '', addressSource: 'manual' } : {}) }))
     setRequestError('')
   }
 
@@ -549,6 +572,9 @@ function CustomerAppPage() {
       quantity,
       orderDetails: Object.fromEntries(marketplaceCategory.orderFields.map((field) => [field.name, marketplaceForm[field.name] || ''])),
       address: marketplaceForm.address,
+      addressCoordinates: marketplaceForm.addressCoordinates,
+      addressPlaceId: marketplaceForm.addressPlaceId,
+      addressSource: marketplaceForm.addressSource,
       pickupDate: marketplaceForm.pickupDate,
       pickupTime: marketplaceForm.pickupTime,
       note: marketplaceForm.note,
@@ -712,13 +738,6 @@ function CustomerAppPage() {
                   <span className="avatar">{customerInitials}</span>
                 </div>
               </div>
-              <div className="mobile-hero">
-                <div>
-                  <h2>We take care of what matters at home.</h2>
-                  <Link to="/dashboard/customer/services">Learn More</Link>
-                </div>
-                <div className="hero-art hero-art-laundry"><FiShoppingBag /></div>
-              </div>
               <section
                 ref={bannerCarouselRef}
                 className="service-banner-carousel"
@@ -783,16 +802,25 @@ function CustomerAppPage() {
                   ))}
                 </div>
               </section>
+              <div className="home-quick-actions">
+                <div className="section-title"><strong>Quick Actions</strong><Link to="/dashboard/customer/services">See all</Link></div>
+                <div className="quick-grid">
+                  {quickActions.map(([label, Icon, to]) => (
+                    to.startsWith('tel:')
+                      ? <a className={label.includes('Call') ? 'orange-action' : ''} href={to} key={label}><Icon />{label}</a>
+                      : <Link to={to} key={label}><Icon />{label}</Link>
+                  ))}
+                </div>
+              </div>
+              <div className="mobile-hero">
+                <div>
+                  <h2>We take care of what matters at home.</h2>
+                  <Link to="/dashboard/customer/services">Learn More</Link>
+                </div>
+                <div className="hero-art hero-art-laundry"><FiShoppingBag /></div>
+              </div>
             </div>
             <div className="home-secondary">
-              <div className="section-title"><strong>Quick Actions</strong><Link to="/dashboard/customer/services">See all</Link></div>
-              <div className="quick-grid">
-                {quickActions.map(([label, Icon, to]) => (
-                  to.startsWith('tel:')
-                    ? <a className={label.includes('Call') ? 'orange-action' : ''} href={to} key={label}><Icon />{label}</a>
-                    : <Link to={to} key={label}><Icon />{label}</Link>
-                ))}
-              </div>
               <div className="section-title"><strong>Your Current Order</strong><Link to="/dashboard/customer/orders">View all</Link></div>
               {activeOrder ? (
                 <Link className="order-card" to={`/dashboard/customer/orders/${activeOrder.id}`}>
@@ -982,7 +1010,7 @@ function CustomerAppPage() {
                         </label>
                       ))}
                       <label>Quantity<span className="request-input"><input name="quantity" type="number" min="1" max={selectedListing.stockTracked ? Math.min(50, selectedListing.stockQuantity) : 50} value={marketplaceForm.quantity} onChange={updateMarketplaceForm} required /></span></label>
-                      <label>{marketplaceCategory.kind === 'product' ? 'Delivery address' : 'Service address'}<span className="request-input"><FiMapPin /><input name="address" maxLength="240" value={marketplaceForm.address} onChange={updateMarketplaceForm} required /></span></label>
+                      <div className="customer-address-field"><label>{marketplaceCategory.kind === 'product' ? 'Delivery address' : 'Service address'}<span className="request-input"><FiMapPin /><input name="address" maxLength="240" value={marketplaceForm.address} onChange={updateMarketplaceForm} required /></span></label><AddressLocationTools kind="home" userUid={user?.uid} savedAddress={profile?.homeAddress} value={{ address: marketplaceForm.address, coordinates: marketplaceForm.addressCoordinates, placeId: marketplaceForm.addressPlaceId, source: marketplaceForm.addressSource }} onChange={(address) => setMarketplaceForm((current) => ({ ...current, address: address.address, addressCoordinates: address.coordinates, addressPlaceId: address.placeId, addressSource: address.source }))} /></div>
                       <label>{marketplaceCategory.kind === 'product' ? 'Delivery date' : 'Service date'}<span className="request-input"><FiCalendar /><input name="pickupDate" type="date" min={minimumPickupDate} value={marketplaceForm.pickupDate} onChange={updateMarketplaceForm} required /></span></label>
                       <label>Preferred time<span className="request-input"><FiClock /><input name="pickupTime" type="time" value={marketplaceForm.pickupTime} onChange={updateMarketplaceForm} required /></span></label>
                   <label>Payment network (automatic)<span className="request-input"><input value={paymentNetworkLabel(marketplaceForm.paymentPhone ?? profile?.phone ?? '')} readOnly aria-live="polite" /></span></label>
@@ -1030,7 +1058,7 @@ function CustomerAppPage() {
                 </div>
                 <div className="request-field-grid">
                   <label>{requestConfig.primaryLabel}<span className="request-input"><select name={requestConfig.primaryField} value={primaryValue} onChange={updateForm}>{Object.keys(requestConfig.primaryOptions).map((type) => <option key={type} value={type}>{type}</option>)}</select><FiChevronDown /></span></label>
-                  <label>{currentServiceType === 'delivery' ? 'Delivery Address' : 'Service Address'}<span className="request-input"><FiMapPin /><input name="address" type="text" maxLength="240" list="service-addresses" value={form.address} onChange={updateForm} placeholder="Enter your pickup or service address" required /></span><datalist id="service-addresses">{addresses.map((address) => <option key={address} value={address} />)}</datalist></label>
+                  <div className="customer-address-field"><label>{currentServiceType === 'delivery' ? 'Delivery Address' : 'Service Address'}<span className="request-input"><FiMapPin /><input name="address" type="text" maxLength="240" list="service-addresses" value={form.address} onChange={updateForm} placeholder="Enter your pickup or service address" required /></span><datalist id="service-addresses">{addresses.map((address) => <option key={address} value={address} />)}</datalist></label><AddressLocationTools kind="home" userUid={user?.uid} savedAddress={profile?.homeAddress} value={{ address: form.address, coordinates: form.addressCoordinates, placeId: form.addressPlaceId, source: form.addressSource }} onChange={(address) => setForms((current) => ({ ...current, [currentServiceType]: { ...current[currentServiceType], address: address.address, addressCoordinates: address.coordinates, addressPlaceId: address.placeId, addressSource: address.source } }))} /></div>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Date' : 'Service Date'}<span className="request-input"><FiCalendar /><input name="pickupDate" type="date" min={minimumPickupDate} value={form.pickupDate} onChange={updateForm} /></span></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Time' : 'Service Time'}<span className="request-input"><FiClock /><input name="pickupTime" type="time" value={form.pickupTime} onChange={updateForm} /></span></label>
                   <label>Payment network (automatic)<span className="request-input"><input value={paymentNetworkLabel(form.paymentPhone ?? profile?.phone ?? '')} readOnly aria-live="polite" /></span></label>

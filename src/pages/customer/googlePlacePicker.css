@@ -1,0 +1,12 @@
+.google-place-picker {
+  display: none;
+  margin-top: 8px;
+}
+
+.google-place-picker.is-available {
+  display: block;
+}
+
+.google-place-picker gmp-place-autocomplete {
+  width: 100%;
+}

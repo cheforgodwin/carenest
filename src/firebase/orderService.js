@@ -115,6 +115,14 @@ function getExpectedAmount(order) {
   return basePrice + speedPrice
 }
 
+function sanitizeAddressCoordinates(value) {
+  if (!value || typeof value !== 'object') return null
+  const lat = Number(value.lat)
+  const lng = Number(value.lng)
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) return null
+  return { lat, lng }
+}
+
 function sanitizeOrderInput(order) {
   const orderDetails = Object.fromEntries(Object.entries(order.orderDetails || {}).map(([key, value]) => [
     sanitizeTrimmedText(key, 60),
@@ -128,6 +136,9 @@ function sanitizeOrderInput(order) {
     service: sanitizeTrimmedText(order.service, inputLimits.title),
     itemSummary: sanitizeTrimmedText(order.itemSummary, inputLimits.title),
     address: sanitizeTrimmedText(order.address, inputLimits.address),
+    addressCoordinates: sanitizeAddressCoordinates(order.addressCoordinates),
+    addressPlaceId: sanitizeTrimmedText(order.addressPlaceId, 200),
+    addressSource: ['google_places', 'current_location', 'manual', 'saved'].includes(order.addressSource) ? order.addressSource : 'manual',
     note: sanitizeTrimmedText(order.note, inputLimits.note),
     orderDetails,
   }

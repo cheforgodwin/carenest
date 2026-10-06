@@ -307,6 +307,18 @@
   box-shadow: 0 14px 38px rgba(7, 59, 37, 0.06);
 }
 
+.home-quick-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--cn-line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 14px 38px rgba(7, 59, 37, 0.06);
+}
+
 .customer-greeting {
   display: flex;
   align-items: center;
@@ -3453,4 +3465,14 @@
   .service-banner-indicators button {
     transition: none;
   }
+}
+
+
+.customer-address-field {
+  flex: 1 1 300px;
+  min-width: 0;
+}
+
+.customer-address-field > label {
+  width: 100%;
 }

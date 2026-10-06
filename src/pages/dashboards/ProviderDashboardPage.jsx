@@ -20,6 +20,7 @@ import {
 import DashboardShell from './DashboardShell'
 import { orderFinance } from '../../utils/finance'
 import { DashboardRowSkeleton, ListingCardSkeleton, Skeleton } from '../../components/ContentSkeletons'
+import AddressLocationTools from '../../components/AddressLocationTools'
 
 function providerStatuses(order) {
   if (order.paymentStatus !== 'Paid' || !order.paymentVerifiedAt) return [order.status]
@@ -58,6 +59,7 @@ function ProviderDashboardPage() {
   const [listings, setListings] = useState([])
   const [listingsLoading, setListingsLoading] = useState(true)
   const [listingForm, setListingForm] = useState(emptyListing)
+  const [businessAddress, setBusinessAddress] = useState(() => ({ address: profile?.businessAddress?.address || '', coordinates: profile?.businessAddress?.coordinates || null, placeId: profile?.businessAddress?.placeId || '', source: profile?.businessAddress?.source || 'manual' }))
   const [availability, setAvailability] = useState(() => ({
     status: profile?.availability?.status || 'Available',
     area: profile?.availability?.area || '',
@@ -352,6 +354,12 @@ function ProviderDashboardPage() {
             <label>Payout phone<input className="dashboard-input" name="payoutPhone" value={availability.payoutPhone} onChange={updateAvailability} placeholder={phonePlaceholder} /></label>
             <button className="dashboard-action-button form-action" type="submit">Save availability</button>
           </form>
+          <div className="provider-business-address">
+            <h3>Shop or business address</h3>
+            <p>Save the location customers or delivery partners should use for your shop.</p>
+            <label>Business address<span className="request-input"><input className="dashboard-input" maxLength="240" value={businessAddress.address} onChange={(event) => setBusinessAddress((current) => ({ ...current, address: event.target.value, coordinates: null, placeId: '', source: 'manual' }))} placeholder="Enter your shop address" /></span></label>
+            <AddressLocationTools kind="business" userUid={user?.uid} value={businessAddress} onChange={setBusinessAddress} />
+          </div>
         </section>
       )}
     </DashboardShell>
