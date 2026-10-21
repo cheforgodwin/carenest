@@ -217,6 +217,8 @@ function CustomerAppPage() {
   const navigate = useNavigate()
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+    const content = document.querySelector('.mobile-phone > .mobile-content')
+    if (content) content.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }, [pathname])
   const isServices = pathname.includes('/services')
   const marketplaceMatch = pathname.match(/\/shop\/([^/]+)/)

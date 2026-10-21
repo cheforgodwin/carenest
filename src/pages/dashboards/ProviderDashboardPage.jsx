@@ -259,7 +259,7 @@ function ProviderDashboardPage() {
                     <tr key={order.firestoreId}>
                       <td>{order.id}</td>
                       <td>{order.customerName || 'Customer'}</td>
-                      <td>{order.service}{order.itemSummary === 'Gas delivery' && <small className="provider-gas-order-details">{[order.gasBrand, order.gasOrderType, order.cylinderSize === 'Other' ? order.cylinderSizeDetails : order.cylinderSize].filter(Boolean).join(' · ')}{order.gasBottleImageURL && <><br /><a href={order.gasBottleImageURL} target="_blank" rel="noreferrer">View bottle photo</a></>}</small>}</td>
+                      <td>{order.service}{(order.itemSummary === 'Gas delivery' || order.listingCategory === 'gas') && <small className="provider-gas-order-details">{[order.gasBrand, order.gasOrderType || order.orderDetails?.orderType, order.cylinderSize === 'Other' ? order.cylinderSizeDetails : order.cylinderSize || order.orderDetails?.variant].filter(Boolean).join(' · ')}{order.gasBottleImageURL && <><br /><a href={order.gasBottleImageURL} target="_blank" rel="noreferrer">View bottle photo</a></>}</small>}</td>
                       <td><span className={`status-chip ${normalizeStatus(order.status)}`}>{order.status}</span></td>
                       <td>{getArea(order.address)}</td>
                       <td>{formatAmount(orderFinance(order).provider)}</td>
