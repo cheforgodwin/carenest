@@ -2100,7 +2100,7 @@
 
   .mobile-phone { padding-top: 68px; padding-bottom: 0; }
   .mobile-phone > .mobile-content {
-    padding-top: clamp(10px, 1.2vw, 16px);
+    padding-top: 28px;
     padding-bottom: 24px;
   }
   .mobile-content-order {
