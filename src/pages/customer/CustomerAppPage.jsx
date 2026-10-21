@@ -39,6 +39,7 @@ import {
 } from '../../config/businessConfig'
 import { formatMarketplaceAmount, getMarketplaceCategory } from '../../config/marketplaceConfig'
 import { filterMarketplaceListings } from '../../utils/marketplaceSearch'
+import { uploadGasBottlePhoto } from '../../firebase/profilePhotoService'
 import Logo from '../../components/Logo'
 import PaymentFeedback from '../../components/PaymentFeedback'
 import { ListingCardSkeleton, OrderCardSkeleton, OrderTrackingSkeleton, Skeleton } from '../../components/ContentSkeletons'
@@ -129,7 +130,6 @@ const serviceConfig = {
     primaryLabel: 'What do you need delivered?',
     primaryOptions: {
       ...servicePrices.delivery.primaryOptions,
-      'Gas delivery': 0,
     },
     notePlaceholder: 'E.g. Shopping list, shop name, recipient phone number...',
   },
@@ -260,6 +260,8 @@ function CustomerAppPage() {
   const [complaintText, setComplaintText] = useState('')
   const [complaintStatus, setComplaintStatus] = useState({ loading: false, error: '', message: '' })
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [gasBottlePhotoURL, setGasBottlePhotoURL] = useState('')
+  const [gasBottlePhotoLoading, setGasBottlePhotoLoading] = useState(false)
   const [recentOrder, setRecentOrder] = useState(null)
   const [isCustomerMenuOpen, setIsCustomerMenuOpen] = useState(false)
   const [activeBannerIndex, setActiveBannerIndex] = useState(0)
@@ -358,12 +360,13 @@ function CustomerAppPage() {
   )
   const viewedOrderId = pathname.split('/').pop()
   const viewedOrder = orders.find((order) => order.id === viewedOrderId)
+    || (recentOrder?.id === viewedOrderId ? recentOrder : null)
   const viewedOrderDetails = viewedOrder ? [
     viewedOrder.itemSummary || viewedOrder.clothesType,
+    viewedOrder.gasBrand,
     viewedOrder.gasOrderType,
     viewedOrder.cylinderSize === 'Other' ? viewedOrder.cylinderSizeDetails : viewedOrder.cylinderSize,
   ].filter(Boolean).join(' · ') : ''
-    || (recentOrder?.id === viewedOrderId ? recentOrder : null)
   const paymentOrder = paymentSuccess
     ? orders.find((order) => order.id === paymentSuccess.id) || (recentOrder?.id === paymentSuccess.id ? recentOrder : null)
     : viewedOrder
@@ -385,6 +388,17 @@ function CustomerAppPage() {
   const form = forms[currentServiceType]
   const primaryValue = form[requestConfig.primaryField] || Object.keys(requestConfig.primaryOptions)[0]
   const selectedOption = requestConfig.serviceOptions.find(([name]) => name === form.serviceSpeed) || requestConfig.serviceOptions[0]
+  const matchingGasListings = useMemo(() => {
+    if (currentServiceType !== 'delivery' || primaryValue !== 'Gas delivery' || !form.gasBrand?.trim()) return []
+    const normalizedBrand = form.gasBrand.trim().toLocaleLowerCase()
+    const cylinderSize = form.cylinderSize === 'Other' ? form.cylinderSizeDetails : form.cylinderSize
+    const normalizedSize = String(cylinderSize || '').replace(/\s+/g, '').toLocaleLowerCase()
+    return marketplaceListings.filter((listing) => {
+      if (listing.category !== 'gas') return false
+      const listingText = [listing.title, listing.description, ...(listing.options || [])].join(' ').toLocaleLowerCase()
+      return listingText.includes(normalizedBrand) && (!normalizedSize || listingText.replace(/\s+/g, '').includes(normalizedSize))
+    })
+  }, [currentServiceType, form.cylinderSize, form.cylinderSizeDetails, form.gasBrand, marketplaceListings, primaryValue])
   const requestAmount = Number(requestConfig.primaryOptions[primaryValue] || 0) + Number(selectedOption[2] || 0)
   const isMobileMoneyPayment = form.paymentMethod === 'Mobile Money'
   const selectedApplicationRole = ['provider', 'rider'].includes(applicationRole) ? applicationRole : null
@@ -438,6 +452,23 @@ function CustomerAppPage() {
     setRequestError('')
   }
 
+  async function uploadSelectedGasBottlePhoto(event) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    setGasBottlePhotoLoading(true)
+    setRequestError('')
+    try {
+      const { photoURL } = await uploadGasBottlePhoto(user, file)
+      setGasBottlePhotoURL(photoURL)
+    } catch (error) {
+      setGasBottlePhotoURL('')
+      setRequestError(error.message)
+    } finally {
+      setGasBottlePhotoLoading(false)
+      event.target.value = ''
+    }
+  }
+
   async function submitServiceRequest() {
     setRequestMessage('')
     setRequestError('')
@@ -452,6 +483,17 @@ function CustomerAppPage() {
     if (!form.pickupTime || !form.address) {
       setRequestError('Please select an address, date, and time.')
       return
+    }
+    if (currentServiceType === 'delivery' && primaryValue === 'Gas delivery') {
+      if (!form.gasBrand?.trim()) {
+        setRequestError('Enter the gas brand or name so the provider can confirm it.')
+        return
+      }
+      if (!gasBottlePhotoURL) {
+        setRequestError('Upload a clear photo of your gas cylinder to continue.')
+        return
+      }
+      if (gasBottlePhotoLoading) return
     }
     if (!detectPaymentNetwork(form.paymentPhone ?? profile?.phone ?? '')) {
       setRequestError(unsupportedPaymentPhoneMessage)
@@ -474,6 +516,7 @@ function CustomerAppPage() {
       paymentNetwork: detectPaymentNetwork(form.paymentPhone ?? profile?.phone ?? ''),
       serviceSpeed: selectedOption[0],
       itemSummary: primaryValue,
+      ...(currentServiceType === 'delivery' && primaryValue === 'Gas delivery' ? { gasBottleImageURL: gasBottlePhotoURL } : {}),
       amount: requestAmount,
       paymentMethod: 'Mobile Money',
       paymentReference: '',
@@ -579,7 +622,12 @@ function CustomerAppPage() {
       itemSummary: selectedListing.title,
       listingCategory: selectedListing.category,
       quantity,
-      orderDetails: Object.fromEntries(marketplaceCategory.orderFields.map((field) => [field.name, marketplaceForm[field.name] || ''])),
+      orderDetails: {
+        ...Object.fromEntries(marketplaceCategory.orderFields.map((field) => [field.name, marketplaceForm[field.name] || ''])),
+        ...(selectedListing.category === 'gas' && marketplaceForm.gasBrand ? { gasBrand: marketplaceForm.gasBrand } : {}),
+      },
+      ...(selectedListing.category === 'gas' && marketplaceForm.gasBrand ? { gasBrand: marketplaceForm.gasBrand } : {}),
+      ...(selectedListing.category === 'gas' && gasBottlePhotoURL ? { gasBottleImageURL: gasBottlePhotoURL } : {}),
       address: marketplaceForm.address,
       addressCoordinates: marketplaceForm.addressCoordinates,
       addressPlaceId: marketplaceForm.addressPlaceId,
@@ -831,13 +879,13 @@ function CustomerAppPage() {
             </div>
             <div className="home-secondary">
               <div className="section-title"><strong>Your Current Order</strong><Link to="/dashboard/customer/orders">View all</Link></div>
-              {activeOrder ? (
+                {activeOrder ? (
                 <Link className="order-card" to={`/dashboard/customer/orders/${activeOrder.id}`}>
                   <div className="order-icon"><FiShoppingBag /></div>
                   <div className="order-summary">
                     <strong>{activeOrder.service} Order - {activeOrder.id}</strong>
                     <p>Pickup: {formatPickupDate(activeOrder.pickupDate, locale)}, {formatPickupTime(activeOrder.pickupTime, locale)}</p>
-                    <p><b>Details:</b> {activeOrder.note || activeOrder.itemSummary || activeOrder.clothesType}</p>
+                    <p><b>Details:</b> {[activeOrder.itemSummary || activeOrder.clothesType, activeOrder.gasBrand, activeOrder.gasOrderType, activeOrder.cylinderSize].filter(Boolean).join(' · ')}</p>
                   </div>
                   <span>{activeOrder.status}</span>
                   <div className="mini-progress"><i></i><i></i><i></i><i></i></div>
@@ -1003,6 +1051,7 @@ function CustomerAppPage() {
                     <div className="top-title"><Link to="/dashboard/customer/services"><FiArrowLeft /></Link><h1>{selectedListing.title}</h1></div>
                     <div className="marketplace-seller-line"><FiCheck /><span>Verified provider</span><strong>{selectedListing.providerName}</strong></div>
                     <p>{selectedListing.description}</p>
+                    {selectedListing.category === 'gas' && marketplaceForm.gasBrand && <div className="marketplace-gas-reference"><strong>Requested bottle: {marketplaceForm.gasBrand}</strong>{gasBottlePhotoURL && <img src={gasBottlePhotoURL} alt="Gas cylinder reference photo" />}</div>}
                     <div className="request-field-grid">
                       {marketplaceCategory.orderFields.map((field) => (
                         <label key={field.name}>{field.label}
@@ -1068,9 +1117,28 @@ function CustomerAppPage() {
                 <div className="request-field-grid">
                   <label>{requestConfig.primaryLabel}<span className="request-input"><select name={requestConfig.primaryField} value={primaryValue} onChange={updateForm}>{Object.keys(requestConfig.primaryOptions).map((type) => <option key={type} value={type}>{type}</option>)}</select><FiChevronDown /></span></label>
                   {currentServiceType === 'delivery' && primaryValue === 'Gas delivery' && <>
+                    <label>Gas brand or name<input name="gasBrand" maxLength="100" value={form.gasBrand || ''} onChange={updateForm} placeholder="For example, Tradex or Neptune" required /></label>
                     <label>Gas order<span className="request-input"><select name="gasOrderType" value={form.gasOrderType || 'New cylinder with gas'} onChange={updateForm} required><option>New cylinder with gas</option><option>Exchange empty cylinder for a filled one</option><option>Refill my cylinder</option></select><FiChevronDown /></span></label>
                     <label>Cylinder size<span className="request-input"><select name="cylinderSize" value={form.cylinderSize || '12.5 kg'} onChange={updateForm} required><option>6 kg</option><option>12.5 kg</option><option>15 kg</option><option>Other</option></select><FiChevronDown /></span></label>
                     {form.cylinderSize === 'Other' && <label>Specify cylinder size<input name="cylinderSizeDetails" maxLength="80" value={form.cylinderSizeDetails || ''} onChange={updateForm} placeholder="For example, 9 kg" required /></label>}
+                    <label className="gas-bottle-photo-field">Bottle photo<input type="file" accept="image/jpeg,image/png,image/webp" onChange={uploadSelectedGasBottlePhoto} disabled={gasBottlePhotoLoading} required={!gasBottlePhotoURL} /><small>{gasBottlePhotoLoading ? 'Uploading photo…' : 'Upload a clear JPG, PNG, or WebP photo (max 5 MB). The provider will use it to verify the bottle.'}</small>{gasBottlePhotoURL && <img className="gas-bottle-photo-preview" src={gasBottlePhotoURL} alt="Uploaded gas cylinder" />}</label>
+                    <p className="gas-order-pricing-note">The estimate covers the delivery request. The provider will confirm the gas price and availability.</p>
+                    {form.gasBrand?.trim() && marketplaceListings.some((listing) => listing.category === 'gas') && <div className="gas-provider-matches">
+                      <strong>Matching gas providers</strong>
+                      <p>Choose a listed provider for this brand and cylinder size. The provider and listing price will be shown before you order.</p>
+                      {matchingGasListings.length ? matchingGasListings.map((listing) => (
+                        <Link key={listing.firestoreId} to={`/dashboard/customer/shop/${listing.firestoreId}`} onClick={() => setMarketplaceForm((current) => ({
+                          ...current,
+                          gasBrand: form.gasBrand.trim(),
+                          variant: (listing.options || []).find((option) => option.replace(/\s+/g, '').toLocaleLowerCase() === String(form.cylinderSize === 'Other' ? form.cylinderSizeDetails : form.cylinderSize || '').replace(/\s+/g, '').toLocaleLowerCase()) || '',
+                          orderType: form.gasOrderType === 'New cylinder with gas' ? 'New cylinder' : form.gasOrderType === 'Exchange empty cylinder for a filled one' ? 'Exchange' : 'Refill',
+                        }))}>
+                          <span><b>{listing.providerName}</b><small>{listing.title} · {listing.serviceArea}</small></span>
+                          <strong>{formatMarketplaceAmount(listing.price)} / {listing.unit}</strong>
+                          <FiArrowRight />
+                        </Link>
+                      )) : <span className="gas-provider-match-empty">No active listing matches both this brand and cylinder size yet.</span>}
+                    </div>}
                   </>}
                   <div className="customer-address-field"><label>{currentServiceType === 'delivery' ? 'Delivery Address' : 'Service Address'}<span className="request-input"><FiMapPin /><input name="address" type="text" maxLength="240" list="service-addresses" value={form.address} onChange={updateForm} placeholder="Enter your pickup or service address" required /></span><datalist id="service-addresses">{addresses.map((address) => <option key={address} value={address} />)}</datalist></label><AddressLocationTools kind="home" userUid={user?.uid} savedAddress={profile?.homeAddress} value={{ address: form.address, coordinates: form.addressCoordinates, placeId: form.addressPlaceId, source: form.addressSource }} onChange={(address) => setForms((current) => ({ ...current, [currentServiceType]: { ...current[currentServiceType], address: address.address, addressCoordinates: address.coordinates, addressPlaceId: address.placeId, addressSource: address.source } }))} /></div>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Date' : 'Service Date'}<span className="request-input"><FiCalendar /><input name="pickupDate" type="date" min={minimumPickupDate} value={form.pickupDate} onChange={updateForm} /></span></label>
@@ -1154,6 +1222,7 @@ function CustomerAppPage() {
                 <div><span>Pickup</span><strong>{formatPickupDate(viewedOrder.pickupDate, locale)}, {formatPickupTime(viewedOrder.pickupTime, locale)}</strong></div>
                 <div><span>Details</span><strong>{viewedOrderDetails}</strong></div>
                 {viewedOrder.note && <div><span>Instructions</span><strong>{viewedOrder.note}</strong></div>}
+                {viewedOrder.gasBottleImageURL && <div className="order-gas-photo"><span>Bottle photo</span><a href={viewedOrder.gasBottleImageURL} target="_blank" rel="noreferrer"><img src={viewedOrder.gasBottleImageURL} alt="Gas cylinder uploaded with this order" />View uploaded photo</a></div>}
                 <div><span>Payment</span><strong>Mobile Money - {viewedOrder.paymentStatus || 'Pending'}</strong></div>
                 {!['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState) && ['Pending', 'Failed'].includes(viewedOrder.paymentStatus || 'Pending') && <p>Your order is saved. Select Retry payment to receive a Mobile Money prompt for this order, then approve it on your phone.</p>}
                 {viewedOrder.paymentReference && !['Paid', 'Failed', 'Refunded'].includes(viewedOrder.paymentStatus) && <p>A payment request already exists. Check your phone for the Mobile Money prompt. If it failed or you received no prompt, contact CareNest with this order number before paying again.</p>}
