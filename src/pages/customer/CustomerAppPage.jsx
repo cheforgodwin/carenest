@@ -126,9 +126,10 @@ const serviceConfig = {
       ['Priority', 'Under 2 hours', servicePrices.delivery.serviceOptions.Priority],
     ],
     primaryField: 'itemType',
-    primaryLabel: 'Item Type',
+    primaryLabel: 'What do you need delivered?',
     primaryOptions: {
       ...servicePrices.delivery.primaryOptions,
+      'Gas delivery': 0,
     },
     notePlaceholder: 'E.g. Shopping list, shop name, recipient phone number...',
   },
@@ -192,6 +193,8 @@ const createEmptyForm = (serviceType = 'laundry') => {
     serviceType,
     serviceSpeed: config.serviceOptions[0][0],
     [config.primaryField]: Object.keys(config.primaryOptions)[0],
+    gasOrderType: 'New cylinder with gas',
+    cylinderSize: '12.5 kg',
     address: availableServiceAddresses[0] || defaultCustomerAddress || defaultCustomerCity,
     addressCoordinates: null,
     addressPlaceId: '',
@@ -355,6 +358,11 @@ function CustomerAppPage() {
   )
   const viewedOrderId = pathname.split('/').pop()
   const viewedOrder = orders.find((order) => order.id === viewedOrderId)
+  const viewedOrderDetails = viewedOrder ? [
+    viewedOrder.itemSummary || viewedOrder.clothesType,
+    viewedOrder.gasOrderType,
+    viewedOrder.cylinderSize === 'Other' ? viewedOrder.cylinderSizeDetails : viewedOrder.cylinderSize,
+  ].filter(Boolean).join(' · ') : ''
     || (recentOrder?.id === viewedOrderId ? recentOrder : null)
   const paymentOrder = paymentSuccess
     ? orders.find((order) => order.id === paymentSuccess.id) || (recentOrder?.id === paymentSuccess.id ? recentOrder : null)
@@ -1059,6 +1067,11 @@ function CustomerAppPage() {
                 </div>
                 <div className="request-field-grid">
                   <label>{requestConfig.primaryLabel}<span className="request-input"><select name={requestConfig.primaryField} value={primaryValue} onChange={updateForm}>{Object.keys(requestConfig.primaryOptions).map((type) => <option key={type} value={type}>{type}</option>)}</select><FiChevronDown /></span></label>
+                  {currentServiceType === 'delivery' && primaryValue === 'Gas delivery' && <>
+                    <label>Gas order<span className="request-input"><select name="gasOrderType" value={form.gasOrderType || 'New cylinder with gas'} onChange={updateForm} required><option>New cylinder with gas</option><option>Exchange empty cylinder for a filled one</option><option>Refill my cylinder</option></select><FiChevronDown /></span></label>
+                    <label>Cylinder size<span className="request-input"><select name="cylinderSize" value={form.cylinderSize || '12.5 kg'} onChange={updateForm} required><option>6 kg</option><option>12.5 kg</option><option>15 kg</option><option>Other</option></select><FiChevronDown /></span></label>
+                    {form.cylinderSize === 'Other' && <label>Specify cylinder size<input name="cylinderSizeDetails" maxLength="80" value={form.cylinderSizeDetails || ''} onChange={updateForm} placeholder="For example, 9 kg" required /></label>}
+                  </>}
                   <div className="customer-address-field"><label>{currentServiceType === 'delivery' ? 'Delivery Address' : 'Service Address'}<span className="request-input"><FiMapPin /><input name="address" type="text" maxLength="240" list="service-addresses" value={form.address} onChange={updateForm} placeholder="Enter your pickup or service address" required /></span><datalist id="service-addresses">{addresses.map((address) => <option key={address} value={address} />)}</datalist></label><AddressLocationTools kind="home" userUid={user?.uid} savedAddress={profile?.homeAddress} value={{ address: form.address, coordinates: form.addressCoordinates, placeId: form.addressPlaceId, source: form.addressSource }} onChange={(address) => setForms((current) => ({ ...current, [currentServiceType]: { ...current[currentServiceType], address: address.address, addressCoordinates: address.coordinates, addressPlaceId: address.placeId, addressSource: address.source } }))} /></div>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Date' : 'Service Date'}<span className="request-input"><FiCalendar /><input name="pickupDate" type="date" min={minimumPickupDate} value={form.pickupDate} onChange={updateForm} /></span></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Time' : 'Service Time'}<span className="request-input"><FiClock /><input name="pickupTime" type="time" value={form.pickupTime} onChange={updateForm} /></span></label>
@@ -1139,7 +1152,8 @@ function CustomerAppPage() {
                 <h2>Order summary</h2>
                 <div><span>Service</span><strong>{viewedOrder.service}</strong></div>
                 <div><span>Pickup</span><strong>{formatPickupDate(viewedOrder.pickupDate, locale)}, {formatPickupTime(viewedOrder.pickupTime, locale)}</strong></div>
-                <div><span>Details</span><strong>{viewedOrder.note || viewedOrder.itemSummary || viewedOrder.clothesType}</strong></div>
+                <div><span>Details</span><strong>{viewedOrderDetails}</strong></div>
+                {viewedOrder.note && <div><span>Instructions</span><strong>{viewedOrder.note}</strong></div>}
                 <div><span>Payment</span><strong>Mobile Money - {viewedOrder.paymentStatus || 'Pending'}</strong></div>
                 {!['Starting', 'Unknown'].includes(viewedOrder.paymentInitiationState) && ['Pending', 'Failed'].includes(viewedOrder.paymentStatus || 'Pending') && <p>Your order is saved. Select Retry payment to receive a Mobile Money prompt for this order, then approve it on your phone.</p>}
                 {viewedOrder.paymentReference && !['Paid', 'Failed', 'Refunded'].includes(viewedOrder.paymentStatus) && <p>A payment request already exists. Check your phone for the Mobile Money prompt. If it failed or you received no prompt, contact CareNest with this order number before paying again.</p>}
