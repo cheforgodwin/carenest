@@ -1,6 +1,6 @@
 import { paymentFailureMessage } from '../../utils/paymentFailure.js'
 import { detectPaymentNetwork, paymentNetworkLabel, unsupportedPaymentPhoneMessage } from '../../utils/paymentNetwork.js'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   FiArrowLeft,
@@ -215,10 +215,10 @@ function CustomerAppPage() {
   const { locale } = useI18n()
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  useEffect(() => {
+  useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
     const content = document.querySelector('.mobile-phone > .mobile-content')
-    if (content) content.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+    if (content) content.scrollTop = 0
   }, [pathname])
   const isServices = pathname.includes('/services')
   const marketplaceMatch = pathname.match(/\/shop\/([^/]+)/)
