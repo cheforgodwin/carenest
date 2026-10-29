@@ -126,3 +126,12 @@ export async function uploadProviderBusinessPhoto(user, file) {
     throw getPhotoUploadError(error)
   }
 }
+
+export async function uploadGasBottlePhoto(user, file) {
+  try {
+    const photoURL = await uploadImageToStorage(user, file, 'gasBottlePhotos')
+    return { photoURL }
+  } catch (error) {
+    throw getPhotoUploadError(error)
+  }
+}

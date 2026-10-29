@@ -33,7 +33,7 @@ const defaultServicePrices = {
   },
   delivery: {
     serviceOptions: { Standard: 0, Priority: 1000 },
-    primaryOptions: { Groceries: 2500, 'Household essentials': 3000, Pharmacy: 3500, 'Custom errand': 4500 },
+    primaryOptions: { Groceries: 2500, 'Household essentials': 3000, Pharmacy: 3500, 'Gas delivery': 4500, 'Custom errand': 4500 },
   },
 }
 
