@@ -3451,7 +3451,7 @@
 .marketplace-gas-reference { display: flex; align-items: center; gap: 12px; margin: 10px 0; padding: 10px; border-radius: 10px; color: var(--cn-green-dark); background: #f1faf5; }
 .marketplace-gas-reference img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; }
 
-/* Keep the viewport as the scrolling surface and leave the bottom nav pinned to the screen edge. */
+/* Keep the viewport as the scrolling surface and pin navigation to the viewport edge. */
 .mobile-app-page,
 .mobile-phone {
   height: 100vh;
@@ -3463,6 +3463,26 @@
 .mobile-phone > .mobile-content {
   flex: 1 1 auto;
   overflow-y: auto;
+}
+
+@media (min-width: 981px) {
+  .mobile-phone {
+    padding: 68px 0 0;
+  }
+
+  .mobile-phone > .mobile-content {
+    padding-bottom: 24px;
+  }
+
+  .mobile-tabs {
+    top: 0;
+    right: 0;
+    bottom: auto;
+    left: 0;
+    border-top: 0;
+    border-bottom: 1px solid var(--cn-line);
+    box-shadow: 0 10px 28px rgba(7, 59, 37, 0.08);
+  }
 }
 @media (min-width: 641px) {
   .mobile-tabs {
