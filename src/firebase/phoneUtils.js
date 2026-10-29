@@ -7,9 +7,18 @@ export function normalizePhoneNumber(phone, countryCode = '237') {
   if (!digits) return ''
 
   const code = String(countryCode || '237').replace(/\D/g, '')
-  if (compact.startsWith('+')) return `+${digits}`
-  if (code && digits.startsWith(code)) return `+${digits}`
-  return code ? `+${code}${digits}` : `+${digits}`
+  let normalizedDigits = digits
+
+  if (normalizedDigits.startsWith(`00${code}`)) {
+    normalizedDigits = normalizedDigits.slice(code.length + 2)
+  } else if (normalizedDigits.startsWith(code)) {
+    normalizedDigits = normalizedDigits.slice(code.length)
+  } else if (compact.startsWith('+') && digits.startsWith('237')) {
+    normalizedDigits = digits.slice(3)
+  }
+
+  if (!normalizedDigits) return ''
+  return code ? `+${code}${normalizedDigits}` : `+${normalizedDigits}`
 }
 
 export function isValidCameroonPhone(phone, countryCode = '237') {
