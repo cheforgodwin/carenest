@@ -1,6 +1,6 @@
 import { paymentFailureMessage } from '../../utils/paymentFailure.js'
 import { detectPaymentNetwork, paymentNetworkLabel, unsupportedPaymentPhoneMessage } from '../../utils/paymentNetwork.js'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   FiArrowLeft,
@@ -22,6 +22,7 @@ import {
   FiShoppingBag,
   FiSettings,
   FiTool,
+  FiUploadCloud,
   FiUserPlus,
   FiX,
   FiZap,
@@ -57,6 +58,7 @@ const quickActions = [
   ['Laundry', FiShoppingBag, '/dashboard/customer/request/laundry'],
   ['Cleaning', FiTool, '/dashboard/customer/request/cleaning'],
   ['Delivery', FiPackage, '/dashboard/customer/request/delivery'],
+  ['Order Gas', FiPackage, '/dashboard/customer/request/delivery?order=gas'],
   ['Call CareNest', FiPhone, supportPhoneHref],
 ]
 
@@ -79,6 +81,32 @@ const timelineSteps = [
   'Quality Check',
   'Out for Delivery',
   'Completed',
+]
+
+const gasOrderOptions = [
+  ['New cylinder with gas', 'New cylinder', 'Bottle and gas'],
+  ['Exchange empty cylinder for a filled one', 'Exchange', 'Swap empty for full'],
+  ['Refill my cylinder', 'Refill', 'Fill your bottle'],
+]
+
+const gasCylinderSizes = ['6 kg', '12.5 kg', '15 kg', 'Other']
+
+const gasRequestGuidance = [
+  {
+    heading: 'Match the order to your bottle',
+    copy: 'Choose a new cylinder, an exchange, or a refill. Add the brand, size, and a clear photo so the provider can confirm it.',
+    points: ['New cylinder, exchange, or refill', 'Brand and cylinder size', 'Bottle photo for confirmation'],
+  },
+  {
+    heading: 'Choose where and when',
+    copy: 'Add the drop-off address and a time that works for you. The provider will confirm availability.',
+    points: ['Delivery address', 'Preferred date and time', 'Provider confirms availability'],
+  },
+  {
+    heading: 'Review and pay securely',
+    copy: 'Check the bottle and delivery details, then approve the Mobile Money request on your phone.',
+    points: ['Review your bottle details', 'Confirm the delivery address', 'Approve payment on your phone'],
+  },
 ]
 
 const serviceConfig = {
@@ -213,7 +241,7 @@ const addresses = availableServiceAddresses
 function CustomerAppPage() {
   const { profile, user } = useAuth()
   const { locale } = useI18n()
-  const { pathname } = useLocation()
+  const { pathname, search, key: locationKey } = useLocation()
   const navigate = useNavigate()
   useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
@@ -243,8 +271,8 @@ function CustomerAppPage() {
     paymentNetwork: '', paymentPhone: null, note: '', orderType: '', variant: '', returnableContainers: 0, rooms: 1, fabricNotes: '', problem: '',
   }))
   const [ordersLoading, setOrdersLoading] = useState(true)
-  const [forms, setForms] = useState(() => Object.fromEntries(
-    serviceSlugs.map((serviceType) => {
+  const [forms, setForms] = useState(() => {
+    const initialForms = Object.fromEntries(serviceSlugs.map((serviceType) => {
       const initial = createEmptyForm(serviceType)
       if (profile?.homeAddress?.address) {
         initial.address = profile.homeAddress.address
@@ -253,8 +281,10 @@ function CustomerAppPage() {
         initial.addressSource = 'saved'
       }
       return [serviceType, initial]
-    }),
-  ))
+    }))
+    if (new URLSearchParams(search).get('order') === 'gas') initialForms.delivery.itemType = 'Gas delivery'
+    return initialForms
+  })
   const [requestMessage, setRequestMessage] = useState('')
   const [requestError, setRequestError] = useState('')
   const [paymentSuccess, setPaymentSuccess] = useState(null)
@@ -283,6 +313,7 @@ function CustomerAppPage() {
     shiftAvailability: '',
   })
   const [applicationStatus, setApplicationStatus] = useState({ loading: false, error: '', message: '' })
+  const [requestFlow, setRequestFlow] = useState({ locationKey, step: 1 })
 
   useEffect(() => {
     function closeOnEscape(event) {
@@ -389,6 +420,9 @@ function CustomerAppPage() {
   const PrimaryIcon = requestConfig.icon
   const form = forms[currentServiceType]
   const primaryValue = form[requestConfig.primaryField] || Object.keys(requestConfig.primaryOptions)[0]
+  const isGasOrder = currentServiceType === 'delivery' && primaryValue === 'Gas delivery'
+  const requestStep = requestFlow.locationKey === locationKey ? requestFlow.step : 1
+  const gasGuidance = isGasOrder ? gasRequestGuidance[requestStep - 1] : null
   const selectedOption = requestConfig.serviceOptions.find(([name]) => name === form.serviceSpeed) || requestConfig.serviceOptions[0]
   const matchingGasListings = useMemo(() => {
     if (currentServiceType !== 'delivery' || primaryValue !== 'Gas delivery' || !form.gasBrand?.trim()) return []
@@ -452,6 +486,39 @@ function CustomerAppPage() {
     }))
     setRequestMessage('')
     setRequestError('')
+  }
+
+  function goToRequestStep(step) {
+    setRequestError('')
+    setRequestMessage('')
+    setRequestFlow({ locationKey, step })
+    const content = document.querySelector('.mobile-phone > .mobile-content')
+    if (content) content.scrollTop = 0
+  }
+
+  function continueRequest() {
+    if (requestStep === 1 && isGasOrder) {
+      if (!form.gasBrand?.trim()) {
+        setRequestError('Enter the gas brand or name so the provider can confirm it.')
+        return
+      }
+      if (form.cylinderSize === 'Other' && !form.cylinderSizeDetails?.trim()) {
+        setRequestError('Enter the cylinder size to continue.')
+        return
+      }
+      if (!gasBottlePhotoURL) {
+        setRequestError('Upload a clear photo of your gas cylinder to continue.')
+        return
+      }
+      if (gasBottlePhotoLoading) return
+    }
+    if (requestStep === 2) {
+      if (!form.address || !form.pickupDate || form.pickupDate < minimumPickupDate || !form.pickupTime) {
+        setRequestError('Enter a valid address, date, and time to continue.')
+        return
+      }
+    }
+    goToRequestStep(requestStep + 1)
   }
 
   async function uploadSelectedGasBottlePhoto(event) {
@@ -867,7 +934,7 @@ function CustomerAppPage() {
                   {quickActions.map(([label, Icon, to]) => (
                     to.startsWith('tel:')
                       ? <a className={label.includes('Call') ? 'orange-action' : ''} href={to} key={label}><Icon />{label}</a>
-                      : <Link to={to} key={label}><Icon />{label}</Link>
+                      : <Link to={to} key={label} onClick={to.includes('order=gas') ? () => setForms((current) => ({ ...current, delivery: { ...current.delivery, itemType: 'Gas delivery' } })) : undefined}><Icon />{label}</Link>
                   ))}
                 </div>
               </div>
@@ -1103,9 +1170,22 @@ function CustomerAppPage() {
           <section className="mobile-content mobile-content-request">
             <div className="request-shell">
               <div className="request-main">
-                <div className="top-title"><Link to="/dashboard/customer/services"><FiArrowLeft /></Link><h1>{requestConfig.title}</h1></div>
-                <div className="stepper"><span className="active">1<small>Details</small></span><i></i><span>2<small>Pickup</small></span><i></i><span>3<small>Review</small></span></div>
-                <strong className="form-section-label">Service Type</strong>
+                <div className="top-title"><Link to="/dashboard/customer/services"><FiArrowLeft /></Link><h1>{isGasOrder ? 'Order Gas' : requestConfig.title}</h1></div>
+                {isGasOrder ? (
+                  <>
+                    <div className="stepper" aria-label={`Step ${requestStep} of 3`}>
+                      {['Gas details', 'Delivery', 'Payment'].map((step, index) => (
+                        <Fragment key={step}>
+                          <span className={requestStep >= index + 1 ? 'active' : ''}>{index + 1}<small>{step}</small></span>
+                          {index < 2 && <i className={requestStep > index + 1 ? 'active' : ''} />}
+                        </Fragment>
+                      ))}
+                    </div>
+                    <div className="request-stage-heading"><span>STEP {requestStep} OF 3</span><strong>{['Gas details', 'Delivery details', 'Review and payment'][requestStep - 1]}</strong></div>
+                  </>
+                ) : <div className="stepper"><span className="active">1<small>Details</small></span><i></i><span>2<small>Pickup</small></span><i></i><span>3<small>Review</small></span></div>}
+                {(!isGasOrder || requestStep === 1) && <>
+                {!isGasOrder && <strong className="form-section-label">Service Type</strong>}
                 <div className="request-options">
                   {requestConfig.serviceOptions.map(([speed, detail]) => (
                     <button className={`request-box ${form.serviceSpeed === speed ? 'selected' : ''}`} type="button" onClick={() => setForms((current) => ({ ...current, [currentServiceType]: { ...current[currentServiceType], serviceSpeed: speed } }))} key={speed}>
@@ -1116,14 +1196,61 @@ function CustomerAppPage() {
                     </button>
                   ))}
                 </div>
+                </>}
                 <div className="request-field-grid">
-                  <label>{requestConfig.primaryLabel}<span className="request-input"><select name={requestConfig.primaryField} value={primaryValue} onChange={updateForm}>{Object.keys(requestConfig.primaryOptions).map((type) => <option key={type} value={type}>{type}</option>)}</select><FiChevronDown /></span></label>
-                  {currentServiceType === 'delivery' && primaryValue === 'Gas delivery' && <>
+                  {!isGasOrder && <label>{requestConfig.primaryLabel}<span className="request-input"><select name={requestConfig.primaryField} value={primaryValue} onChange={updateForm}>{Object.keys(requestConfig.primaryOptions).map((type) => <option key={type} value={type}>{type}</option>)}</select><FiChevronDown /></span></label>}
+                  {isGasOrder && requestStep === 1 && <section className="gas-order-fields" aria-labelledby="gas-order-heading">
+                    <div className="gas-order-intro">
+                      <h2 id="gas-order-heading">Gas order details</h2>
+                      <p>Tell us which bottle you need so a provider can confirm availability.</p>
+                    </div>
                     <label>Gas brand or name<input name="gasBrand" maxLength="100" value={form.gasBrand || ''} onChange={updateForm} placeholder="For example, Tradex or Neptune" required /></label>
-                    <label>Gas order<span className="request-input"><select name="gasOrderType" value={form.gasOrderType || 'New cylinder with gas'} onChange={updateForm} required><option>New cylinder with gas</option><option>Exchange empty cylinder for a filled one</option><option>Refill my cylinder</option></select><FiChevronDown /></span></label>
-                    <label>Cylinder size<span className="request-input"><select name="cylinderSize" value={form.cylinderSize || '12.5 kg'} onChange={updateForm} required><option>6 kg</option><option>12.5 kg</option><option>15 kg</option><option>Other</option></select><FiChevronDown /></span></label>
+                    <fieldset className="gas-choice-group">
+                      <legend>What do you need?</legend>
+                      <div className="gas-choice-grid">
+                        {gasOrderOptions.map(([value, title, description]) => (
+                          <button
+                            className={form.gasOrderType === value ? 'selected' : ''}
+                            type="button"
+                            aria-pressed={form.gasOrderType === value}
+                            key={value}
+                            onClick={() => setForms((current) => ({
+                              ...current,
+                              delivery: { ...current.delivery, gasOrderType: value },
+                            }))}
+                          >
+                            <strong>{title}</strong>
+                            <span>{description}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </fieldset>
+                    <fieldset className="gas-choice-group">
+                      <legend>Cylinder size</legend>
+                      <div className="gas-size-options">
+                        {gasCylinderSizes.map((size) => (
+                          <button
+                            className={form.cylinderSize === size ? 'selected' : ''}
+                            type="button"
+                            aria-pressed={form.cylinderSize === size}
+                            key={size}
+                            onClick={() => setForms((current) => ({
+                              ...current,
+                              delivery: { ...current.delivery, cylinderSize: size },
+                            }))}
+                          >
+                            {size}
+                          </button>
+                        ))}
+                      </div>
+                    </fieldset>
                     {form.cylinderSize === 'Other' && <label>Specify cylinder size<input name="cylinderSizeDetails" maxLength="80" value={form.cylinderSizeDetails || ''} onChange={updateForm} placeholder="For example, 9 kg" required /></label>}
-                    <label className="gas-bottle-photo-field">Bottle photo<input type="file" accept="image/jpeg,image/png,image/webp" onChange={uploadSelectedGasBottlePhoto} disabled={gasBottlePhotoLoading} required={!gasBottlePhotoURL} /><small>{gasBottlePhotoLoading ? 'Uploading photo…' : 'Upload a clear JPG, PNG, or WebP photo (max 5 MB). The provider will use it to verify the bottle.'}</small>{gasBottlePhotoURL && <img className="gas-bottle-photo-preview" src={gasBottlePhotoURL} alt="Uploaded gas cylinder" />}</label>
+                    <label className="gas-bottle-photo-field">
+                      <span className="gas-photo-heading"><span><FiUploadCloud aria-hidden="true" /> Bottle photo</span><b>Required</b></span>
+                      <input type="file" accept="image/jpeg,image/png,image/webp" onChange={uploadSelectedGasBottlePhoto} disabled={gasBottlePhotoLoading} required={!gasBottlePhotoURL} />
+                      <small>{gasBottlePhotoLoading ? 'Uploading photo…' : gasBottlePhotoURL ? 'Photo uploaded. You can choose another if needed.' : 'Choose a clear JPG, PNG, or WebP photo (max 5 MB). This helps the provider verify your bottle.'}</small>
+                      {gasBottlePhotoURL && <img className="gas-bottle-photo-preview" src={gasBottlePhotoURL} alt="Uploaded gas cylinder" />}
+                    </label>
                     <p className="gas-order-pricing-note">The estimate covers the delivery request. The provider will confirm the gas price and availability.</p>
                     {form.gasBrand?.trim() && marketplaceListings.some((listing) => listing.category === 'gas') && <div className="gas-provider-matches">
                       <strong>Matching gas providers</strong>
@@ -1141,10 +1268,20 @@ function CustomerAppPage() {
                         </Link>
                       )) : <span className="gas-provider-match-empty">No active listing matches both this brand and cylinder size yet.</span>}
                     </div>}
-                  </>}
+                  </section>}
+                  {(!isGasOrder || requestStep === 2) && <>
                   <div className="customer-address-field"><label>{currentServiceType === 'delivery' ? 'Delivery Address' : 'Service Address'}<span className="request-input"><FiMapPin /><input name="address" type="text" maxLength="240" list="service-addresses" value={form.address} onChange={updateForm} placeholder="Enter your pickup or service address" required /></span><datalist id="service-addresses">{addresses.map((address) => <option key={address} value={address} />)}</datalist></label><AddressLocationTools kind="home" userUid={user?.uid} savedAddress={profile?.homeAddress} value={{ address: form.address, coordinates: form.addressCoordinates, placeId: form.addressPlaceId, source: form.addressSource }} onChange={(address) => setForms((current) => ({ ...current, [currentServiceType]: { ...current[currentServiceType], address: address.address, addressCoordinates: address.coordinates, addressPlaceId: address.placeId, addressSource: address.source } }))} /></div>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Date' : 'Service Date'}<span className="request-input"><FiCalendar /><input name="pickupDate" type="date" min={minimumPickupDate} value={form.pickupDate} onChange={updateForm} /></span></label>
                   <label>{currentServiceType === 'laundry' ? 'Pickup Time' : 'Service Time'}<span className="request-input"><FiClock /><input name="pickupTime" type="time" value={form.pickupTime} onChange={updateForm} /></span></label>
+                  <label className="request-note-field">Additional Note (Optional)<textarea name="note" maxLength="1000" value={form.note} onChange={updateForm} placeholder={requestConfig.notePlaceholder} /></label>
+                  </>}
+                  {(!isGasOrder || requestStep === 3) && <>
+                  {isGasOrder && <section className="gas-review-summary" aria-label="Gas order summary">
+                    <strong>Order summary</strong>
+                    <span>{form.gasOrderType} · {form.gasBrand || 'Gas brand not entered'} · {form.cylinderSize === 'Other' ? form.cylinderSizeDetails : form.cylinderSize}</span>
+                    <span>{form.address} · {form.pickupDate} at {form.pickupTime}</span>
+                    {gasBottlePhotoURL && <span className="gas-photo-confirmation"><FiCheck /> Bottle photo added</span>}
+                  </section>}
                   <label>Payment network (automatic)<span className="request-input"><input value={paymentNetworkLabel(form.paymentPhone ?? profile?.phone ?? '')} readOnly aria-live="polite" /></span></label>
                   <label>Mobile Money Number<span className="request-input"><FiPhone /><input name="paymentPhone" type="tel" maxLength="20" value={form.paymentPhone ?? profile?.phone ?? ''} onChange={updateForm} placeholder={phonePlaceholder} required /></span></label>
                       <p className="payment-phone-preview"><span>The approval request will be sent to:</span> <strong data-no-translate>{form.paymentPhone ?? profile?.phone ?? ''}</strong></p>
@@ -1159,23 +1296,24 @@ function CustomerAppPage() {
                       <small>Enter your number and approve the prompt on your phone. Confirmation is automatic.</small>
                     </div>
                   </div>
-                  <label className="request-note-field">Additional Note (Optional)<textarea name="note" maxLength="1000" value={form.note} onChange={updateForm} placeholder={requestConfig.notePlaceholder} /></label>
+                  </>}
                 </div>
                 {requestMessage && <p className="request-message">{requestMessage}</p>}
                 {requestError && <p className="request-message request-error" role="alert">{requestError}</p>}
-                <div className="request-submit-row">
+                {isGasOrder && requestStep > 1 && <button className="request-back-button" type="button" onClick={() => goToRequestStep(requestStep - 1)}><FiArrowLeft /> Back</button>}
+                {isGasOrder && requestStep < 3 ? <button className="request-continue-button" type="button" onClick={continueRequest}>Continue <FiArrowRight /></button> : <div className="request-submit-row">
                   <span><small>Estimated total</small><strong>{formatAmount(requestAmount)}</strong></span>
-                  <button type="button" onClick={submitServiceRequest} disabled={isSubmitting}>{isSubmitting ? 'Processing…' : 'Pay'}</button>
-                </div>
+                  <button type="button" onClick={submitServiceRequest} disabled={isSubmitting}>{isSubmitting ? 'Processing…' : isGasOrder ? 'Pay and place order' : 'Pay'}</button>
+                </div>}
               </div>
               <div className="request-aside">
                 <div className="aside-visual"><PrimaryIcon /></div>
-                <h2>{requestConfig.heading}</h2>
-                <p>{requestConfig.copy}</p>
+                <h2>{gasGuidance?.heading || requestConfig.heading}</h2>
+                <p>{gasGuidance?.copy || requestConfig.copy}</p>
                 <div className="aside-list">
-                  <span><FiCheck /> Pickup reminder</span>
-                  <span><FiCheck /> Status tracking</span>
-                  <span><FiPhone /> Fast support</span>
+                  {gasGuidance
+                    ? gasGuidance.points.map((point) => <span key={point}><FiCheck /> {point}</span>)
+                    : <><span><FiCheck /> Pickup reminder</span><span><FiCheck /> Status tracking</span><span><FiPhone /> Fast support</span></>}
                 </div>
                 <a href={supportPhoneHref}><FiPhone /> Call CareNest</a>
               </div>

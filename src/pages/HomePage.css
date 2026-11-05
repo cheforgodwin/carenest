@@ -5,7 +5,7 @@
   --landing-ink: #16251d;
   --landing-muted: #5c6b63;
   --landing-line: #e3ece6;
-  overflow: hidden;
+  overflow-x: clip;
   color: var(--landing-ink);
   background:
     radial-gradient(ellipse at 80% 4%, rgba(227, 244, 233, 0.56), transparent 34rem),

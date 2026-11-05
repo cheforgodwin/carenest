@@ -31,6 +31,7 @@ const policies = {
 
 export default function LegalPage({ type }) {
   const policy = policies[type]
+
   return (
     <main className="legal-page">
       <Link to="/">← Back to CareNest</Link>
