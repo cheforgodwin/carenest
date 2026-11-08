@@ -46,6 +46,7 @@ import PaymentFeedback from '../../components/PaymentFeedback'
 import { ListingCardSkeleton, OrderCardSkeleton, OrderTrackingSkeleton, Skeleton } from '../../components/ContentSkeletons'
 import ServiceImage from '../../components/ServiceImage'
 import AddressLocationTools from '../../components/AddressLocationTools'
+import SendPackagePage from './SendPackagePage'
 import { confirmCustomerCompletion, createMarketplaceServiceRequest, createRequestId, createServiceRequest, submitCustomerComplaint, subscribeToCustomerOrders } from '../../firebase/orderService'
 import { postJson } from '../../utils/networkUtils'
 import { inputLimits, sanitizeText } from '../../utils/securityUtils'
@@ -58,6 +59,7 @@ const quickActions = [
   ['Laundry', FiShoppingBag, '/dashboard/customer/request/laundry'],
   ['Cleaning', FiTool, '/dashboard/customer/request/cleaning'],
   ['Delivery', FiPackage, '/dashboard/customer/request/delivery'],
+  ['Send a Package', FiPackage, '/dashboard/customer/package'],
   ['Order Gas', FiPackage, '/dashboard/customer/request/delivery?order=gas'],
   ['Call CareNest', FiPhone, supportPhoneHref],
 ]
@@ -249,6 +251,7 @@ function CustomerAppPage() {
     if (content) content.scrollTop = 0
   }, [pathname])
   const isServices = pathname.includes('/services')
+  const isPackage = pathname.endsWith('/package')
   const marketplaceMatch = pathname.match(/\/shop\/([^/]+)/)
   const isMarketplaceRequest = Boolean(marketplaceMatch)
   const requestMatch = pathname.match(/\/request\/([^/]+)/)
@@ -349,14 +352,14 @@ function CustomerAppPage() {
   }, [user?.uid])
 
   useEffect(() => {
-    if (isBannerPaused || isServices || isRequest || isMarketplaceRequest || isOrder || isApplication) return undefined
+    if (isBannerPaused || isServices || isRequest || isMarketplaceRequest || isOrder || isApplication || isPackage) return undefined
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         setActiveBannerIndex((current) => (current + 1) % serviceBanners.length)
       }
     }, 4500)
     return () => window.clearInterval(interval)
-  }, [isBannerPaused, isServices, isRequest, isMarketplaceRequest, isOrder, isApplication])
+  }, [isBannerPaused, isServices, isRequest, isMarketplaceRequest, isOrder, isApplication, isPackage])
 
   useEffect(() => {
     const carousel = bannerCarouselRef.current
@@ -828,7 +831,7 @@ function CustomerAppPage() {
   return (
     <main className="mobile-app-page">
       <section className={`mobile-phone ${isCustomerMenuOpen ? 'customer-menu-open' : ''}`}>
-        {!isServices && !isRequest && !isMarketplaceRequest && !isOrder && !isApplication && (
+        {!isServices && !isRequest && !isMarketplaceRequest && !isOrder && !isApplication && !isPackage && (
           <section className="mobile-content mobile-content-home">
             <div className="app-header">
               <button
@@ -1052,6 +1055,8 @@ function CustomerAppPage() {
             </div>
           </section>
         )}
+
+        {isPackage && <SendPackagePage profile={profile} user={user} />}
 
         {isApplication && (
           <section className="mobile-content provider-application-page">
@@ -1436,7 +1441,7 @@ function CustomerAppPage() {
           <div className="customer-nav-links">
             <Link className={!isServices && !isRequest && !isMarketplaceRequest && !isOrder && !isApplication ? 'active' : ''} aria-current={!isServices && !isRequest && !isMarketplaceRequest && !isOrder && !isApplication ? 'page' : undefined} to="/dashboard/customer"><FiHome />Home</Link>
             <Link className={isOrder ? 'active' : ''} aria-current={isOrder ? 'page' : undefined} to="/dashboard/customer/orders"><FiBriefcase />Orders</Link>
-            <Link className={isServices || isRequest || isMarketplaceRequest ? 'active' : ''} aria-current={isServices || isRequest || isMarketplaceRequest ? 'page' : undefined} to="/dashboard/customer/services"><FiGift />Services</Link>
+            <Link className={isServices || isRequest || isMarketplaceRequest || isPackage ? 'active' : ''} aria-current={isServices || isRequest || isMarketplaceRequest || isPackage ? 'page' : undefined} to="/dashboard/customer/services"><FiGift />Services</Link>
             <Link className={isApplication ? 'active' : ''} aria-current={isApplication ? 'page' : undefined} to="/dashboard/customer/apply"><FiUserPlus />Apply</Link>
             <Link to="/settings"><FiSettings />Settings</Link>
           </div>

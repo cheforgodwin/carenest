@@ -11,6 +11,7 @@ import {
 } from '../../firebase/orderService'
 import { googleMapsDirectionsUrl } from '../../utils/googleMapsLinks'
 import DashboardShell from './DashboardShell'
+import RiderRouteMap from './RiderRouteMap'
 import { DashboardRowSkeleton, Skeleton } from '../../components/ContentSkeletons'
 
 function normalizeStatus(status) {
@@ -36,6 +37,7 @@ function RiderDashboardPage() {
   const [query, setQuery] = useState('')
   const [sharingOrderId, setSharingOrderId] = useState('')
   const [startingOrderId, setStartingOrderId] = useState('')
+  const [selectedRouteId, setSelectedRouteId] = useState('')
   const watchIdRef = useRef(null)
   const sharingOrderRef = useRef('')
   const lastLocationRef = useRef(null)
@@ -82,6 +84,7 @@ function RiderDashboardPage() {
   }, [])
 
   const activeAssigned = assignedDeliveries.filter((order) => !['Completed', 'Cancelled'].includes(order.status))
+  const selectedRouteOrder = activeAssigned.find((order) => order.firestoreId === selectedRouteId) || activeAssigned[0] || null
   const completed = assignedDeliveries.filter((order) => order.status === 'Completed')
   const metrics = [
     ['Open deliveries', availableDeliveriesLoading ? <Skeleton className="dashboard-metric-skeleton" /> : String(availableDeliveries.length)],
@@ -194,6 +197,17 @@ function RiderDashboardPage() {
     >
       {error && <p className="dashboard-error">{error}</p>}
       {message && <p className="dashboard-success">{message}</p>}
+
+      {activeView !== 'completed' && <RiderRouteMap
+        orders={activeAssigned}
+        order={selectedRouteOrder}
+        transportType={profile?.riderProfile?.transportType}
+        sharing={sharingOrderId === selectedRouteOrder?.firestoreId}
+        starting={startingOrderId === selectedRouteOrder?.firestoreId}
+        onSelect={setSelectedRouteId}
+        onShareLocation={() => selectedRouteOrder && startLocationSharing(selectedRouteOrder)}
+        onStopLocation={() => selectedRouteOrder && stopLocationSharing(selectedRouteOrder)}
+      />}
 
       <section className="dashboard-panel">
         <div className="dashboard-panel-header">

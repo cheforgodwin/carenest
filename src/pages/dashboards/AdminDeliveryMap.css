@@ -1,0 +1,67 @@
+.admin-delivery-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 290px); gap: 16px; align-items: stretch; min-width: 0; }
+.admin-delivery-map-wrap { min-width: 0; }
+.admin-delivery-map { position: relative; min-height: 430px; overflow: hidden; border: 1px solid #d5e4d9; border-radius: 9px; background: #e7f0e8; isolation: isolate; }
+.admin-map-art { position: absolute; inset: -5%; overflow: hidden; background-color: #e7f0e8; background-image: linear-gradient(90deg, #d6e3d9 1px, transparent 1px), linear-gradient(#d6e3d9 1px, transparent 1px); background-size: 58px 52px; }
+.admin-map-road { position: absolute; display: block; height: 11px; border: 1px solid #d7dfd8; border-width: 1px 0; background: #fff; transform-origin: left center; }
+.admin-road-a { top: 20%; left: -4%; width: 110%; transform: rotate(14deg); }
+.admin-road-b { top: 78%; left: -5%; width: 112%; transform: rotate(-17deg); }
+.admin-road-c { top: 1%; left: 37%; width: 95%; transform: rotate(73deg); }
+.admin-road-d { top: 0; left: 82%; width: 97%; transform: rotate(108deg); }
+.admin-map-green { position: absolute; display: block; width: 21%; height: 20%; border: 1px solid #c5dfca; border-radius: 35% 45% 36% 50%; background: #d3e8d6; }
+.admin-green-a { top: 12%; left: 8%; transform: rotate(-13deg); }
+.admin-green-b { right: 7%; bottom: 6%; transform: rotate(16deg); }
+.admin-map-route { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.admin-map-route line { stroke: #087a48; stroke-width: 3; stroke-dasharray: 8 6; vector-effect: non-scaling-stroke; }
+.admin-map-marker { position: absolute; z-index: 3; display: grid; width: 38px; height: 38px; place-items: center; padding: 0; border: 3px solid #fff; border-radius: 50%; color: #fff; box-shadow: 0 3px 12px #163a2940; font-size: 17px; transform: translate(-50%, -50%); cursor: pointer; }
+.admin-map-marker.rider { background: #087a48; }
+.admin-map-marker.destination { background: #f27b29; }
+.admin-map-marker.selected { outline: 3px solid #173b29; outline-offset: 3px; }
+.admin-map-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 24px; color: #42604c; text-align: center; }
+.admin-map-empty svg { font-size: 25px; color: #087a48; }
+.admin-map-empty strong { font-size: 16px; }
+.admin-map-empty span { max-width: 270px; font-size: 13px; }
+.admin-map-scale-note { position: absolute; right: 8px; bottom: 8px; z-index: 4; padding: 5px 8px; border-radius: 5px; color: #53645a; background: #ffffffed; font-size: 10px; }
+.admin-map-legend { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 2px 0; color: #53645a; font-size: 12px; }
+.admin-map-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.admin-map-legend i { width: 10px; height: 10px; border-radius: 50%; }
+.legend-rider { background: #087a48; }.legend-destination { background: #f27b29; }
+.admin-map-legend b { margin-left: auto; color: #173b29; }
+.admin-delivery-inspector { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; min-width: 0; padding: 16px; border: 1px solid #dceee3; border-radius: 9px; background: #fbfdfb; }
+.admin-inspector-eyebrow { color: #68786d; font-size: 10px; font-weight: 900; letter-spacing: 1px; }
+.admin-delivery-inspector h3 { max-width: 100%; margin: 0; overflow-wrap: anywhere; color: #073b25; font-size: 20px; }
+.admin-delivery-inspector dl { display: grid; gap: 12px; width: 100%; margin: 0; }
+.admin-delivery-inspector dl div { display: grid; gap: 4px; padding-bottom: 10px; border-bottom: 1px solid #e7efe9; }
+.admin-delivery-inspector dt { color: #64736a; font-size: 11px; font-weight: 800; }
+.admin-delivery-inspector dd { margin: 0; overflow-wrap: anywhere; color: #173b29; font-size: 13px; font-weight: 750; }
+.admin-map-directions { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 42px; margin-top: auto; border-radius: 8px; color: #fff; background: #087a48; font-size: 13px; font-weight: 850; text-decoration: none; }
+.admin-delivery-inspector > p { margin: auto 0; color: #64736a; font-size: 13px; line-height: 1.5; }
+.admin-delivery-tab-panel { min-width: 0; }
+.admin-delivery-tab-panel .dashboard-panel-header { align-items: center; flex-wrap: wrap; }
+.admin-delivery-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.admin-delivery-filters select { min-width: 170px; min-height: 42px; padding: 0 10px; border: 1px solid #dce8df; border-radius: 8px; color: #173b29; background: #fff; font: inherit; font-size: 13px; }
+.admin-delivery-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.admin-delivery-summary article { min-width: 0; padding: 12px; border: 1px solid #e0e9e2; border-radius: 8px; background: #f8fbf9; }
+.admin-delivery-summary span { display: block; color: #607067; font-size: 11px; font-weight: 800; }
+.admin-delivery-summary strong { display: block; margin-top: 6px; color: #087a48; font-size: 22px; }
+.admin-peer-to-peer-note { margin: 0 0 14px; padding: 11px 13px; border-left: 3px solid #f27b29; color: #5e4b35; background: #fff5eb; font-size: 12px; line-height: 1.5; }
+
+@media (max-width: 850px) {
+  .admin-delivery-layout { grid-template-columns: minmax(0, 1fr); }
+  .admin-delivery-map { min-height: clamp(280px, 48vh, 430px); }
+  .admin-delivery-inspector { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-delivery-inspector > dl,
+  .admin-delivery-inspector > a,
+  .admin-delivery-inspector > p { grid-column: 1 / -1; }
+  .admin-delivery-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 480px) {
+  .admin-delivery-map { min-height: 270px; }
+  .admin-delivery-inspector { grid-template-columns: minmax(0, 1fr); }
+  .admin-delivery-inspector > dl,
+  .admin-delivery-inspector > a,
+  .admin-delivery-inspector > p { grid-column: auto; }
+  .admin-map-legend b { flex-basis: 100%; margin-left: 0; }
+  .admin-delivery-filters { width: 100%; }
+  .admin-delivery-filters select { flex: 1 1 100%; width: 100%; }
+}
