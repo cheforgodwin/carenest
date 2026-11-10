@@ -32,3 +32,19 @@ it('plots destinations and rider positions only from supplied coordinates', () =
   expect(markup).toContain('Rider One')
   expect(markup).toContain('Rider GPS')
 })
+
+it('plots a peer-delivery pickup and destination from verified coordinates', () => {
+  const markup = render([{
+    ...delivery,
+    firestoreId: 'peer-PD-1001',
+    id: 'PD-1001',
+    pickupAddress: 'Mvan',
+    pickupCoordinates: { lat: 3.8, lng: 11.5 },
+    address: 'Bastos',
+    addressCoordinates: { lat: 3.9, lng: 11.6 },
+  }])
+
+  expect(markup).toContain('Pickup location for PD-1001')
+  expect(markup).toContain('Delivery destination for PD-1001')
+  expect(markup).toContain('Mvan')
+})

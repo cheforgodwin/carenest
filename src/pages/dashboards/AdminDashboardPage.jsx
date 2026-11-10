@@ -18,6 +18,7 @@ import {
 } from '../../firebase/providerApplicationService'
 import { getMarketplaceCategory, marketplaceCategoryEntries } from '../../config/marketplaceConfig'
 import { adminSetListingVisibility, subscribeToAllListings } from '../../firebase/marketplaceService'
+import { subscribeToAdminPeerDeliveries } from '../../firebase/peerDeliveryService'
 import { useAuth } from '../../auth/useAuth'
 import DashboardShell from './DashboardShell'
 import FinancePanel from '../../components/finance/FinancePanel'
@@ -67,6 +68,8 @@ function AdminDashboardPage() {
   const activeView = ['payments', 'payouts'].includes(requestedView) ? 'finance'
     : ['overview', 'notifications', 'users', 'requests', 'delivery-map', 'finance', 'applications', 'marketplace'].includes(requestedView) ? requestedView : 'overview'
   const [orders, setOrders] = useState([])
+  const [peerDeliveries, setPeerDeliveries] = useState([])
+  const [peerDeliveriesLoading, setPeerDeliveriesLoading] = useState(true)
   const [users, setUsers] = useState([])
   const [applications, setApplications] = useState([])
   const [listings, setListings] = useState([])
@@ -113,6 +116,20 @@ function AdminDashboardPage() {
     }
   }, [])
 
+  useEffect(() => {
+    if (activeView !== 'delivery-map') return undefined
+    return subscribeToAdminPeerDeliveries(
+      (nextDeliveries) => {
+        setPeerDeliveries(nextDeliveries)
+        setPeerDeliveriesLoading(false)
+      },
+      (nextError) => {
+        setError(nextError.message)
+        setPeerDeliveriesLoading(false)
+      },
+    )
+  }, [activeView])
+
   const financeAlerts = useFinanceAlerts(orders, user?.uid)
   const finances = financeTotals(orders.filter((order) => order.paymentEnvironment === 'live'))
 
@@ -121,16 +138,22 @@ function AdminDashboardPage() {
   const riders = users.filter((user) => user.accountType === 'rider')
   const customers = users.filter((user) => user.accountType === 'customer')
   const openOrders = orders.filter((order) => !['Completed', 'Cancelled'].includes(order.status))
-  const deliveryOrders = orders.filter((order) => order.serviceType === 'delivery')
-  const activeDeliveryOrders = deliveryOrders.filter((order) => !['Completed', 'Cancelled'].includes(order.status))
+  const deliveryOrders = useMemo(() => orders.filter((order) => order.serviceType === 'delivery'), [orders])
+  const activeDeliveryOrders = useMemo(() => deliveryOrders.filter((order) => !['Completed', 'Cancelled'].includes(order.status)), [deliveryOrders])
+  const activePeerDeliveries = useMemo(() => peerDeliveries.filter((delivery) => !['Delivered', 'Declined', 'Cancelled', 'Failed Delivery'].includes(delivery.status)), [peerDeliveries])
+  const allActiveDeliveryOrders = useMemo(() => [...activeDeliveryOrders, ...activePeerDeliveries], [activeDeliveryOrders, activePeerDeliveries])
   const filteredDeliveryMapOrders = useMemo(() => {
     const needle = query.trim().toLowerCase()
-    return activeDeliveryOrders.filter((order) => {
+    return allActiveDeliveryOrders.filter((order) => {
       const matchesStatus = deliveryStatusFilter === 'all' || order.status === deliveryStatusFilter
       const haystack = [order.id, order.customerName, order.address, order.riderName, order.status].join(' ').toLowerCase()
       return matchesStatus && (!needle || haystack.includes(needle))
     })
-  }, [activeDeliveryOrders, deliveryStatusFilter, query])
+  }, [allActiveDeliveryOrders, deliveryStatusFilter, query])
+  const deliveryMapStatusOptions = [...new Set([
+    ...statusOptions.filter((status) => !['Completed', 'Cancelled'].includes(status)),
+    ...activePeerDeliveries.map((delivery) => delivery.status),
+  ])]
   const pendingApplications = applications.filter((application) => application.status === 'Pending')
   const bookingsToday = orders.filter((order) => order.createdAtDate?.toDateString() === todayKey).length
 
@@ -344,27 +367,27 @@ function AdminDashboardPage() {
 
       {activeView === 'delivery-map' && <section className="dashboard-panel admin-delivery-tab-panel">
         <div className="dashboard-panel-header">
-          <div><h2>Live delivery operations</h2><p>Existing customer delivery requests only. Rider markers appear only for reported GPS locations.</p></div>
+          <div><h2>Live delivery operations</h2><p>Customer and peer-to-peer deliveries. Rider markers appear only for reported GPS locations.</p></div>
           <div className="admin-delivery-filters">
             <input className="dashboard-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search deliveries" aria-label="Search deliveries" />
             <select value={deliveryStatusFilter} onChange={(event) => setDeliveryStatusFilter(event.target.value)} aria-label="Filter delivery status">
               <option value="all">All active statuses</option>
-              {statusOptions.filter((status) => !['Completed', 'Cancelled'].includes(status)).map((status) => <option value={status} key={status}>{status}</option>)}
+              {deliveryMapStatusOptions.map((status) => <option value={status} key={status}>{status}</option>)}
             </select>
           </div>
         </div>
         <div className="admin-delivery-summary">
-          <article><span>Active deliveries</span><strong>{activeDeliveryOrders.length}</strong></article>
-          <article><span>Awaiting rider</span><strong>{activeDeliveryOrders.filter((order) => !order.riderUid).length}</strong></article>
-          <article><span>Rider assigned</span><strong>{activeDeliveryOrders.filter((order) => Boolean(order.riderUid)).length}</strong></article>
-          <article><span>Reporting GPS</span><strong>{new Set(activeDeliveryOrders.filter((order) => order.riderUid && order.riderLocation?.lat != null && order.riderLocation?.lng != null).map((order) => order.riderUid)).size}</strong></article>
+          <article><span>Active deliveries</span><strong>{allActiveDeliveryOrders.length}</strong></article>
+          <article><span>Awaiting rider</span><strong>{allActiveDeliveryOrders.filter((order) => !order.riderUid).length}</strong></article>
+          <article><span>Rider assigned</span><strong>{allActiveDeliveryOrders.filter((order) => Boolean(order.riderUid)).length}</strong></article>
+          <article><span>Reporting GPS</span><strong>{new Set(allActiveDeliveryOrders.filter((order) => order.riderUid && order.riderLocation?.lat != null && order.riderLocation?.lng != null).map((order) => order.riderUid)).size}</strong></article>
         </div>
-        <p className="admin-peer-to-peer-note">Send a Package is a separate peer-to-peer delivery type. Those requests will appear here after its secure delivery backend and admin authorization are implemented.</p>
-        {loading
+        <p className="admin-peer-to-peer-note">Peer-to-peer delivery records are included here. The customer Send a Package screen is still a preview and does not create requests.</p>
+        {loading || peerDeliveriesLoading
           ? <p className="dashboard-empty" role="status">Loading delivery locations...</p>
           : <AdminDeliveryMap orders={filteredDeliveryMapOrders} selectedOrderId={selectedDeliveryId} onSelect={setSelectedDeliveryId} />}
-        {!loading && filteredDeliveryMapOrders.length === 0 && activeDeliveryOrders.length > 0 && <p className="dashboard-empty">No active deliveries match these filters.</p>}
-        {!loading && deliveryOrders.length === 0 && <p className="dashboard-empty">No existing delivery requests yet. Marketplace purchases remain outside this map.</p>}
+        {!loading && !peerDeliveriesLoading && filteredDeliveryMapOrders.length === 0 && allActiveDeliveryOrders.length > 0 && <p className="dashboard-empty">No active deliveries match these filters.</p>}
+        {!loading && !peerDeliveriesLoading && deliveryOrders.length === 0 && peerDeliveries.length === 0 && <p className="dashboard-empty">No existing delivery requests yet. Marketplace purchases remain outside this map.</p>}
       </section>}
 
       {activeView === 'notifications' && <section className="dashboard-panel admin-notifications">
