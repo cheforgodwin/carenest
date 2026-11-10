@@ -124,6 +124,25 @@
 .package-policy-check input { flex: 0 0 18px; width: 18px; height: 18px; margin: 0; accent-color: var(--package-green); }
 .package-security-note { display: flex; gap: 9px; max-width: 560px; padding: 12px; border-radius: 9px; color: #5a4b31; background: #fff5e8; font-size: 12px; line-height: 1.5; }
 .package-security-note svg { flex: 0 0 auto; margin-top: 2px; color: var(--package-orange); }
+.package-security-note > div { min-width: 0; }
+.package-security-note p { margin: 4px 0 9px; }
+.package-phone-code { display: flex; gap: 8px; align-items: center; }
+.package-phone-code input { max-width: 160px; }
+.package-verified-phone { display: flex; align-items: center; gap: 7px; color: var(--package-green-dark) !important; font-weight: 800; }
+.package-place-section { display: grid; gap: 9px; padding: 14px; border: 1px solid #e1e9e3; border-radius: 10px; background: #fbfdfb; }
+.package-place-section h3 { display: flex; align-items: center; gap: 7px; margin: 0; color: var(--package-green-dark); font-size: 14px; }
+.package-place-section > label { display: grid; gap: 6px; color: #2a3930; font-size: 12px; font-weight: 800; }
+.package-place-selected,
+.package-place-unselected { margin: 0 !important; padding: 9px 10px; border-radius: 7px; overflow-wrap: anywhere; }
+.package-place-selected { color: #075b37 !important; background: #eaf5ee; }
+.package-place-unselected { color: #63716a !important; background: #f4f7f5; }
+.package-requests-panel { max-width: 900px; }
+.package-delivery-card { display: grid; gap: 9px; padding: 14px; border: 1px solid #e1e9e3; border-radius: 10px; background: #fbfdfb; }
+.package-delivery-card header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.package-delivery-card > p { margin: 0; overflow-wrap: anywhere; }
+.package-delivery-card > input { max-width: 100%; }
+.package-payment-action { display: grid; gap: 8px; max-width: 400px; }
+.package-payment-action label { display: grid; gap: 6px; font-size: 12px; font-weight: 800; }
 .package-form-message { margin: -5px 0 0; color: #a64416 !important; font-size: 13px !important; font-weight: 750; }
 .package-review-panel section { padding-bottom: 11px; border-bottom: 1px solid #e8ede9; }
 .package-review-panel h3 { margin: 0 0 5px; color: var(--package-green-dark); font-size: 13px; }
@@ -136,8 +155,10 @@
 .package-continue-button { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 46px; padding: 0 17px; border: 1px solid transparent; border-radius: 10px; font: inherit; font-size: 13px; font-weight: 850; text-decoration: none; cursor: pointer; }
 .package-continue-button { color: #fff; background: var(--package-green); }
 .package-continue-button:hover { background: var(--package-green-dark); }
-.package-back-button { color: var(--package-green-dark); background: #fff; border-color: #dce6df !important; }
+.package-back-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; color: var(--package-green-dark); background: #fff; border-color: #dce6df !important; }
 .package-done-button { margin-left: auto; }
+.package-flow-actions button:disabled,
+.package-backend-notice button:disabled { opacity: 0.6; cursor: not-allowed; }
 
 @media (min-width: 760px) {
   .send-package-page { padding-top: 26px; }

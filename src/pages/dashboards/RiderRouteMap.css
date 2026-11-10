@@ -35,6 +35,11 @@
 .rider-route-info small { color: #64736a; font-size: 11px; }
 .rider-route-info p { margin: 0; color: #53645a; font-size: 12px; line-height: 1.5; }
 .rider-route-info a { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; margin-top: auto; padding: 0 12px; border-radius: 8px; color: #fff; background: #f27b29; font-size: 13px; font-weight: 850; text-align: center; text-decoration: none; }
+.rider-peer-delivery-list { display: grid; gap: 10px; }
+.rider-peer-delivery-card { display: grid; gap: 8px; padding: 14px; border: 1px solid #e0e9e2; border-radius: 10px; background: #fbfdfb; }
+.rider-peer-delivery-card header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.rider-peer-delivery-card > p { margin: 0; overflow-wrap: anywhere; color: #53645a; font-size: 13px; }
+.rider-peer-delivery-card > a { color: #087a48; font-size: 13px; font-weight: 800; }
 
 @media (max-width: 720px) {
   .rider-route-panel { padding: 14px; }

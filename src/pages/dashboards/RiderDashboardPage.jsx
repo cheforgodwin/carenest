@@ -10,12 +10,26 @@ import {
   clearRiderLiveLocation,
 } from '../../firebase/orderService'
 import { googleMapsDirectionsUrl } from '../../utils/googleMapsLinks'
+import { notifyPeerDeliveryUpdate, normalizePeerDeliveryForMap, requestPeerDelivery, subscribeToRiderPeerDeliveries } from '../../firebase/peerDeliveryService'
 import DashboardShell from './DashboardShell'
 import RiderRouteMap from './RiderRouteMap'
 import { DashboardRowSkeleton, Skeleton } from '../../components/ContentSkeletons'
 
 function normalizeStatus(status) {
   return String(status || 'Pending').toLowerCase().replace(/\s+/g, '-')
+}
+
+function statusLabel(status) {
+  return String(status || '').replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+const nextPeerStatus = {
+  'Rider Assigned': ['rider_to_pickup', 'Heading to pickup'],
+  'Rider To Pickup': ['rider_arrived_pickup', 'Arrived at pickup'],
+  'Rider Arrived Pickup': ['package_picked_up', 'Package picked up'],
+  'Package Picked Up': ['in_transit', 'Start delivery'],
+  'In Transit': ['near_destination', 'Near destination'],
+  'Near Destination': ['delivered', 'Mark delivered'],
 }
 
 function getDeliveryErrorMessage(error) {
@@ -30,6 +44,8 @@ function RiderDashboardPage() {
   const { profile, user } = useAuth()
   const [availableDeliveries, setAvailableDeliveries] = useState([])
   const [assignedDeliveries, setAssignedDeliveries] = useState([])
+  const [peerDeliveries, setPeerDeliveries] = useState([])
+  const [peerDeliveriesLoading, setPeerDeliveriesLoading] = useState(true)
   const [availableDeliveriesLoading, setAvailableDeliveriesLoading] = useState(true)
   const [assignedDeliveriesLoading, setAssignedDeliveriesLoading] = useState(true)
   const [error, setError] = useState('')
@@ -60,7 +76,7 @@ function RiderDashboardPage() {
         setAssignedDeliveries(deliveries)
         setAssignedDeliveriesLoading(false)
         const trackingOrder = deliveries.find((order) => order.firestoreId === sharingOrderRef.current && order.status === 'Out for Delivery')
-        if (sharingOrderRef.current && !trackingOrder) {
+        if (sharingOrderRef.current && !sharingOrderRef.current.startsWith('peer-') && !trackingOrder) {
           if (watchIdRef.current !== null) navigator.geolocation?.clearWatch(watchIdRef.current)
           watchIdRef.current = null
           sharingOrderRef.current = ''
@@ -72,10 +88,29 @@ function RiderDashboardPage() {
         setAssignedDeliveriesLoading(false)
       },
     )
+    const unsubPeer = subscribeToRiderPeerDeliveries(
+      (deliveries) => {
+        const normalized = deliveries.map(normalizePeerDeliveryForMap)
+        setPeerDeliveries(normalized)
+        setPeerDeliveriesLoading(false)
+        const trackingPeer = normalized.find((delivery) => delivery.firestoreId === sharingOrderRef.current && !['Delivered', 'Failed Delivery', 'Cancelled', 'Declined'].includes(delivery.status))
+        if (sharingOrderRef.current.startsWith('peer-') && !trackingPeer) {
+          if (watchIdRef.current !== null) navigator.geolocation?.clearWatch(watchIdRef.current)
+          watchIdRef.current = null
+          sharingOrderRef.current = ''
+          setSharingOrderId('')
+        }
+      },
+      (nextError) => {
+        setError(getDeliveryErrorMessage(nextError))
+        setPeerDeliveriesLoading(false)
+      },
+    )
 
     return () => {
       unsubOpen()
       unsubAssigned()
+      unsubPeer()
     }
   }, [user?.uid])
 
@@ -86,6 +121,8 @@ function RiderDashboardPage() {
   const activeAssigned = assignedDeliveries.filter((order) => !['Completed', 'Cancelled'].includes(order.status))
   const selectedRouteOrder = activeAssigned.find((order) => order.firestoreId === selectedRouteId) || activeAssigned[0] || null
   const completed = assignedDeliveries.filter((order) => order.status === 'Completed')
+  const activePeerDeliveries = peerDeliveries.filter((delivery) => !['Delivered', 'Failed Delivery', 'Cancelled', 'Declined'].includes(delivery.status))
+  const completedPeerDeliveries = peerDeliveries.filter((delivery) => ['Delivered', 'Failed Delivery', 'Cancelled', 'Declined'].includes(delivery.status))
   const metrics = [
     ['Open deliveries', availableDeliveriesLoading ? <Skeleton className="dashboard-metric-skeleton" /> : String(availableDeliveries.length)],
     ['Assigned deliveries', assignedDeliveriesLoading ? <Skeleton className="dashboard-metric-skeleton" /> : String(activeAssigned.length)],
@@ -135,7 +172,11 @@ function RiderDashboardPage() {
     try {
       const position = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000, maximumAge: 15000 }))
       const initial = { lat: position.coords.latitude, lng: position.coords.longitude, accuracy: position.coords.accuracy }
-      await updateRiderLiveLocation(order.firestoreId, initial)
+      if (order.deliveryType === 'peer_to_peer') {
+        await requestPeerDelivery({ action: 'location', deliveryId: order.id, location: initial })
+      } else {
+        await updateRiderLiveLocation(order.firestoreId, initial)
+      }
       const now = Date.now()
       lastLocationRef.current = { ...initial, sentAt: now }
       sharingOrderRef.current = order.firestoreId
@@ -151,8 +192,12 @@ function RiderDashboardPage() {
         const distance = 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
         if (writingLocationRef.current || (distance < 50 && Date.now() - previous.sentAt < 60000)) return
         writingLocationRef.current = true
-        updateRiderLiveLocation(order.firestoreId, next).then(() => {
+        const updateLocation = order.deliveryType === 'peer_to_peer'
+          ? requestPeerDelivery({ action: 'location', deliveryId: order.id, location: next })
+          : updateRiderLiveLocation(order.firestoreId, next)
+        updateLocation.then(() => {
           lastLocationRef.current = { ...next, sentAt: Date.now() }
+          if (order.deliveryType === 'peer_to_peer') notifyPeerDeliveryUpdate()
         }).catch((locationError) => setError(locationError.message || 'Location update failed.')).finally(() => { writingLocationRef.current = false })
       }, (locationError) => setError(locationError.code === 1 ? 'Location permission was turned off.' : 'Could not update your current location.'), { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 })
     } catch (locationError) {
@@ -167,7 +212,12 @@ function RiderDashboardPage() {
     lastLocationRef.current = null
     setSharingOrderId('')
     try {
-      await clearRiderLiveLocation(order.firestoreId)
+      if (order.deliveryType === 'peer_to_peer') {
+        await requestPeerDelivery({ action: 'stopTracking', deliveryId: order.id })
+        notifyPeerDeliveryUpdate()
+      } else {
+        await clearRiderLiveLocation(order.firestoreId)
+      }
       setMessage('Location sharing stopped for ' + order.id + '.')
     } catch (stopError) { setError(stopError.message || 'Could not stop location sharing.') }
   }
@@ -176,12 +226,19 @@ function RiderDashboardPage() {
     setError('')
     setMessage('')
     try {
-      await updateRiderDeliveryStatus(order.firestoreId, status)
-      if (status === 'Delivered' && sharingOrderRef.current === order.firestoreId) {
+      if (order.deliveryType === 'peer_to_peer') {
+        await requestPeerDelivery({ action: 'riderStatus', deliveryId: order.id, status })
+        notifyPeerDeliveryUpdate()
+      } else {
+        await updateRiderDeliveryStatus(order.firestoreId, status)
+      }
+      if (['Delivered', 'delivered', 'failed_delivery'].includes(status) && sharingOrderRef.current === order.firestoreId) {
         if (watchIdRef.current !== null) navigator.geolocation?.clearWatch(watchIdRef.current)
         watchIdRef.current = null; sharingOrderRef.current = ''; setSharingOrderId('')
       }
-      setMessage(status === 'Delivered' ? 'Delivery reported. Waiting for the customer to confirm receipt.' : `${order.id} marked ${status.toLowerCase()}.`)
+      setMessage(order.deliveryType === 'peer_to_peer'
+        ? `${order.id} marked ${statusLabel(status)}.`
+        : status === 'Delivered' ? 'Delivery reported. Waiting for the customer to confirm receipt.' : `${order.id} marked ${status.toLowerCase()}.`)
     } catch (nextError) {
       setError(nextError.message)
     }
@@ -208,6 +265,40 @@ function RiderDashboardPage() {
         onShareLocation={() => selectedRouteOrder && startLocationSharing(selectedRouteOrder)}
         onStopLocation={() => selectedRouteOrder && stopLocationSharing(selectedRouteOrder)}
       />}
+
+      <section className="dashboard-panel">
+        <div className="dashboard-panel-header">
+          <div><h2>{activeView === 'completed' ? 'Completed peer-to-peer deliveries' : 'Peer-to-peer deliveries'}</h2><p>Only deliveries assigned to your approved rider account are shown here.</p></div>
+        </div>
+        {peerDeliveriesLoading
+          ? <p className="dashboard-empty" role="status">Loading assigned package deliveries...</p>
+          : (activeView === 'completed' ? completedPeerDeliveries : activePeerDeliveries).length === 0
+            ? <p className="dashboard-empty">{activeView === 'completed' ? 'No completed package deliveries yet.' : 'No package deliveries are assigned to you yet.'}</p>
+            : <div className="rider-peer-delivery-list">
+              {(activeView === 'completed' ? completedPeerDeliveries : activePeerDeliveries)
+                .filter((delivery) => {
+                  const search = query.trim().toLowerCase()
+                  return !search || [delivery.id, delivery.address, delivery.pickupAddress, delivery.status, delivery.packageCategory].join(' ').toLowerCase().includes(search)
+                })
+                .map((delivery) => {
+                  const next = nextPeerStatus[delivery.status]
+                  return <article className="rider-peer-delivery-card" key={delivery.firestoreId}>
+                    <header><strong>{delivery.id}</strong><span className={`status-chip ${normalizeStatus(delivery.status)}`}>{delivery.status}</span></header>
+                    <p><strong>Pickup:</strong> {delivery.pickupAddress}{delivery.pickupInstructions ? ` · ${delivery.pickupInstructions}` : ''}</p>
+                    <p><strong>Destination:</strong> {delivery.address}{delivery.destinationInstructions ? ` · ${delivery.destinationInstructions}` : ''}</p>
+                    {delivery.packageCategory && <p><strong>Package:</strong> {delivery.packageCategory} · {delivery.packageDescription}</p>}
+                    {delivery.addressCoordinates && <a href={googleMapsDirectionsUrl(delivery.addressCoordinates, /foot|walk/i.test(profile?.riderProfile?.transportType || '') ? 'walking' : /bicycle|cycle/i.test(profile?.riderProfile?.transportType || '') ? 'bicycling' : 'driving', delivery.riderLocation)} target="_blank" rel="noreferrer">Open destination directions</a>}
+                    {activeView !== 'completed' && <div className="table-action-row">
+                      {sharingOrderId === delivery.firestoreId
+                        ? <button className="table-action secondary" type="button" onClick={() => stopLocationSharing(delivery)}>Stop sharing location</button>
+                        : <button className="table-action secondary" type="button" disabled={Boolean(sharingOrderId) || Boolean(startingOrderId) || !['Rider Assigned', 'Rider To Pickup', 'Rider Arrived Pickup', 'Package Picked Up', 'In Transit', 'Near Destination'].includes(delivery.status)} onClick={() => startLocationSharing(delivery)}>{startingOrderId === delivery.firestoreId ? 'Starting...' : 'Share my location'}</button>}
+                      {next && <button className="table-action" type="button" onClick={() => updateStatus(delivery, next[0])}>{next[1]}</button>}
+                      {['Package Picked Up', 'In Transit', 'Near Destination'].includes(delivery.status) && <button className="table-action secondary" type="button" onClick={() => updateStatus(delivery, 'failed_delivery')}>Report failed delivery</button>}
+                    </div>}
+                  </article>
+                })}
+            </div>}
+      </section>
 
       <section className="dashboard-panel">
         <div className="dashboard-panel-header">

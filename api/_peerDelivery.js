@@ -1,10 +1,14 @@
-import { createHash, randomBytes, randomInt, randomUUID } from 'node:crypto'
+import { createHash, createHmac, randomBytes, randomInt, randomUUID } from 'node:crypto'
 import { FieldValue } from 'firebase-admin/firestore'
 
 export const peerDeliveryStatuses = [
   'pending_registration', 'awaiting_recipient', 'awaiting_payment', 'searching_rider',
   'rider_assigned', 'rider_to_pickup', 'rider_arrived_pickup', 'package_picked_up',
   'in_transit', 'near_destination', 'delivered', 'declined', 'cancelled', 'failed_delivery',
+]
+export const peerDeliveryPackageCategories = [
+  'Documents', 'Clothing', 'Electronics', 'Permitted food', 'Household items',
+  'Personal belongings', 'Other permitted items',
 ]
 
 const terminalStatuses = new Set(['delivered', 'declined', 'cancelled', 'failed_delivery'])
@@ -72,6 +76,12 @@ export function hashSecret(value) {
   return createHash('sha256').update(String(value)).digest('hex')
 }
 
+export function hashPrivateValue(value) {
+  const key = String(process.env.PEER_DELIVERY_PHONE_HASH_SECRET || '')
+  if (key.length < 32) throw deliveryError('Private phone verification is not configured.', 503)
+  return createHmac('sha256', key).update(String(value)).digest('hex')
+}
+
 export function makeInvitationToken() {
   return randomBytes(32).toString('base64url')
 }
@@ -125,13 +135,16 @@ export function safeDeliverySummary(delivery, id) {
     id,
     deliveryType: 'peer_to_peer',
     status: delivery.status,
-    senderId: delivery.senderId,
-    recipientId: delivery.recipientId || null,
+    senderName: delivery.senderName || null,
     pickup: delivery.pickup,
     destination: delivery.destination,
     package: delivery.package,
     pricing: delivery.pricing || null,
-    payment: delivery.payment ? { payerId: delivery.payment.payerId || null, amount: delivery.payment.amount || 0, currency: 'XAF', status: delivery.payment.status } : null,
+    payment: delivery.payment ? {
+      amount: delivery.payment.amount || 0,
+      currency: 'XAF',
+      status: delivery.payment.status,
+    } : null,
     riderId: delivery.riderId || null,
     riderName: delivery.riderName || null,
     riderLocation: delivery.tracking?.lastLatitude != null && delivery.tracking?.lastLongitude != null

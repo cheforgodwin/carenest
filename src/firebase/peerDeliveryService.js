@@ -1,5 +1,7 @@
 import { postJson } from '../utils/networkUtils'
 
+const refreshEvent = 'carenest-peer-delivery-update'
+
 function mapPoint(point) {
   if (!point) return null
   const coordinates = point.coordinates || point
@@ -27,24 +29,39 @@ export function normalizePeerDeliveryForMap(delivery) {
     serviceType: 'delivery',
     status,
     address: destination.address || destination.landmark || 'Address not recorded',
+    destinationInstructions: destination.instructions || '',
     addressCoordinates: mapPoint(destination),
     pickupAddress: pickup.address || pickup.landmark || 'Address not recorded',
+    pickupInstructions: pickup.instructions || '',
     pickupCoordinates: mapPoint(pickup),
+    packageCategory: delivery.package?.category || '',
+    packageDescription: delivery.package?.description || '',
     riderUid: delivery.riderId || '',
+    hasRider: delivery.hasRider ?? Boolean(delivery.riderId),
     riderName: delivery.riderName || '',
     riderLocation,
-    paymentStatus: delivery.payment?.status || 'Not paid',
+    paymentStatus: ({ paid: 'Paid', submitted: 'Submitted', failed: 'Failed' })[delivery.payment?.status] || delivery.payment?.status || 'Not paid',
+    canPay: delivery.canPay === true,
+    currentUserRole: delivery.currentUserRole || '',
     createdAt: delivery.createdAt || null,
   }
 }
 
-export function subscribeToAdminPeerDeliveries(onNext, onError) {
+export function requestPeerDelivery(body) {
+  return postJson('/api/peer-delivery', body)
+}
+
+export function notifyPeerDeliveryUpdate() {
+  window.dispatchEvent(new Event(refreshEvent))
+}
+
+function subscribeToPeerDeliveries(action, onNext, onError) {
   let stopped = false
   let timer
 
   const refresh = async () => {
     try {
-      const result = await postJson('/api/peer-delivery', { action: 'list' })
+      const result = await requestPeerDelivery({ action })
       if (!Array.isArray(result.deliveries)) throw new Error('The peer-delivery response was invalid.')
       if (!stopped) onNext(result.deliveries.map(normalizePeerDeliveryForMap))
     } catch (error) {
@@ -53,9 +70,22 @@ export function subscribeToAdminPeerDeliveries(onNext, onError) {
     if (!stopped) timer = setTimeout(refresh, 30000)
   }
 
+  const wake = () => {
+    if (document.visibilityState !== 'visible') return
+    clearTimeout(timer)
+    if (!stopped) refresh()
+  }
+  window.addEventListener(refreshEvent, wake)
+  document.addEventListener('visibilitychange', wake)
   refresh()
   return () => {
     stopped = true
     clearTimeout(timer)
+    window.removeEventListener(refreshEvent, wake)
+    document.removeEventListener('visibilitychange', wake)
   }
 }
+
+export const subscribeToAdminPeerDeliveries = (onNext, onError) => subscribeToPeerDeliveries('list', onNext, onError)
+export const subscribeToMyPeerDeliveries = (onNext, onError) => subscribeToPeerDeliveries('listMine', onNext, onError)
+export const subscribeToRiderPeerDeliveries = (onNext, onError) => subscribeToPeerDeliveries('listRider', onNext, onError)

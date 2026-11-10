@@ -1,5 +1,6 @@
 import { getAdminDb } from './_firebaseAdmin.js'
 import { applyVerifiedPayment, fetchVerifiedPayment } from './_paymentVerification.js'
+import { applyVerifiedPeerDeliveryPayment } from './_peerDeliveryPayments.js'
 import { handleCors } from './_cors.js'
 
 const webhookLimits = globalThis.__careNestWebhookLimits || new Map()
@@ -33,6 +34,10 @@ export default async function handler(req, res) {
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(callbackTransactionId)) return sendJson(res, 400, { error: 'Invalid Fapshi transaction ID.' })
 
     const payment = await fetchVerifiedPayment(callbackTransactionId)
+    if (String(payment.externalId || '').startsWith('PD-')) {
+      const result = await applyVerifiedPeerDeliveryPayment(getAdminDb(), payment, 'fapshi-webhook')
+      return sendJson(res, 200, result)
+    }
     const result = await applyVerifiedPayment(getAdminDb(), payment, 'fapshi-webhook')
     return sendJson(res, 200, result)
   } catch (error) {

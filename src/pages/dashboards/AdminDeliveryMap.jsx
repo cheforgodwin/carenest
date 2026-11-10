@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { FiMapPin, FiNavigation } from 'react-icons/fi'
 import { googleMapsPointUrl } from '../../utils/googleMapsLinks'
 import './AdminDeliveryMap.css'
@@ -18,7 +19,8 @@ function formatUpdatedAt(value) {
   return date && !Number.isNaN(date.getTime()) ? date.toLocaleString() : 'Not available'
 }
 
-function AdminDeliveryMap({ orders, selectedOrderId, onSelect }) {
+function AdminDeliveryMap({ orders, selectedOrderId, onSelect, riders = [], onAssignRider, assigningDeliveryId = '' }) {
+  const [riderSelection, setRiderSelection] = useState('')
   const plotted = orders.flatMap((order) => [
     coordinates(order.riderLocation) && { order, kind: 'rider', point: coordinates(order.riderLocation) },
     coordinates(order.pickupCoordinates) && { order, kind: 'pickup', point: coordinates(order.pickupCoordinates) },
@@ -83,6 +85,16 @@ function AdminDeliveryMap({ orders, selectedOrderId, onSelect }) {
             <div><dt>Payment</dt><dd>{selectedOrder.paymentStatus || selectedOrder.payment?.status || 'Pending'}</dd></div>
             <div><dt>Rider GPS</dt><dd>{coordinates(selectedOrder.riderLocation) ? formatUpdatedAt(selectedOrder.riderLocation.updatedAt) : 'No live position'}</dd></div>
           </dl>
+          {selectedOrder.deliveryType === 'peer_to_peer' && selectedOrder.status === 'Searching Rider' && <div className="admin-peer-rider-assignment">
+            <label htmlFor="peer-delivery-rider">Assign approved rider</label>
+            <select id="peer-delivery-rider" value={riderSelection} onChange={(event) => setRiderSelection(event.target.value)}>
+              <option value="">Choose rider</option>
+              {riders.filter((rider) => rider.riderVerified).map((rider) => <option value={rider.uid} key={rider.uid}>{rider.name || rider.email} · {rider.riderProfile?.transportType || 'transport not set'}</option>)}
+            </select>
+            <button type="button" className="table-action" disabled={!riderSelection || assigningDeliveryId === selectedOrder.firestoreId} onClick={() => onAssignRider?.(selectedOrder, riderSelection)}>
+              {assigningDeliveryId === selectedOrder.firestoreId ? 'Assigning...' : 'Assign rider'}
+            </button>
+          </div>}
           {coordinates(selectedOrder.addressCoordinates) && <a className="admin-map-directions" href={googleMapsPointUrl(selectedOrder.addressCoordinates)} target="_blank" rel="noreferrer"><FiNavigation /> Open destination</a>}
         </> : <p>Select a delivery marker to inspect its current status.</p>}
       </aside>

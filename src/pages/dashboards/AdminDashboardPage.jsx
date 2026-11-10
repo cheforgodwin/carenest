@@ -18,7 +18,7 @@ import {
 } from '../../firebase/providerApplicationService'
 import { getMarketplaceCategory, marketplaceCategoryEntries } from '../../config/marketplaceConfig'
 import { adminSetListingVisibility, subscribeToAllListings } from '../../firebase/marketplaceService'
-import { subscribeToAdminPeerDeliveries } from '../../firebase/peerDeliveryService'
+import { notifyPeerDeliveryUpdate, requestPeerDelivery, subscribeToAdminPeerDeliveries } from '../../firebase/peerDeliveryService'
 import { useAuth } from '../../auth/useAuth'
 import DashboardShell from './DashboardShell'
 import FinancePanel from '../../components/finance/FinancePanel'
@@ -70,6 +70,7 @@ function AdminDashboardPage() {
   const [orders, setOrders] = useState([])
   const [peerDeliveries, setPeerDeliveries] = useState([])
   const [peerDeliveriesLoading, setPeerDeliveriesLoading] = useState(true)
+  const [assigningPeerDeliveryId, setAssigningPeerDeliveryId] = useState('')
   const [users, setUsers] = useState([])
   const [applications, setApplications] = useState([])
   const [listings, setListings] = useState([])
@@ -341,6 +342,22 @@ function AdminDashboardPage() {
       setError(nextError.message)
     }
   }
+
+  async function assignPeerRider(delivery, riderId) {
+    setAssigningPeerDeliveryId(delivery.firestoreId)
+    setError('')
+    setMessage('')
+    try {
+      await requestPeerDelivery({ action: 'assignRider', deliveryId: delivery.id, riderId })
+      setMessage(`Rider assigned to ${delivery.id}.`)
+      notifyPeerDeliveryUpdate()
+    } catch (assignmentError) {
+      setError(assignmentError.message || 'The rider could not be assigned.')
+    } finally {
+      setAssigningPeerDeliveryId('')
+    }
+  }
+
   const nav = [
     { label: 'Overview', to: '/dashboard/admin?view=overview', icon: 'dashboard' },
     { label: `Notifications (${financeAlerts.alerts.length})`, to: '/dashboard/admin?view=notifications', icon: 'payments' },
@@ -382,10 +399,10 @@ function AdminDashboardPage() {
           <article><span>Rider assigned</span><strong>{allActiveDeliveryOrders.filter((order) => Boolean(order.riderUid)).length}</strong></article>
           <article><span>Reporting GPS</span><strong>{new Set(allActiveDeliveryOrders.filter((order) => order.riderUid && order.riderLocation?.lat != null && order.riderLocation?.lng != null).map((order) => order.riderUid)).size}</strong></article>
         </div>
-        <p className="admin-peer-to-peer-note">Peer-to-peer delivery records are included here. The customer Send a Package screen is still a preview and does not create requests.</p>
+        <p className="admin-peer-to-peer-note">Peer-to-peer requests appear after recipient acceptance and verified payment. Assign an approved rider to start delivery tracking.</p>
         {loading || peerDeliveriesLoading
           ? <p className="dashboard-empty" role="status">Loading delivery locations...</p>
-          : <AdminDeliveryMap orders={filteredDeliveryMapOrders} selectedOrderId={selectedDeliveryId} onSelect={setSelectedDeliveryId} />}
+          : <AdminDeliveryMap orders={filteredDeliveryMapOrders} selectedOrderId={selectedDeliveryId} onSelect={setSelectedDeliveryId} riders={riders} onAssignRider={assignPeerRider} assigningDeliveryId={assigningPeerDeliveryId} />}
         {!loading && !peerDeliveriesLoading && filteredDeliveryMapOrders.length === 0 && allActiveDeliveryOrders.length > 0 && <p className="dashboard-empty">No active deliveries match these filters.</p>}
         {!loading && !peerDeliveriesLoading && deliveryOrders.length === 0 && peerDeliveries.length === 0 && <p className="dashboard-empty">No existing delivery requests yet. Marketplace purchases remain outside this map.</p>}
       </section>}
