@@ -21,6 +21,7 @@ import { adminSetListingVisibility, subscribeToAllListings } from '../../firebas
 import { useAuth } from '../../auth/useAuth'
 import DashboardShell from './DashboardShell'
 import FinancePanel from '../../components/finance/FinancePanel'
+import AdminDeliveryMap from './AdminDeliveryMap'
 import { useFinanceAlerts } from '../../components/finance/useFinanceAlerts'
 import { financeTotals, csvCell, confirmedCollection } from '../../utils/finance'
 import { googleMapsPointUrl } from '../../utils/googleMapsLinks'
@@ -64,7 +65,7 @@ function AdminDashboardPage() {
   const { user } = useAuth()
   const requestedView = searchParams.get('view') || 'overview'
   const activeView = ['payments', 'payouts'].includes(requestedView) ? 'finance'
-    : ['overview', 'notifications', 'users', 'requests', 'finance', 'applications', 'marketplace'].includes(requestedView) ? requestedView : 'overview'
+    : ['overview', 'notifications', 'users', 'requests', 'delivery-map', 'finance', 'applications', 'marketplace'].includes(requestedView) ? requestedView : 'overview'
   const [orders, setOrders] = useState([])
   const [users, setUsers] = useState([])
   const [applications, setApplications] = useState([])
@@ -74,6 +75,8 @@ function AdminDashboardPage() {
   const [message, setMessage] = useState('')
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [deliveryStatusFilter, setDeliveryStatusFilter] = useState('all')
+  const [selectedDeliveryId, setSelectedDeliveryId] = useState('')
   const [listingVisibility, setListingVisibility] = useState('all')
   const [listingCategory, setListingCategory] = useState('all')
   const [riderSelections, setRiderSelections] = useState({})
@@ -118,6 +121,16 @@ function AdminDashboardPage() {
   const riders = users.filter((user) => user.accountType === 'rider')
   const customers = users.filter((user) => user.accountType === 'customer')
   const openOrders = orders.filter((order) => !['Completed', 'Cancelled'].includes(order.status))
+  const deliveryOrders = orders.filter((order) => order.serviceType === 'delivery')
+  const activeDeliveryOrders = deliveryOrders.filter((order) => !['Completed', 'Cancelled'].includes(order.status))
+  const filteredDeliveryMapOrders = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    return activeDeliveryOrders.filter((order) => {
+      const matchesStatus = deliveryStatusFilter === 'all' || order.status === deliveryStatusFilter
+      const haystack = [order.id, order.customerName, order.address, order.riderName, order.status].join(' ').toLowerCase()
+      return matchesStatus && (!needle || haystack.includes(needle))
+    })
+  }, [activeDeliveryOrders, deliveryStatusFilter, query])
   const pendingApplications = applications.filter((application) => application.status === 'Pending')
   const bookingsToday = orders.filter((order) => order.createdAtDate?.toDateString() === todayKey).length
 
@@ -310,6 +323,7 @@ function AdminDashboardPage() {
     { label: `Notifications (${financeAlerts.alerts.length})`, to: '/dashboard/admin?view=notifications', icon: 'payments' },
     { label: 'Users', to: '/dashboard/admin?view=users', icon: 'users' },
     { label: 'Requests', to: '/dashboard/admin?view=requests', icon: 'bookings' },
+    { label: 'Delivery map', to: '/dashboard/admin?view=delivery-map', icon: 'bookings' },
     { label: 'Transactions & earnings', to: '/dashboard/admin?view=finance', icon: 'payments' },
     { label: 'Applications', to: '/dashboard/admin?view=applications', icon: 'users' },
     { label: 'Marketplace', to: '/dashboard/admin?view=marketplace', icon: 'bookings' },
@@ -327,6 +341,31 @@ function AdminDashboardPage() {
       {financeAlerts.alerts.length > 0 && <Link className="finance-attention-banner" to="/dashboard/admin?view=notifications" aria-live="polite">{financeAlerts.alerts.length} transaction item(s) need your attention. Review payments, refunds and payouts.</Link>}
       {error && <p className="dashboard-error">{error}</p>}
       {message && <p className="dashboard-success">{message}</p>}
+
+      {activeView === 'delivery-map' && <section className="dashboard-panel admin-delivery-tab-panel">
+        <div className="dashboard-panel-header">
+          <div><h2>Live delivery operations</h2><p>Existing customer delivery requests only. Rider markers appear only for reported GPS locations.</p></div>
+          <div className="admin-delivery-filters">
+            <input className="dashboard-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search deliveries" aria-label="Search deliveries" />
+            <select value={deliveryStatusFilter} onChange={(event) => setDeliveryStatusFilter(event.target.value)} aria-label="Filter delivery status">
+              <option value="all">All active statuses</option>
+              {statusOptions.filter((status) => !['Completed', 'Cancelled'].includes(status)).map((status) => <option value={status} key={status}>{status}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="admin-delivery-summary">
+          <article><span>Active deliveries</span><strong>{activeDeliveryOrders.length}</strong></article>
+          <article><span>Awaiting rider</span><strong>{activeDeliveryOrders.filter((order) => !order.riderUid).length}</strong></article>
+          <article><span>Rider assigned</span><strong>{activeDeliveryOrders.filter((order) => Boolean(order.riderUid)).length}</strong></article>
+          <article><span>Reporting GPS</span><strong>{new Set(activeDeliveryOrders.filter((order) => order.riderUid && order.riderLocation?.lat != null && order.riderLocation?.lng != null).map((order) => order.riderUid)).size}</strong></article>
+        </div>
+        <p className="admin-peer-to-peer-note">Send a Package is a separate peer-to-peer delivery type. Those requests will appear here after its secure delivery backend and admin authorization are implemented.</p>
+        {loading
+          ? <p className="dashboard-empty" role="status">Loading delivery locations...</p>
+          : <AdminDeliveryMap orders={filteredDeliveryMapOrders} selectedOrderId={selectedDeliveryId} onSelect={setSelectedDeliveryId} />}
+        {!loading && filteredDeliveryMapOrders.length === 0 && activeDeliveryOrders.length > 0 && <p className="dashboard-empty">No active deliveries match these filters.</p>}
+        {!loading && deliveryOrders.length === 0 && <p className="dashboard-empty">No existing delivery requests yet. Marketplace purchases remain outside this map.</p>}
+      </section>}
 
       {activeView === 'notifications' && <section className="dashboard-panel admin-notifications">
         <div className="dashboard-panel-header"><div><h2>Notifications</h2><p>Transactions needing your attention, available whenever you open CareNest on your phone.</p></div>
