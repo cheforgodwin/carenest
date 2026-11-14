@@ -13,6 +13,7 @@ import { googleMapsDirectionsUrl } from '../../utils/googleMapsLinks'
 import { notifyPeerDeliveryUpdate, normalizePeerDeliveryForMap, requestPeerDelivery, subscribeToRiderPeerDeliveries } from '../../firebase/peerDeliveryService'
 import DashboardShell from './DashboardShell'
 import RiderRouteMap from './RiderRouteMap'
+import PayoutPanel from '../../components/finance/PayoutPanel'
 import { DashboardRowSkeleton, Skeleton } from '../../components/ContentSkeletons'
 
 function normalizeStatus(status) {
@@ -133,6 +134,7 @@ function RiderDashboardPage() {
     { label: 'Overview', to: '/dashboard/rider?view=overview', icon: 'dashboard' },
     { label: 'Deliveries', to: '/dashboard/rider?view=deliveries', icon: 'bookings' },
     { label: 'Completed', to: '/dashboard/rider?view=completed', icon: 'users' },
+    { label: 'Payouts', to: '/dashboard/rider?view=payouts', icon: 'payments' },
   ]
 
   const needle = query.trim().toLowerCase()
@@ -255,6 +257,7 @@ function RiderDashboardPage() {
       {error && <p className="dashboard-error">{error}</p>}
       {message && <p className="dashboard-success">{message}</p>}
 
+      {activeView === 'payouts' ? <PayoutPanel /> : <>
       {activeView !== 'completed' && <RiderRouteMap
         orders={activeAssigned}
         order={selectedRouteOrder}
@@ -401,6 +404,7 @@ function RiderDashboardPage() {
           )}
         </section>
       )}
+      </>}
     </DashboardShell>
   )
 }

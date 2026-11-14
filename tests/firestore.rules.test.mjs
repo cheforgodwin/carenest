@@ -140,10 +140,10 @@ test('riders can access only assigned deliveries and update their own progress',
     riderStatus: 'Accepted', riderAssignedAt: new Date(), updatedAt: new Date(),
   }))
   await assertSucceeds(getDocs(query(collection(rider, 'serviceRequests'), where('riderUid', '==', 'rider-a'))))
-  await assertSucceeds(updateDoc(doc(rider, 'serviceRequests/delivery-a'), { riderStatus: 'Picked up', updatedAt: new Date() }))
-  await assertFails(updateDoc(doc(rider, 'serviceRequests/delivery-a'), { amount: 1, updatedAt: new Date() }))
+  await assertSucceeds(updateDoc(doc(rider, 'serviceRequests/delivery-a'), { riderStatus: 'Picked up', updatedAt: serverTimestamp() }))
+  await assertFails(updateDoc(doc(rider, 'serviceRequests/delivery-a'), { amount: 1, updatedAt: serverTimestamp() }))
   await assertSucceeds(updateDoc(doc(rider, 'serviceRequests/delivery-a'), {
-    riderStatus: 'Delivered', status: 'Awaiting confirmation', currentStep: 4, deliveredAt: new Date(), completionRequestedBy: 'rider-a', completionRequestedAt: serverTimestamp(), updatedAt: new Date(),
+    riderStatus: 'Delivered', status: 'Awaiting confirmation', currentStep: 4, deliveredAt: serverTimestamp(), completionRequestedBy: 'rider-a', completionRequestedAt: serverTimestamp(), updatedAt: serverTimestamp(),
   }))
 })
 test('marketplace orders use the published listing price and stock', async () => {
@@ -390,9 +390,9 @@ test('manual rider assignment requires payment and delivery cannot skip pickup',
   await env.withSecurityRulesDisabled(async (context) => updateDoc(doc(context.firestore(), 'serviceRequests/order-a'), verifiedPayment))
   await assertSucceeds(updateDoc(admin, assignment))
   const rider = doc(env.authenticatedContext('rider-a').firestore(), 'serviceRequests/order-a')
-  const delivered = { riderStatus: 'Delivered', status: 'Awaiting confirmation', currentStep: 4, deliveredAt: serverTimestamp(), completionRequestedBy: 'rider-a', completionRequestedAt: serverTimestamp() }
+  const delivered = { riderStatus: 'Delivered', status: 'Awaiting confirmation', currentStep: 4, deliveredAt: serverTimestamp(), completionRequestedBy: 'rider-a', completionRequestedAt: serverTimestamp(), updatedAt: serverTimestamp() }
   await assertFails(updateDoc(rider, delivered))
-  await assertSucceeds(updateDoc(rider, { riderStatus: 'Picked up' }))
+  await assertSucceeds(updateDoc(rider, { riderStatus: 'Picked up', updatedAt: serverTimestamp() }))
   await assertFails(updateDoc(rider, { riderStatus: 'Accepted' }))
   await assertSucceeds(updateDoc(rider, delivered))
 })
@@ -424,6 +424,43 @@ test('finance records are admin-readable and server-write-only', async () => {
     await assertFails(setDoc(admin, { amount: 0 }))
     await assertFails(deleteDoc(admin))
   }
+})
+
+test('payout requests and locks are private and server-managed', async () => {
+  await seed()
+  await env.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'payoutRequests/request-a'), { uid: 'provider-a', status: 'requested' })
+    await setDoc(doc(context.firestore(), 'payoutRequestLocks/provider-a'), { activeRequestId: 'request-a' })
+    await setDoc(doc(context.firestore(), 'payoutServiceLocks/active'), { activeRequestId: 'request-a' })
+  })
+  for (const uid of ['customer-a', 'provider-a', 'rider-a', 'admin-a']) {
+    const db = env.authenticatedContext(uid).firestore()
+    await assertFails(getDoc(doc(db, 'payoutRequests/request-a')))
+    await assertFails(setDoc(doc(db, 'payoutRequests/forged'), { uid, status: 'requested' }))
+    await assertFails(getDoc(doc(db, 'payoutRequestLocks/provider-a')))
+    await assertFails(deleteDoc(doc(db, 'payoutRequestLocks/provider-a')))
+    await assertFails(getDoc(doc(db, 'payoutServiceLocks/active')))
+    await assertFails(setDoc(doc(db, 'payoutServiceLocks/forged'), { activeRequestId: 'forged' }))
+  }
+})
+
+test('reserved payout orders cannot be disputed or changed by administrators through Firestore', async () => {
+  await seed()
+  const requestId = 'PR-' + 'a'.repeat(64)
+  await env.withSecurityRulesDisabled(async (context) => updateDoc(doc(context.firestore(), 'serviceRequests/order-a'), {
+    ...verifiedPayment,
+    status: 'Completed',
+    currentStep: 5,
+    completionConfirmedBy: 'customer-a',
+    completionConfirmedAt: new Date(),
+    payoutRequestId: requestId,
+  }))
+  const customerOrder = doc(env.authenticatedContext('customer-a').firestore(), 'serviceRequests/order-a')
+  await assertFails(updateDoc(customerOrder, {
+    status: 'Complaint', currentStep: 2, disputeStatus: 'Open', complaintText: 'The service was not completed as agreed.',
+    complaintSubmittedAt: serverTimestamp(), payoutStatus: 'Held', payoutNote: 'Customer complaint submitted.', updatedAt: serverTimestamp(),
+  }))
+  await assertFails(updateDoc(doc(env.authenticatedContext('admin-a').firestore(), 'serviceRequests/order-a'), { payoutStatus: 'Held' }))
 })
 test('financial balances and pricing snapshots cannot be forged or paid orders deleted', async () => {
   await seed()

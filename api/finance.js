@@ -92,6 +92,18 @@ export default async function handler(req, res) {
       if (order.paymentEnvironment !== 'live') throw paymentError('Only verified live orders can record real transfers. Historical payment environment must be reconciled first.')
       const totals = { provider: 0, rider: 0, refund: 0, ...(order.financeTotals || {}) }
       const party = kind === 'provider_payout' ? 'provider' : kind === 'rider_payout' ? 'rider' : 'refund'
+      if (party !== 'refund' && order[party + 'Uid']) {
+        const payoutLock = await transaction.get(db.collection('payoutRequestLocks').doc(order[party + 'Uid']))
+        const activeRequestId = payoutLock.data()?.activeRequestId
+        if (activeRequestId) {
+          const payoutRequest = await transaction.get(db.collection('payoutRequests').doc(activeRequestId))
+          const request = payoutRequest.data()
+          if (request && ['requested', 'submitting', 'submitted', 'unknown'].includes(request.status)
+            && request.orderAllocations?.some((allocation) => allocation.orderId === orderId)) {
+            throw paymentError('This order is reserved by an active payout request. Resolve that request before recording another transfer.')
+          }
+        }
+      }
       if (party === 'refund') {
         if (order.refundStatus !== 'Requested') throw paymentError('Open a refund review before recording a refund.')
         if (totals.refund + body.amount > order.amount) throw paymentError('Refunds cannot exceed the verified collection.')

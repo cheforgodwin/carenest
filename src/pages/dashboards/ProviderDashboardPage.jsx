@@ -21,6 +21,7 @@ import DashboardShell from './DashboardShell'
 import { orderFinance } from '../../utils/finance'
 import { DashboardRowSkeleton, ListingCardSkeleton, Skeleton } from '../../components/ContentSkeletons'
 import AddressLocationTools from '../../components/AddressLocationTools'
+import PayoutPanel from '../../components/finance/PayoutPanel'
 
 function providerStatuses(order) {
   if (order.paymentStatus !== 'Paid' || !order.paymentVerifiedAt) return [order.status]
@@ -221,6 +222,7 @@ function ProviderDashboardPage() {
   const nav = [
     { label: 'Overview', to: '/dashboard/provider?view=overview', icon: 'dashboard' },
     { label: 'Jobs', to: '/dashboard/provider?view=jobs', icon: 'bookings' },
+    { label: 'Payouts', to: '/dashboard/provider?view=payouts', icon: 'payments' },
     { label: 'Storefront', to: '/dashboard/provider?view=storefront', icon: 'bookings' },
     { label: 'Settings', to: '/dashboard/provider?view=settings', icon: 'settings' },
   ]
@@ -235,6 +237,8 @@ function ProviderDashboardPage() {
     >
       {error && <p className="dashboard-error">{error}</p>}
       {message && <p className="dashboard-success">{message}</p>}
+
+      {activeView === 'payouts' && <PayoutPanel />}
 
       {(activeView === 'overview' || activeView === 'jobs') && (
         <section className="dashboard-panel">

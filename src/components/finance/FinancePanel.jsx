@@ -3,6 +3,7 @@ import { collection, doc, onSnapshot, orderBy, query } from 'firebase/firestore'
 import { db } from '../../firebase/firebaseConfig'
 import { postJson } from '../../utils/networkUtils'
 import { csvCell, financeTotals, orderFinance } from '../../utils/finance'
+import PayoutPanel from './PayoutPanel'
 import './FinancePanel.css'
 
 const amount = (value) => value === null || value === undefined ? 'Not confirmed' : Number(value).toLocaleString() + ' XAF'
@@ -99,6 +100,7 @@ export default function FinancePanel({ orders, initialSelected = '' }) {
         return <tr key={item.firestoreId}><td data-label="Order / reference">{item.id}<small>{item.paymentReference || 'No provider reference'}<br />{item.paymentEnvironment || 'Unknown environment'}</small></td><td data-label="Payment">{item.paymentStatus}<small>{f.earned ? 'Earned after completion' : f.held ? 'Held / review required' : 'Not yet earned'}</small></td><td data-label="Amount">{amount(item.amount)}</td><td data-label="Fapshi fee">{amount(f.fee)}<small>{item.paymentFinancials?.feePercent == null ? 'Rate not confirmed' : item.paymentFinancials.feePercent.toFixed(2) + '%'}</small></td><td data-label="Provider allocation">{amount(f.provider)}<small>{percent(item.financialSnapshot?.providerBps)}</small></td><td data-label="Rider allocation">{amount(f.rider)}<small>{percent(item.financialSnapshot?.riderBps)}</small></td><td data-label="CareNest allocation">{amount(f.platform)}<small>{percent(item.financialSnapshot?.platformBps)} before fee</small></td><td data-label="Review"><button className="table-action" type="button" onClick={() => choose(item.firestoreId)}>View details</button></td></tr>
       })}</tbody></table></div>{!filtered.length && <p className="dashboard-empty">No matching transactions. Choose All records to include older orders whose payment environment was not recorded.</p>}
     </section>
+    <PayoutPanel mode="admin" />
     {error && <p role="alert" className="dashboard-error">{error}</p>}{message && <p role="status" className="dashboard-success">{message}</p>}
     {order && <section id="finance-order-detail" className="dashboard-panel finance-detail"><div className="dashboard-panel-header"><h2>{order.id}: money details</h2><button type="button" onClick={() => choose('')}>Close details</button></div>
       <p>Customer: {order.customerName || order.customerUid} | Provider: {order.providerName || 'Unassigned'} | Rider: {order.riderName || 'Unassigned'}</p>

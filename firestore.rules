@@ -372,7 +372,8 @@ service cloud.firestore {
       }
 
       function adminCanUpdateOrder() {
-        return adminWorkflow()
+        return resource.data.get('payoutRequestId', '') == ''
+          && adminWorkflow()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'status', 'currentStep', 'updatedAt', 'providerUid', 'providerName', 'providerEmail', 'providerPhone',
             'providerPayoutMethod', 'providerPayoutPhone', 'assignedBy', 'assignedAt',
@@ -466,7 +467,8 @@ service cloud.firestore {
               ])
             )
             || (
-              request.resource.data.status == 'Complaint'
+              resource.data.get('payoutRequestId', '') == ''
+              && request.resource.data.status == 'Complaint'
               && request.resource.data.currentStep == 2
               && request.resource.data.payoutStatus == 'Held'
               && request.resource.data.get('disputeStatus', 'Open') == 'Open'
@@ -575,6 +577,15 @@ service cloud.firestore {
     match /financialPolicyVersions/{id} {
       allow read: if isAdmin();
       allow write: if false;
+    }
+    match /payoutRequests/{id} {
+      allow read, write: if false;
+    }
+    match /payoutRequestLocks/{userId} {
+      allow read, write: if false;
+    }
+    match /payoutServiceLocks/{id} {
+      allow read, write: if false;
     }
     match /peerDeliveries/{id} {
       allow read, write: if false;

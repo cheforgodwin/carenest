@@ -44,6 +44,21 @@ FAPSHI_LIVE_SECRET_KEY="your-live-secret"
 
 Keep the `FAPSHI_*_SECRET_KEY` values in your Vercel project settings, not in `VITE_*`.
 
+Fapshi disbursements require a **separate payout service** and a separate credential pair. Never use collection keys for payouts. Add these server-only variables to `.env.local` or Vercel Project Settings:
+
+```bash
+FAPSHI_PAYOUT_MODE="sandbox"
+FAPSHI_PAYOUT_SANDBOX_API_USER="your-sandbox-payout-user"
+FAPSHI_PAYOUT_SANDBOX_SECRET_KEY="your-sandbox-payout-secret"
+FAPSHI_PAYOUT_SANDBOX_WEBHOOK_SECRET="your-sandbox-payout-webhook-secret"
+FAPSHI_PAYOUT_LIVE_API_USER="your-live-payout-user"
+FAPSHI_PAYOUT_LIVE_SECRET_KEY="your-live-payout-secret"
+FAPSHI_PAYOUT_LIVE_WEBHOOK_SECRET="your-live-payout-webhook-secret"
+FAPSHI_PAYOUT_LIVE_ENABLED="false"
+```
+
+Check payout-service credentials without initiating a transfer or printing the balance with `node --env-file=.env.local scripts/check-fapshi-payout-credentials.mjs`. A successful balance authentication does not mean live payouts are enabled. Fapshi requires sandbox payout testing and live payout approval; after approval, set `FAPSHI_PAYOUT_MODE=live` and `FAPSHI_PAYOUT_LIVE_ENABLED=true`. Send Fapshi Developer Support the **Live API User only**, never the secret key. Configure the payout service webhook URL as `https://carenest237.com/api/fapshi-payout-webhook` and use that service's webhook secret. Fapshi's payout service has its own balance; money must be transferred to it from the collections service using Fapshi's dashboard or app. Enabling payouts disables collections on that same service, so keep the two services separate.
+
 `FAPSHI_PAYMENT_FLOW="direct"` sends the Mobile Money approval prompt to the Mobile Money number entered at checkout (or the saved profile number when no override is entered), so CareNest does not redirect the customer to Fapshi checkout. Direct Pay must be enabled by Fapshi before using it in live mode.
 
 ### Fapshi payment verification

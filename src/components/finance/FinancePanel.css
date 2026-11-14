@@ -129,3 +129,55 @@
 }
 .finance-view > section { min-width: 0; }
 .finance-detail { scroll-margin-top: 24px; }
+
+.payout-panel .dashboard-panel-header {
+    align-items: flex-start;
+}
+
+.payout-worker-balance {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    align-items: end;
+    margin: 16px 0;
+}
+
+.payout-worker-balance > div,
+.payout-service-balance {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+    padding: 14px 0;
+    border-bottom: 1px solid #dde6df;
+}
+
+.payout-worker-balance span,
+.payout-service-balance span {
+    color: #51615a;
+    font-size: 13px;
+}
+
+.payout-worker-balance strong,
+.payout-service-balance strong {
+    overflow-wrap: anywhere;
+    font-size: 20px;
+}
+
+.payout-service-balance {
+    max-width: 320px;
+    margin: 16px 0;
+}
+
+.payout-service-balance small {
+    color: #65756d;
+}
+
+.payout-worker-balance > button {
+    min-height: 42px;
+}
+
+@media (max-width: 480px) {
+    .payout-worker-balance {
+        grid-template-columns: 1fr 1fr;
+    }
+}

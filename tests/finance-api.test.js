@@ -57,6 +57,16 @@ describe('admin finance API', () => {
     expect((await call({ ...transfer, reference: 'second-123', amount: 6000 })).statusCode).toBe(409)
     expect(records.get('serviceRequests/order-a').financeTotals.provider).toBe(3000)
   })
+  it('blocks manual transfer recording against an active payout reservation', async () => {
+    const requestId = 'PR-' + 'a'.repeat(64)
+    records.set('payoutRequestLocks/provider', { activeRequestId: requestId })
+    records.set('payoutRequests/' + requestId, {
+      uid: 'provider', role: 'provider', status: 'requested',
+      orderAllocations: [{ orderId: 'order-a', amount: 3000 }],
+    })
+    expect((await call(transfer)).statusCode).toBe(409)
+    expect(records.get('serviceRequests/order-a').financeTotals).toBeUndefined()
+  })
   it.each([{ paymentStatus: 'Pending' }, { paymentEnvironment: 'sandbox' }, { paymentEnvironment: undefined }, { status: 'In Progress' }, { payoutStatus: 'Held' }, { refundStatus: 'Requested' }, { financialSnapshot: { state: 'unconfigured' } }, { payoutStatus: 'Paid' }])('blocks ineligible payouts: %j', async (patch) => {
     seed(patch)
     expect((await call(transfer)).statusCode).toBe(409)
