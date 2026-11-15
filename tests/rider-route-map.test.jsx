@@ -24,19 +24,26 @@ function render(order) {
   />)
 }
 
-it('shows route navigation without inventing a rider GPS marker', () => {
+it('shows a real map and route navigation without inventing a rider GPS marker', () => {
   const markup = render(delivery)
 
-  expect(markup).toContain('Schematic preview')
+  expect(markup).toContain('Interactive route map')
   expect(markup).toContain('Bastos, Yaounde')
   expect(markup).toContain('Open navigation')
   expect(markup).toContain('Not shared yet')
-  expect(markup).not.toContain('rider-route-pin rider')
+  expect(markup).not.toContain('Your GPS position for CN-1001')
 })
 
 it('shows the rider marker only when real coordinates are supplied', () => {
   const markup = render({ ...delivery, riderLocation: { lat: 3.8, lng: 11.4 } })
 
-  expect(markup).toContain('rider-route-pin rider')
+  expect(markup).toContain('Your GPS position for CN-1001')
   expect(markup).toContain('GPS position available')
+})
+
+it('shows pickup markers and uses verified pickup coordinates for route estimates', () => {
+  const markup = render({ ...delivery, pickupCoordinates: { lat: 3.8, lng: 11.4 } })
+
+  expect(markup).toContain('Pickup location for CN-1001')
+  expect(markup).toContain('Delivery destination for CN-1001')
 })

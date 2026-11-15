@@ -48,3 +48,10 @@ it('plots a peer-delivery pickup and destination from verified coordinates', () 
   expect(markup).toContain('Delivery destination for PD-1001')
   expect(markup).toContain('Mvan')
 })
+
+it('ignores malformed coordinates instead of passing them to the map', () => {
+  const markup = render([{ ...delivery, addressCoordinates: { lat: 120, lng: 11.5 } }])
+
+  expect(markup).toContain('No location data yet')
+  expect(markup).not.toContain('Delivery destination for CN-1001')
+})

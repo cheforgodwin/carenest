@@ -1,16 +1,33 @@
-import { FiMapPin, FiNavigation } from 'react-icons/fi'
+import { FiNavigation } from 'react-icons/fi'
+import GoogleMapCanvas from '../../components/GoogleMapCanvas'
 import { googleMapsDirectionsUrl } from '../../utils/googleMapsLinks'
 import './RiderRouteMap.css'
 
 function RiderRouteMap({ orders, order, transportType, sharing, onShareLocation, onStopLocation, starting, onSelect }) {
-  const hasRiderLocation = order?.riderLocation?.lat != null && order?.riderLocation?.lng != null
-    && Number.isFinite(Number(order.riderLocation.lat)) && Number.isFinite(Number(order.riderLocation.lng))
-  const hasDestination = order?.addressCoordinates?.lat != null && order?.addressCoordinates?.lng != null
-    && Number.isFinite(Number(order.addressCoordinates.lat)) && Number.isFinite(Number(order.addressCoordinates.lng))
+  const point = (value) => {
+    if (value?.lat == null || value?.lng == null) return null
+    const lat = Number(value.lat)
+    const lng = Number(value.lng)
+    return Number.isFinite(lat) && lat >= -90 && lat <= 90 && Number.isFinite(lng) && lng >= -180 && lng <= 180
+      ? { lat, lng }
+      : null
+  }
+  const riderLocation = point(order?.riderLocation)
+  const pickup = point(order?.pickupCoordinates)
+  const destination = point(order?.addressCoordinates)
+  const hasRiderLocation = Boolean(riderLocation)
+  const hasDestination = Boolean(destination)
   const mode = /foot|walk/i.test(transportType || '') ? 'walking' : /bicycle|cycle/i.test(transportType || '') ? 'bicycling' : 'driving'
   const directionsUrl = hasDestination
-    ? googleMapsDirectionsUrl(order.addressCoordinates, mode, hasRiderLocation ? order.riderLocation : null)
+    ? googleMapsDirectionsUrl(destination, mode, riderLocation)
     : ''
+  const mapMarkers = order ? [
+    riderLocation && { orderId: order.firestoreId, kind: 'rider', position: riderLocation, label: 'R', title: `Your GPS position for ${order.id}` },
+    pickup && { orderId: order.firestoreId, kind: 'pickup', position: pickup, label: 'P', title: `Pickup location for ${order.id}` },
+    destination && { orderId: order.firestoreId, kind: 'destination', position: destination, label: 'D', title: `Delivery destination for ${order.id}` },
+  ].filter(Boolean) : []
+  const routeOrigin = riderLocation || pickup
+  const route = routeOrigin && destination ? { origin: routeOrigin, destination, travelMode: mode } : null
   const updatedAt = order?.riderLocation?.updatedAt
   const lastUpdate = updatedAt?.toDate ? updatedAt.toDate() : updatedAt ? new Date(updatedAt) : null
 
@@ -26,12 +43,15 @@ function RiderRouteMap({ orders, order, transportType, sharing, onShareLocation,
         </div>
       </div>
       <div className="rider-route-content">
-        <div className="rider-route-map" role="img" aria-label={order ? `Schematic delivery route to ${order.address || 'the destination'}` : 'Map placeholder. No active delivery selected.'}>
-          <div className="rider-map-grid" aria-hidden="true"><i className="rider-road road-a" /><i className="rider-road road-b" /><i className="rider-road road-c" /><i className="rider-road road-d" /><i className="rider-green-space green-a" /><i className="rider-green-space green-b" />
-            {order && <><svg className="rider-map-route" viewBox="0 0 100 100" preserveAspectRatio="none"><line x1="27" y1="65" x2="76" y2="37" /></svg><span className="rider-route-pin destination"><FiMapPin /></span>{hasRiderLocation && <span className="rider-route-pin rider"><FiNavigation /></span>}</>}
-          </div>
-          <span className="rider-map-disclaimer">Schematic preview · not to scale</span>
-          {order && <div className="rider-map-address"><strong>Destination</strong><span>{order.address || 'Address not provided'}</span></div>}
+        <div className="rider-route-map">
+          <GoogleMapCanvas
+            ariaLabel={order ? `Interactive route map to ${order.address || 'the destination'}` : 'Interactive delivery map'}
+            markers={mapMarkers}
+            selectedOrderId={order?.firestoreId}
+            onMarkerSelect={onSelect}
+            route={route}
+            emptyMessage={order ? 'Verified delivery coordinates are not available.' : 'Accept a delivery to view its map.'}
+          />
         </div>
         <aside className="rider-route-details">
           {order ? <>

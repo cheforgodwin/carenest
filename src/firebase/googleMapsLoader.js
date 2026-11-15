@@ -1,19 +1,20 @@
-﻿const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
-let placesPromise
+const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+let mapsScriptPromise
+const libraryPromises = new Map()
 
-export function loadGooglePlacesLibrary() {
+function loadMapsScript() {
   if (!apiKey || typeof window === 'undefined') return Promise.resolve(null)
-  if (window.google?.maps?.importLibrary) return window.google.maps.importLibrary('places')
-  if (placesPromise) return placesPromise
+  if (window.google?.maps?.importLibrary) return Promise.resolve(window.google.maps)
+  if (mapsScriptPromise) return mapsScriptPromise
 
-  placesPromise = new Promise((resolve, reject) => {
+  mapsScriptPromise = new Promise((resolve, reject) => {
     const existingScript = document.querySelector('script[data-carenest-google-maps]')
     const script = existingScript || document.createElement('script')
     const callbackName = '__carenestGoogleMapsReady'
     const cleanup = () => { try { delete window[callbackName] } catch { window[callbackName] = undefined } }
     const finish = () => {
       cleanup()
-      if (window.google?.maps?.importLibrary) window.google.maps.importLibrary('places').then(resolve, reject)
+      if (window.google?.maps?.importLibrary) resolve(window.google.maps)
       else reject(new Error('Google Maps JavaScript API did not initialize.'))
     }
     window[callbackName] = finish
@@ -25,7 +26,24 @@ export function loadGooglePlacesLibrary() {
       script.dataset.carenestGoogleMaps = 'true'
       document.head.appendChild(script)
     }
-  }).catch((error) => { placesPromise = undefined; throw error })
-  return placesPromise
+  }).catch((error) => { mapsScriptPromise = undefined; throw error })
+  return mapsScriptPromise
+}
+
+export function loadGoogleMapsLibrary(library) {
+  if (!apiKey || typeof window === 'undefined') return Promise.resolve(null)
+  if (!libraryPromises.has(library)) {
+    const promise = loadMapsScript().then((maps) => maps?.importLibrary(library) || null)
+      .catch((error) => {
+        libraryPromises.delete(library)
+        throw error
+      })
+    libraryPromises.set(library, promise)
+  }
+  return libraryPromises.get(library)
+}
+
+export function loadGooglePlacesLibrary() {
+  return loadGoogleMapsLibrary('places')
 }
 

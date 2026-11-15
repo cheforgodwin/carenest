@@ -1,0 +1,10 @@
+.google-map-canvas { position: relative; width: 100%; height: 100%; min-height: 270px; overflow: hidden; border: 1px solid #d5e4d9; border-radius: 9px; background: #e7f0e8; }
+.google-map-surface { position: absolute; inset: 0; }
+.google-map-empty,
+.google-map-message,
+.google-map-route-summary { position: absolute; z-index: 2; padding: 8px 10px; border: 1px solid #e0e9e2; border-radius: 7px; color: #173b29; background: #ffffffed; font-size: 12px; }
+.google-map-empty { top: 50%; left: 50%; max-width: calc(100% - 32px); transform: translate(-50%, -50%); text-align: center; pointer-events: none; }
+.google-map-message { top: 10px; left: 10px; max-width: calc(100% - 20px); color: #783b20; }
+.google-map-route-summary { top: 10px; right: 10px; max-width: calc(100% - 20px); font-weight: 800; }
+.google-map-accessible-list { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.google-map-accessible-list button { position: absolute; }

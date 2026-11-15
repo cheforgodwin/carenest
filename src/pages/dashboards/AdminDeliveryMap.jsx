@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { FiMapPin, FiNavigation } from 'react-icons/fi'
+import { FiNavigation } from 'react-icons/fi'
+import GoogleMapCanvas from '../../components/GoogleMapCanvas'
 import { googleMapsPointUrl } from '../../utils/googleMapsLinks'
 import './AdminDeliveryMap.css'
 
@@ -7,7 +8,9 @@ function coordinates(point) {
   if (point?.lat == null || point?.lng == null) return null
   const lat = Number(point.lat)
   const lng = Number(point.lng)
-  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null
+  return Number.isFinite(lat) && lat >= -90 && lat <= 90 && Number.isFinite(lng) && lng >= -180 && lng <= 180
+    ? { lat, lng }
+    : null
 }
 
 function formatUpdatedAt(value) {
@@ -21,55 +24,39 @@ function formatUpdatedAt(value) {
 
 function AdminDeliveryMap({ orders, selectedOrderId, onSelect, riders = [], onAssignRider, assigningDeliveryId = '' }) {
   const [riderSelection, setRiderSelection] = useState('')
-  const plotted = orders.flatMap((order) => [
-    coordinates(order.riderLocation) && { order, kind: 'rider', point: coordinates(order.riderLocation) },
-    coordinates(order.pickupCoordinates) && { order, kind: 'pickup', point: coordinates(order.pickupCoordinates) },
-    coordinates(order.addressCoordinates) && { order, kind: 'destination', point: coordinates(order.addressCoordinates) },
-  ].filter(Boolean))
-  const latitudes = plotted.map(({ point }) => point.lat)
-  const longitudes = plotted.map(({ point }) => point.lng)
-  const minLat = Math.min(...latitudes)
-  const maxLat = Math.max(...latitudes)
-  const minLng = Math.min(...longitudes)
-  const maxLng = Math.max(...longitudes)
-  const project = (point) => ({
-    x: maxLng === minLng ? 50 : 8 + ((point.lng - minLng) / (maxLng - minLng)) * 84,
-    y: maxLat === minLat ? 50 : 92 - ((point.lat - minLat) / (maxLat - minLat)) * 84,
-  })
   const selectedOrder = orders.find((order) => order.firestoreId === selectedOrderId) || orders[0] || null
+  const plotted = orders.flatMap((order) => [
+    { kind: 'rider', position: coordinates(order.riderLocation), label: 'R', name: 'Rider position' },
+    { kind: 'pickup', position: coordinates(order.pickupCoordinates), label: 'P', name: 'Pickup location' },
+    { kind: 'destination', position: coordinates(order.addressCoordinates), label: 'D', name: 'Delivery destination' },
+  ].filter(({ position }) => position).map(({ kind, position, label, name }) => ({
+    orderId: order.firestoreId,
+    kind,
+    position,
+    label,
+    selected: order.firestoreId === selectedOrder?.firestoreId,
+    title: `${name} for ${order.id}`,
+  })))
   const locatedRiders = new Set(orders.filter((order) => coordinates(order.riderLocation) && order.riderUid).map((order) => order.riderUid)).size
+  const selectedPickup = coordinates(selectedOrder?.pickupCoordinates)
+  const selectedRider = coordinates(selectedOrder?.riderLocation)
+  const selectedDestination = coordinates(selectedOrder?.addressCoordinates)
+  const riderMode = riders.find((rider) => rider.uid === selectedOrder?.riderUid)?.riderProfile?.transportType || ''
+  const travelMode = /foot|walk/i.test(riderMode) ? 'walking' : /bicycle|cycle/i.test(riderMode) ? 'bicycling' : 'driving'
+  const routeOrigin = selectedRider || selectedPickup
 
   return (
     <div className="admin-delivery-layout">
       <div className="admin-delivery-map-wrap">
-        <div className="admin-delivery-map" role="group" aria-label="Active delivery map">
-          <div className="admin-map-art" aria-hidden="true"><i className="admin-map-road admin-road-a" /><i className="admin-map-road admin-road-b" /><i className="admin-map-road admin-road-c" /><i className="admin-map-road admin-road-d" /><i className="admin-map-green admin-green-a" /><i className="admin-map-green admin-green-b" />
-            {orders.map((order) => {
-              const rider = coordinates(order.riderLocation)
-              const pickup = coordinates(order.pickupCoordinates)
-              const destination = coordinates(order.addressCoordinates)
-              const origin = pickup || rider
-              if (!origin || !destination) return null
-              const from = project(origin)
-              const to = project(destination)
-              return <svg className="admin-map-route" viewBox="0 0 100 100" preserveAspectRatio="none" key={`route-${order.firestoreId}`}><line x1={from.x} y1={from.y} x2={to.x} y2={to.y} /></svg>
-            })}
-          </div>
-          {plotted.map(({ order, kind, point }) => {
-            const position = project(point)
-            const selected = order.firestoreId === selectedOrder?.firestoreId
-            return <button
-              type="button"
-              className={`admin-map-marker ${kind}${selected ? ' selected' : ''}`}
-              style={{ left: `${position.x}%`, top: `${position.y}%` }}
-              key={`${order.firestoreId}-${kind}`}
-              onClick={() => onSelect(order.firestoreId)}
-              aria-label={`${kind === 'rider' ? 'Rider position' : kind === 'pickup' ? 'Pickup location' : 'Delivery destination'} for ${order.id}, ${order.status}`}
-              title={`${order.id} · ${kind === 'rider' ? 'Rider' : kind === 'pickup' ? 'Pickup' : 'Destination'}`}
-            >{kind === 'rider' ? <FiNavigation /> : <FiMapPin />}</button>
-          })}
-          {!plotted.length && <div className="admin-map-empty"><FiMapPin /><strong>No location data yet</strong><span>Delivery pins appear when orders include verified coordinates.</span></div>}
-          <span className="admin-map-scale-note">Coordinate overview · not a street map</span>
+        <div className="admin-delivery-map">
+          <GoogleMapCanvas
+            ariaLabel="Interactive active delivery map"
+            markers={plotted}
+            selectedOrderId={selectedOrder?.firestoreId}
+            onMarkerSelect={onSelect}
+            route={routeOrigin && selectedDestination ? { origin: routeOrigin, destination: selectedDestination, travelMode } : null}
+            emptyMessage="No location data yet. Pins appear when orders include verified coordinates."
+          />
         </div>
         <div className="admin-map-legend"><span><i className="legend-rider" /> Rider GPS</span><span><i className="legend-pickup" /> Pickup</span><span><i className="legend-destination" /> Destination</span><b>{locatedRiders} rider(s) reporting location</b></div>
       </div>
@@ -95,7 +82,7 @@ function AdminDeliveryMap({ orders, selectedOrderId, onSelect, riders = [], onAs
               {assigningDeliveryId === selectedOrder.firestoreId ? 'Assigning...' : 'Assign rider'}
             </button>
           </div>}
-          {coordinates(selectedOrder.addressCoordinates) && <a className="admin-map-directions" href={googleMapsPointUrl(selectedOrder.addressCoordinates)} target="_blank" rel="noreferrer"><FiNavigation /> Open destination</a>}
+          {selectedDestination && <a className="admin-map-directions" href={googleMapsPointUrl(selectedDestination)} target="_blank" rel="noreferrer"><FiNavigation /> Open destination</a>}
         </> : <p>Select a delivery marker to inspect its current status.</p>}
       </aside>
     </div>
