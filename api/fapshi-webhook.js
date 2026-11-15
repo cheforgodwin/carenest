@@ -1,6 +1,9 @@
+import { timingSafeEqual } from 'node:crypto'
 import { getAdminDb } from './_firebaseAdmin.js'
 import { applyVerifiedPayment, fetchVerifiedPayment } from './_paymentVerification.js'
 import { applyVerifiedPeerDeliveryPayment } from './_peerDeliveryPayments.js'
+import { getFapshiPayoutConfig } from './_fapshiPayout.js'
+import { verifyPayoutWebhookTransaction } from './_payoutVerification.js'
 import { handleCors } from './_cors.js'
 
 const webhookLimits = globalThis.__careNestWebhookLimits || new Map()
@@ -10,6 +13,13 @@ function sendJson(res, status, body) {
   res.statusCode = status
   res.setHeader('Content-Type', 'application/json')
   res.end(JSON.stringify(body))
+}
+
+function validPayoutWebhookSecret(expected, supplied) {
+  const expectedBuffer = Buffer.from(expected)
+  const suppliedBuffer = Buffer.from(supplied)
+  return expectedBuffer.length > 0 && expectedBuffer.length === suppliedBuffer.length
+    && timingSafeEqual(expectedBuffer, suppliedBuffer)
 }
 
 function enforceRateLimit(req) {
@@ -32,6 +42,15 @@ export default async function handler(req, res) {
     const callback = req.body || {}
     const callbackTransactionId = String(callback.transId || callback.transactionId || '').trim()
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(callbackTransactionId)) return sendJson(res, 400, { error: 'Invalid Fapshi transaction ID.' })
+
+    if (callback.transType === 'Payout') {
+      const config = getFapshiPayoutConfig()
+      if (!config.webhookSecret) return sendJson(res, 503, { error: 'Payout webhook verification is not configured.' })
+      const suppliedSecret = String(req.headers?.['x-wh-secret'] || '')
+      if (!validPayoutWebhookSecret(config.webhookSecret, suppliedSecret)) return sendJson(res, 401, { error: 'Invalid payout webhook credentials.' })
+      const result = await verifyPayoutWebhookTransaction(getAdminDb(), callbackTransactionId)
+      return sendJson(res, 200, result)
+    }
 
     const payment = await fetchVerifiedPayment(callbackTransactionId)
     if (String(payment.externalId || '').startsWith('PD-')) {

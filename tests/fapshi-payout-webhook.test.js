@@ -4,9 +4,11 @@ const mocks = vi.hoisted(() => ({ config: vi.fn(), verify: vi.fn(), db: {} }))
 vi.mock('../api/_firebaseAdmin.js', () => ({ getAdminDb: () => mocks.db }))
 vi.mock('../api/_fapshiPayout.js', () => ({ getFapshiPayoutConfig: mocks.config }))
 vi.mock('../api/_payoutVerification.js', () => ({ verifyPayoutWebhookTransaction: mocks.verify }))
-import handler from '../api/fapshi-payout-webhook.js'
+vi.mock('../api/_paymentVerification.js', () => ({ fetchVerifiedPayment: vi.fn(), applyVerifiedPayment: vi.fn() }))
+vi.mock('../api/_peerDeliveryPayments.js', () => ({ applyVerifiedPeerDeliveryPayment: vi.fn() }))
+import handler from '../api/fapshi-webhook.js'
 
-async function call(headers = {}, body = { transId: 'transaction-1' }) {
+async function call(headers = {}, body = { transId: 'transaction-1', transType: 'Payout' }) {
   const res = { statusCode: 200, setHeader() {}, end(value) { this.body = JSON.parse(value) } }
   await handler({ method: 'POST', headers, body }, res)
   return res
@@ -25,7 +27,7 @@ describe('Fapshi payout webhook', () => {
   })
 
   it('requires a valid transaction ID', async () => {
-    expect((await call({ 'x-wh-secret': 'payout-webhook-secret' }, { transId: '../other' })).statusCode).toBe(400)
+    expect((await call({ 'x-wh-secret': 'payout-webhook-secret' }, { transId: '../other', transType: 'Payout' })).statusCode).toBe(400)
     expect(mocks.verify).not.toHaveBeenCalled()
   })
 

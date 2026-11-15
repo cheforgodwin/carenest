@@ -132,6 +132,10 @@ async function clearRequestReservations(transaction, db, request, requestId) {
 }
 
 async function startPayoutAttempt(db, requestId, adminUid) {
+  const payoutConfig = getFapshiPayoutConfig()
+  if (payoutConfig.mode !== 'live') {
+    throw payoutError('Sandbox payouts cannot settle live CareNest earnings. Use the sandbox payout smoke test instead.', 409)
+  }
   const requestRef = db.collection('payoutRequests').doc(requestId)
   const serviceLockRef = db.collection('payoutServiceLocks').doc('active')
   let payoutRequest
@@ -168,7 +172,7 @@ async function startPayoutAttempt(db, requestId, adminUid) {
       status: 'submitting',
       externalId: requestId,
       submittedBy: adminUid,
-      payoutEnvironment: getFapshiPayoutConfig().mode,
+      payoutEnvironment: payoutConfig.mode,
       executionStartedAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     })

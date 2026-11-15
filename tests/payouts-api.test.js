@@ -40,6 +40,13 @@ function seedWorker(role = 'provider') {
   records.set('serviceRequests/order-a', makeOrder({ providerUid: 'worker-a' }))
 }
 
+function enableLivePayoutTests() {
+  vi.stubEnv('FAPSHI_PAYOUT_MODE', 'live')
+  vi.stubEnv('FAPSHI_PAYOUT_LIVE_ENABLED', 'true')
+  vi.stubEnv('FAPSHI_PAYOUT_LIVE_API_USER', 'live-payout-user')
+  vi.stubEnv('FAPSHI_PAYOUT_LIVE_SECRET_KEY', 'live-payout-secret')
+}
+
 function queryResult(name, field, value, limitValue = Infinity) {
   const docs = [...records.entries()]
     .filter(([path, data]) => path.startsWith(name + '/') && data[field] === value)
@@ -202,6 +209,7 @@ describe('payout request API', () => {
   })
 
   it('executes from payout credentials and records earnings only after verified provider success', async () => {
+    enableLivePayoutTests()
     seedWorker()
     const created = await call({ action: 'request', idempotencyKey: 'request-key-exec-001' })
     const requestId = created.body.request.requestId
@@ -229,7 +237,8 @@ describe('payout request API', () => {
     expect(records.get('serviceRequests/order-a').payoutRequestId).toBeUndefined()
     expect(records.has('payoutServiceLocks/active')).toBe(false)
     const payoutCall = calls.find(({ url }) => url.endsWith('/payout'))
-    expect(payoutCall.options.headers).toMatchObject({ apiuser: 'sandbox-payout-user', apikey: 'sandbox-payout-secret' })
+    expect(payoutCall.url).toMatch(/^https:\/\/live\.fapshi\.com\//)
+    expect(payoutCall.options.headers).toMatchObject({ apiuser: 'live-payout-user', apikey: 'live-payout-secret' })
     expect(JSON.parse(payoutCall.options.body)).toMatchObject({
       amount: 8000, phone: '670000123', medium: 'mobile money',
       userId: payoutRequest.providerUserId, externalId: requestId,
@@ -238,6 +247,7 @@ describe('payout request API', () => {
   })
 
   it('locks uncertain payouts and forbids a second Fapshi send until reconciliation', async () => {
+    enableLivePayoutTests()
     seedWorker()
     const created = await call({ action: 'request', idempotencyKey: 'request-key-timeout-01' })
     const requestId = created.body.request.requestId
@@ -265,5 +275,21 @@ describe('payout request API', () => {
     expect(verifiedAbsent.statusCode, JSON.stringify(verifiedAbsent.body)).toBe(200)
     expect(records.get('payoutRequests/' + requestId).status).toBe('failed')
     expect(records.has('payoutServiceLocks/active')).toBe(false)
+  })
+
+  it('refuses to settle real earnings while payout mode is sandbox', async () => {
+    seedWorker()
+    const created = await call({ action: 'request', idempotencyKey: 'request-key-sandbox-01' })
+    const requestId = created.body.request.requestId
+    records.set('users/admin-a', { accountType: 'admin' })
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await call({ action: 'execute', requestId }, 'admin-a')
+    expect(response.statusCode).toBe(409)
+    expect(response.body.error).toMatch(/Sandbox payouts cannot settle live CareNest earnings/)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(records.get('payoutRequests/' + requestId).status).toBe('requested')
+    expect(records.get('serviceRequests/order-a').payoutRequestId).toBe(requestId)
   })
 })
