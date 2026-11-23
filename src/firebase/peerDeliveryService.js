@@ -25,6 +25,8 @@ export function normalizePeerDeliveryForMap(delivery) {
   return {
     firestoreId,
     id: delivery.id,
+    senderName: delivery.senderName || '',
+    recipientName: delivery.recipientName || '',
     deliveryType: 'peer_to_peer',
     serviceType: 'delivery',
     status,
@@ -36,6 +38,7 @@ export function normalizePeerDeliveryForMap(delivery) {
     pickupCoordinates: mapPoint(pickup),
     packageCategory: delivery.package?.category || '',
     packageDescription: delivery.package?.description || '',
+    packagePhotoUrls: Array.isArray(delivery.package?.photoUrls) ? delivery.package.photoUrls : [],
     riderUid: delivery.riderId || '',
     hasRider: delivery.hasRider ?? Boolean(delivery.riderId),
     riderName: delivery.riderName || '',

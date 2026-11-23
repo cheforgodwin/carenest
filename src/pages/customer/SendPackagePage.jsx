@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { FiArrowLeft, FiArrowRight, FiCheck, FiMapPin, FiPackage } from 'react-icons/fi'
 import GooglePlacePicker from '../../components/GooglePlacePicker'
-import VerifiedPhoneLink from '../../components/VerifiedPhoneLink'
+import GoogleMapCanvas from '../../components/GoogleMapCanvas'
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
+import { storage } from '../../firebase/firebaseConfig'
 import {
   normalizePeerDeliveryForMap,
   notifyPeerDeliveryUpdate,
@@ -12,13 +14,14 @@ import {
 import './SendPackagePage.css'
 
 const steps = ['Locations', 'Recipient', 'Package', 'Review']
-const emptyLocation = { address: '', placeId: '', landmark: '', instructions: '' }
+const emptyLocation = { address: '', placeId: '', coordinates: null, landmark: '', instructions: '' }
 const categories = ['Documents', 'Clothing', 'Electronics', 'Permitted food', 'Household items', 'Personal belongings', 'Other permitted items']
 
 function packagePayload(locations, recipient, packageInfo, phone) {
   return {
     senderPhone: phone,
     recipientPhone: recipient.phone,
+    recipientEmail: recipient.email.trim().toLowerCase(),
     recipientName: recipient.name,
     pickup: { placeId: locations.pickup.placeId, landmark: locations.pickup.landmark, instructions: locations.pickup.instructions },
     destination: { placeId: locations.destination.placeId, landmark: locations.destination.landmark, instructions: locations.destination.instructions },
@@ -46,11 +49,13 @@ function SendPackagePage({ profile, user }) {
   const requestedDeliveryId = searchParams.get('delivery') || ''
   const [step, setStep] = useState(0)
   const [locations, setLocations] = useState({ pickup: { ...emptyLocation }, destination: { ...emptyLocation } })
-  const [recipient, setRecipient] = useState({ phone: '', name: '' })
+  const [recipient, setRecipient] = useState({ phone: '', email: '', name: '' })
   const [packageInfo, setPackageInfo] = useState({ category: '', description: '', weight: '', length: '', width: '', height: '', declaredValue: '', quantity: '1', permitted: false, payer: '' })
-  const [verifiedPhone, setVerifiedPhone] = useState(user?.phoneNumber || '')
+  const [packagePhotos, setPackagePhotos] = useState([])
+  const verifiedPhone = user?.phoneNumber || ''
   const [quote, setQuote] = useState(null)
   const [deliveries, setDeliveries] = useState([])
+  const [deliveryLoadError, setDeliveryLoadError] = useState('')
   const [quoteBusy, setQuoteBusy] = useState(false)
   const [submitBusy, setSubmitBusy] = useState(false)
   const [acceptBusy, setAcceptBusy] = useState(false)
@@ -63,14 +68,10 @@ function SendPackagePage({ profile, user }) {
   const [invitationUrls, setInvitationUrls] = useState({})
 
   useEffect(() => {
-    if (user?.phoneNumber) setVerifiedPhone(user.phoneNumber)
-  }, [user?.phoneNumber])
-
-  useEffect(() => {
     if (invitationToken) return undefined
     return subscribeToMyPeerDeliveries(
-      setDeliveries,
-      (nextError) => setError(nextError.message || 'Could not load your package requests.'),
+      (nextDeliveries) => { setDeliveries(nextDeliveries); setDeliveryLoadError('') },
+      (nextError) => setDeliveryLoadError(nextError.message || 'Could not load your package requests.'),
     )
   }, [invitationToken])
 
@@ -85,13 +86,23 @@ function SendPackagePage({ profile, user }) {
       setError('Choose both pickup and destination from the Google Maps search results.')
       return
     }
-    if (step === 0 && !verifiedPhone) {
-      setError('Verify the phone number on your CareNest account before creating a request.')
-      return
-    }
-    if (step === 1 && !/^\+?237\s?6\d{2}[\s-]?\d{3}[\s-]?\d{3}$/.test(recipient.phone.trim())) {
-      setError('Enter a valid Cameroon mobile number for the recipient.')
-      return
+    if (step === 1) {
+      if (!/^\+?237\s?6\d{2}[\s-]?\d{3}[\s-]?\d{3}$/.test(recipient.phone.trim())) {
+        setError('Enter a valid Cameroon mobile number for the recipient.')
+        return
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient.email.trim())) {
+        setError('Enter the recipient’s CareNest email address.')
+        return
+      }
+      if (recipient.email.trim().toLowerCase() === String(user?.email || '').toLowerCase()) {
+        setError('The recipient email must be different from yours.')
+        return
+      }
+      if (!verifiedPhone) {
+        setError('Add a verified phone number to your CareNest account before creating a delivery.')
+        return
+      }
     }
     if (step === 2 && (!packageInfo.category || packageInfo.description.trim().length < 3 || !packageInfo.permitted || !packageInfo.payer)) {
       setError('Complete the package details, select who pays, and confirm the prohibited-items policy.')
@@ -119,7 +130,13 @@ function SendPackagePage({ profile, user }) {
     setError('')
     setMessage('')
     try {
-      const result = await requestPeerDelivery({ action: 'create', ...packagePayload(locations, recipient, packageInfo, verifiedPhone) })
+      const photoUrls = await Promise.all(packagePhotos.map(async (file) => {
+        const name = `${globalThis.crypto?.randomUUID?.() || Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+        const photoRef = ref(storage, `peerDeliveryPhotos/${user.uid}/${name}`)
+        await uploadBytes(photoRef, file, { contentType: file.type })
+        return getDownloadURL(photoRef)
+      }))
+      const result = await requestPeerDelivery({ action: 'create', ...packagePayload(locations, recipient, packageInfo, verifiedPhone), packagePhotoUrls: photoUrls })
       const delivery = normalizePeerDeliveryForMap(result.delivery)
       const invitationLink = window.location.origin + result.invitationPath
       setInvitationUrls((current) => ({ ...current, [delivery.firestoreId]: invitationLink }))
@@ -232,12 +249,10 @@ function SendPackagePage({ profile, user }) {
       <section className="mobile-content send-package-page">
         <header className="send-package-header"><Link to="/dashboard/customer" aria-label="Back to home"><FiArrowLeft /></Link><div><span>SECURE INVITATION</span><h1>Accept a package</h1></div><span className="send-package-icon"><FiPackage /></span></header>
         <div className="package-form-panel">
-          <h2>Verify before viewing</h2>
-          <p>Accept this request only from the CareNest account whose verified Cameroon phone number received the invitation. Delivery details stay hidden until verification succeeds.</p>
-          {verifiedPhone
-            ? <p className="package-verified-phone"><FiCheck /> Verified account phone: {verifiedPhone}</p>
-            : <VerifiedPhoneLink phone={profile?.phone} onVerified={setVerifiedPhone} />}
-          <button type="button" className="package-continue-button" disabled={!verifiedPhone || acceptBusy} onClick={acceptInvitation}>{acceptBusy ? 'Verifying invitation...' : 'Verify and accept invitation'} <FiCheck /></button>
+          <h2>Review your package invitation</h2>
+          <p>Sign in to the CareNest account that matches the email and phone entered by the sender. You’ll see the package and fee before deciding whether to accept. No SMS code is needed.</p>
+          {verifiedPhone && <p className="package-verified-phone"><FiCheck /> Signed in phone: {verifiedPhone}</p>}
+          <button type="button" className="package-continue-button" disabled={acceptBusy} onClick={acceptInvitation}>{acceptBusy ? 'Checking invitation...' : 'Accept and view delivery'} <FiArrowRight /></button>
         </div>
         {error && <p className="package-form-message" role="alert">{error}</p>}
       </section>
@@ -248,6 +263,7 @@ function SendPackagePage({ profile, user }) {
   const displayedDeliveries = requestedDeliveryId
     ? deliveries.filter((delivery) => delivery.id === requestedDeliveryId)
     : deliveries
+  const trackedDelivery = displayedDeliveries.find((delivery) => !['delivered', 'cancelled', 'declined', 'failed_delivery'].includes(String(delivery.status || '').toLowerCase()))
 
   return (
     <section className="mobile-content send-package-page">
@@ -261,35 +277,56 @@ function SendPackagePage({ profile, user }) {
         {steps.map((label, index) => <li className={index === step ? 'current' : index < step ? 'complete' : ''} key={label}><span>{index < step ? <FiCheck /> : index + 1}</span>{label}</li>)}
       </ol>
 
-      {step === 0 && <div className="package-form-panel">
+      {step === 0 && <div className="package-form-panel package-locations-panel">
         <h2>Verified locations</h2>
-        <p>Choose exact Cameroon addresses from Google Maps. CareNest verifies each place on the server before quoting or creating a request.</p>
+        <p>Where should the rider collect and deliver your package? Choose a Cameroon address from the suggestions.</p>
         {['pickup', 'destination'].map((key) => (
           <section className="package-place-section" key={key}>
             <h3><FiMapPin /> {key === 'pickup' ? 'Pickup location' : 'Destination'}</h3>
-            <GooglePlacePicker onSelect={(place) => updateLocation(key, { address: place.address, placeId: place.placeId })} />
+            <GooglePlacePicker onSelect={(place) => updateLocation(key, { address: place.address, placeId: place.placeId, coordinates: place.coordinates })} />
             <p className={locations[key].placeId ? 'package-place-selected' : 'package-place-unselected'} role="status">{locations[key].address || 'Select a location from the address search.'}</p>
-            <label>{key === 'pickup' ? 'Pickup' : 'Destination'} landmark<input value={locations[key].landmark} maxLength="120" onChange={(event) => updateLocation(key, { landmark: event.target.value })} placeholder="Optional nearby landmark" /></label>
-            <label>{key === 'pickup' ? 'Pickup' : 'Delivery'} instructions<textarea value={locations[key].instructions} maxLength="500" rows="2" onChange={(event) => updateLocation(key, { instructions: event.target.value })} placeholder="Optional directions for the rider" /></label>
+            <details className="package-location-details">
+              <summary>Add landmark or instructions <span>Optional</span></summary>
+              <label>{key === 'pickup' ? 'Pickup' : 'Destination'} landmark<input value={locations[key].landmark} maxLength="120" onChange={(event) => updateLocation(key, { landmark: event.target.value })} placeholder="Nearby landmark" /></label>
+              <label>{key === 'pickup' ? 'Pickup' : 'Delivery'} instructions<textarea value={locations[key].instructions} maxLength="500" rows="2" onChange={(event) => updateLocation(key, { instructions: event.target.value })} placeholder="Directions for the rider" /></label>
+            </details>
           </section>
         ))}
-        <p className="package-security-note">GPS pin previews and typed addresses are not used to calculate the fee. Select verified Google Maps results for both locations.</p>
-        {verifiedPhone
-          ? <p className="package-verified-phone"><FiCheck /> Verified account phone: {verifiedPhone}</p>
-          : <VerifiedPhoneLink phone={profile?.phone} onVerified={setVerifiedPhone} />}
+        {(locations.pickup.coordinates || locations.destination.coordinates) && <div className="package-location-map">
+          <GoogleMapCanvas
+            ariaLabel="Map preview of package pickup and destination"
+            markers={[
+              locations.pickup.coordinates && { orderId: 'package-pickup', kind: 'pickup', label: 'P', title: `Pickup: ${locations.pickup.address}`, position: locations.pickup.coordinates },
+              locations.destination.coordinates && { orderId: 'package-destination', kind: 'destination', label: 'D', title: `Destination: ${locations.destination.address}`, position: locations.destination.coordinates },
+            ].filter(Boolean)}
+            route={locations.pickup.coordinates && locations.destination.coordinates ? { origin: locations.pickup.coordinates, destination: locations.destination.coordinates, travelMode: 'driving' } : null}
+            emptyMessage="Choose the other address to preview the full route."
+          />
+        </div>}
+        <p className="package-location-trust-note">Addresses are checked securely before the delivery fee is calculated.</p>
       </div>}
 
       {step === 1 && <div className="package-form-panel">
         <h2>Who is receiving it?</h2>
-        <p>The recipient must accept with a CareNest customer account whose Firebase-verified phone matches the number entered here.</p>
+        <p>Enter the email and phone number linked to their CareNest account.</p>
+        <label>Recipient’s CareNest email<input value={recipient.email} onChange={(event) => setRecipient((current) => ({ ...current, email: event.target.value }))} type="email" autoComplete="email" placeholder="name@example.com" required /></label>
         <label>Recipient's CareNest phone<input value={recipient.phone} onChange={(event) => setRecipient((current) => ({ ...current, phone: event.target.value }))} type="tel" autoComplete="tel" placeholder="+237 6XX XXX XXX" required /></label>
         <label>Recipient name, if known<input value={recipient.name} onChange={(event) => setRecipient((current) => ({ ...current, name: event.target.value }))} autoComplete="name" maxLength="80" placeholder="Optional" /></label>
+        <p className="package-recipient-match-note">CareNest sends an in-app invitation when the email and phone match an account with notifications enabled. The recipient signs in and accepts there; no SMS is sent.</p>
       </div>}
 
       {step === 2 && <div className="package-form-panel">
         <h2>What are you sending?</h2><p>Items must meet CareNest's delivery policy.</p>
         <label>Package category<select value={packageInfo.category} onChange={(event) => setPackageInfo((current) => ({ ...current, category: event.target.value }))} required><option value="">Choose a category</option>{categories.map((category) => <option key={category}>{category}</option>)}</select></label>
         <label>Description<textarea value={packageInfo.description} onChange={(event) => setPackageInfo((current) => ({ ...current, description: event.target.value }))} rows="3" maxLength="500" placeholder="Briefly describe the package" required /></label>
+        <label>Item photos <span className="package-field-hint">Optional · up to 3 JPG, PNG, or WebP images, 5 MB each</span><input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => {
+          const selected = Array.from(event.target.files || [])
+          const valid = selected.length <= 3 && selected.every((file) => ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) && file.size < 5 * 1024 * 1024)
+          if (!valid) { setError('Choose up to 3 JPG, PNG, or WebP photos under 5 MB each.'); event.target.value = ''; return }
+          setError('')
+          setPackagePhotos(selected)
+        }} /></label>
+        {packagePhotos.length > 0 && <p className="package-photo-selection">Selected: {packagePhotos.map((photo) => photo.name).join(', ')}</p>}
         <div className="package-field-row"><label>Approx. weight (kg)<input type="number" min="0" max="100" step="0.1" value={packageInfo.weight} onChange={(event) => setPackageInfo((current) => ({ ...current, weight: event.target.value }))} placeholder="Optional" /></label><label>Number of packages<input type="number" min="1" max="10" value={packageInfo.quantity} onChange={(event) => setPackageInfo((current) => ({ ...current, quantity: event.target.value }))} /></label></div>
         <div className="package-field-row"><label>Length (cm)<input type="number" min="1" max="300" step="1" value={packageInfo.length} onChange={(event) => setPackageInfo((current) => ({ ...current, length: event.target.value }))} placeholder="Optional" /></label><label>Width (cm)<input type="number" min="1" max="300" step="1" value={packageInfo.width} onChange={(event) => setPackageInfo((current) => ({ ...current, width: event.target.value }))} placeholder="Optional" /></label><label>Height (cm)<input type="number" min="1" max="300" step="1" value={packageInfo.height} onChange={(event) => setPackageInfo((current) => ({ ...current, height: event.target.value }))} placeholder="Optional" /></label><label>Declared value (XAF)<input type="number" min="0" max="100000000" step="1" value={packageInfo.declaredValue} onChange={(event) => setPackageInfo((current) => ({ ...current, declaredValue: event.target.value }))} placeholder="Optional" /></label></div>
         <label>Who will pay the delivery fee?<select value={packageInfo.payer} onChange={(event) => setPackageInfo((current) => ({ ...current, payer: event.target.value }))} required><option value="">Choose who pays</option><option value="sender">Sender</option><option value="recipient">Recipient</option></select></label>
@@ -322,7 +359,22 @@ function SendPackagePage({ profile, user }) {
       </div>
 
       <section className="package-form-panel package-requests-panel">
-        <h2>{requestedDeliveryId ? 'Delivery status' : 'Your package deliveries'}</h2>
+        <details className="package-delivery-history" open={Boolean(requestedDeliveryId)}>
+          <summary>{requestedDeliveryId ? 'Delivery status' : 'Your package deliveries'} <span>{displayedDeliveries.length ? `${displayedDeliveries.length} request${displayedDeliveries.length === 1 ? '' : 's'}` : 'View history'}</span></summary>
+        {deliveryLoadError && <p className="package-history-error" role="status">Your delivery list could not refresh. {deliveryLoadError}</p>}
+        {trackedDelivery && <div className="package-customer-tracking-map">
+          <h3>Delivery map · {trackedDelivery.id}</h3>
+          <GoogleMapCanvas
+            ariaLabel={`Map for package delivery ${trackedDelivery.id}`}
+            markers={[
+              trackedDelivery.riderLocation && { orderId: trackedDelivery.firestoreId, kind: 'rider', label: 'R', title: `Rider location for ${trackedDelivery.id}`, position: trackedDelivery.riderLocation },
+              trackedDelivery.pickupCoordinates && { orderId: trackedDelivery.firestoreId, kind: 'pickup', label: 'P', title: `Pickup for ${trackedDelivery.id}`, position: trackedDelivery.pickupCoordinates },
+              trackedDelivery.addressCoordinates && { orderId: trackedDelivery.firestoreId, kind: 'destination', label: 'D', title: `Destination for ${trackedDelivery.id}`, position: trackedDelivery.addressCoordinates },
+            ].filter(Boolean)}
+            route={trackedDelivery.addressCoordinates && (trackedDelivery.riderLocation || trackedDelivery.pickupCoordinates) ? { origin: trackedDelivery.riderLocation || trackedDelivery.pickupCoordinates, destination: trackedDelivery.addressCoordinates, travelMode: 'driving' } : null}
+            emptyMessage="Verified delivery locations will appear here."
+          />
+        </div>}
         {!displayedDeliveries.length && <p className="dashboard-empty">{requestedDeliveryId ? 'That delivery was not found in your account.' : 'Your submitted package requests will appear here.'}</p>}
         {displayedDeliveries.map((delivery) => {
           const isPayer = delivery.canPay
@@ -331,7 +383,10 @@ function SendPackagePage({ profile, user }) {
           const shouldVerifyPayment = delivery.status === 'awaiting_payment' && isPayer && ['submitted', 'starting', 'unknown'].includes(paymentStatus)
           return <article className="package-delivery-card" key={delivery.firestoreId}>
             <header><strong>{delivery.id}</strong><span className="status-chip">{statusLabel(delivery.status)}</span></header>
+            {delivery.currentUserRole === 'recipient' && <p>From {delivery.senderName || 'CareNest sender'}</p>}
             <p>{delivery.pickupAddress} → {delivery.address}</p>
+            {delivery.packageCategory && <p><strong>{delivery.packageCategory}</strong>{delivery.packageDescription ? ` · ${delivery.packageDescription}` : ''}</p>}
+            {delivery.packagePhotoUrls?.length > 0 && <div className="package-recipient-photos" aria-label="Package photos">{delivery.packagePhotoUrls.map((url, index) => <img src={url} alt={`Package photo ${index + 1}`} key={url} loading="lazy" />)}</div>}
             <p>{delivery.pricing?.deliveryFee ? `${Number(delivery.pricing.deliveryFee).toLocaleString()} XAF` : 'Fee pending'} · {delivery.riderName || (delivery.hasRider ? 'Rider assigned' : 'No rider assigned')}</p>
             {invitationUrls[delivery.firestoreId] && <input aria-label="Recipient invitation link" readOnly value={invitationUrls[delivery.firestoreId]} />}
             {delivery.status === 'awaiting_recipient' && delivery.currentUserRole === 'sender' && <button type="button" className="table-action" disabled={inviteBusyId === delivery.firestoreId} onClick={() => shareInvitation(delivery)}>{inviteBusyId === delivery.firestoreId ? 'Creating link...' : 'Share recipient invitation'}</button>}
@@ -342,6 +397,7 @@ function SendPackagePage({ profile, user }) {
             <p>Recipient acceptance: {statusLabel(delivery.recipientAcceptance?.status)} · Payment: {statusLabel(paymentStatus || 'not started')}</p>
           </article>
         })}
+        </details>
       </section>
     </section>
   )

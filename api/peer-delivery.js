@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto'
+import { getAuth } from 'firebase-admin/auth'
+import { getApps } from 'firebase-admin/app'
+import { getMessaging } from 'firebase-admin/messaging'
 import { FieldValue } from 'firebase-admin/firestore'
 import { detectPaymentNetwork, normalizePaymentPhone, unsupportedPaymentPhoneMessage } from '../src/utils/paymentNetwork.js'
 import { getAdminDb, requireAuthenticatedUser } from './_firebaseAdmin.js'
@@ -34,6 +37,25 @@ const cleanText = (value, max = 500) => String(value ?? '')
   .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
   .trim()
   .slice(0, max)
+
+const normalizeEmail = value => cleanText(value, 160).toLowerCase()
+
+async function notifyRecipient(db, recipientEmail, recipientPhone, deliveryId, invitationToken) {
+  try {
+    const account = await getAuth(getApps()[0]).getUserByEmail(recipientEmail)
+    if (!account.emailVerified || normalizeCameroonPhone(account.phoneNumber) !== recipientPhone) return
+    const devices = await db.collection('pushSubscriptions').where('uid', '==', account.uid).get()
+    if (!devices.size) return
+    const url = `/dashboard/customer/package?invite=${encodeURIComponent(invitationToken)}`
+    await getMessaging(getApps()[0]).sendEach(devices.docs.map(doc => ({
+      token: doc.data().token,
+      data: { title: 'You have a package invitation', body: 'Open CareNest to review the delivery and accept it.', url, eventId: `package-invite-${deliveryId}` },
+      webpush: { headers: { TTL: '259200', Urgency: 'high' } },
+    })))
+  } catch {
+    console.warn('peer_delivery_invitation_notification_unavailable', { deliveryId })
+  }
+}
 
 function requireIdentifier(value, label) {
   const identifier = String(value || '')
@@ -184,9 +206,22 @@ function participantSummary(delivery, id, uid) {
 async function createDelivery(db, user, body, locations, profile, res) {
   const senderPhone = assertPhoneClaim(user, body.senderPhone)
   const recipientPhone = normalizeCameroonPhone(body.recipientPhone)
-  if (!recipientPhone || recipientPhone === senderPhone) throw deliveryError('Enter a different valid CareNest recipient phone number.', 400)
+  const recipientEmail = normalizeEmail(body.recipientEmail)
+  if (!recipientPhone || recipientPhone === senderPhone || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)
+    || recipientEmail === normalizeEmail(user.email)) throw deliveryError('Enter the recipient’s CareNest email and a different valid Cameroon phone number.', 400)
 
   const packageInfo = validatePackage(body)
+  const photoUrls = Array.isArray(body.packagePhotoUrls) ? body.packagePhotoUrls.slice(0, 3).map(value => cleanText(value, 1200)) : []
+  const photoPrefix = `/v0/b/[^/]+/o/peerDeliveryPhotos%2F${encodeURIComponent(user.uid)}%2F`
+  if (photoUrls.some(value => {
+    try {
+      const url = new URL(value)
+      return url.hostname !== 'firebasestorage.googleapis.com' || !new RegExp(`^${photoPrefix}`).test(url.pathname) || !url.searchParams.has('token')
+    } catch { return true }
+  })) {
+    throw deliveryError('Package photos must be uploaded to your CareNest account before submission.', 400)
+  }
+  packageInfo.photoUrls = photoUrls
   const { stored: pricing, public: publicPricing } = await serverQuote({ weightKg: packageInfo.weightKg }, locations)
   const deliveryId = makeDeliveryId()
   const invitationToken = makeInvitationToken()
@@ -199,6 +234,7 @@ async function createDelivery(db, user, body, locations, profile, res) {
     senderName: cleanText(profile.name || user.name || user.email || 'CareNest customer', 80),
     recipientId: null,
     recipientPhoneHash: hashPrivateValue(recipientPhone),
+    recipientEmailHash: hashPrivateValue(recipientEmail),
     pickup: locations.pickup,
     destination: {
       ...locations.destination,
@@ -230,6 +266,7 @@ async function createDelivery(db, user, body, locations, profile, res) {
     transaction.create(deliveryRef, delivery)
     auditDelivery(transaction, db, deliveryId, { uid: user.uid, role: 'customer' }, 'request_created', '', 'awaiting_recipient')
   })
+  await notifyRecipient(db, recipientEmail, recipientPhone, deliveryId, invitationToken)
   const publicDelivery = participantSummary(delivery, deliveryId, user.uid)
   publicDelivery.pricing = publicPricing
   return send(res, 201, {
@@ -255,8 +292,10 @@ async function acceptInvitation(db, user, token) {
       throw deliveryError('This invitation is invalid or expired.', 404)
     }
     const recipientPhone = normalizeCameroonPhone(user.phone_number)
-    if (!recipientPhone || hashPrivateValue(recipientPhone) !== delivery.recipientPhoneHash) {
-      throw deliveryError('Verify the phone number associated with this invitation on your CareNest account.', 403)
+    const recipientEmail = normalizeEmail(user.email)
+    if (!user.email_verified || !recipientEmail || hashPrivateValue(recipientEmail) !== delivery.recipientEmailHash
+      || !recipientPhone || hashPrivateValue(recipientPhone) !== delivery.recipientPhoneHash) {
+      throw deliveryError('Sign in to the CareNest account with the email and phone number entered by the sender.', 403)
     }
     const payerId = delivery.payment?.payerMode === 'recipient' ? user.uid : delivery.senderId
     const nextStatus = assertTransition(delivery.status, 'awaiting_payment')

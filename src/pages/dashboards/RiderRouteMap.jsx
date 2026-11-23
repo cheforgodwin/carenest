@@ -1,6 +1,6 @@
 import { FiNavigation } from 'react-icons/fi'
 import GoogleMapCanvas from '../../components/GoogleMapCanvas'
-import { googleMapsDirectionsUrl } from '../../utils/googleMapsLinks'
+import { googleMapsDirectionsUrl, openStreetMapDirectionsUrl } from '../../utils/googleMapsLinks'
 import './RiderRouteMap.css'
 
 function RiderRouteMap({ orders, order, transportType, sharing, onShareLocation, onStopLocation, starting, onSelect }) {
@@ -17,17 +17,24 @@ function RiderRouteMap({ orders, order, transportType, sharing, onShareLocation,
   const destination = point(order?.addressCoordinates)
   const hasRiderLocation = Boolean(riderLocation)
   const hasDestination = Boolean(destination)
+  const currentStatus = String(order?.riderStatus || order?.status || '').toLowerCase().replace(/[\s-]+/g, '_')
+  const navigatingToPickup = Boolean(pickup && ['accepted', 'rider_assigned', 'rider_to_pickup', 'rider_arrived_pickup'].includes(currentStatus))
+  const navigationTarget = navigatingToPickup ? pickup : destination
+  const navigationLabel = navigatingToPickup ? 'pickup' : 'delivery destination'
   const mode = /foot|walk/i.test(transportType || '') ? 'walking' : /bicycle|cycle/i.test(transportType || '') ? 'bicycling' : 'driving'
-  const directionsUrl = hasDestination
-    ? googleMapsDirectionsUrl(destination, mode, riderLocation)
+  const navigationOrigin = riderLocation || (navigatingToPickup ? null : pickup)
+  const directionsUrl = navigationTarget
+    ? mode === 'driving'
+      ? openStreetMapDirectionsUrl(navigationTarget, navigationOrigin)
+      : googleMapsDirectionsUrl(navigationTarget, mode, navigationOrigin)
     : ''
   const mapMarkers = order ? [
     riderLocation && { orderId: order.firestoreId, kind: 'rider', position: riderLocation, label: 'R', title: `Your GPS position for ${order.id}` },
     pickup && { orderId: order.firestoreId, kind: 'pickup', position: pickup, label: 'P', title: `Pickup location for ${order.id}` },
     destination && { orderId: order.firestoreId, kind: 'destination', position: destination, label: 'D', title: `Delivery destination for ${order.id}` },
   ].filter(Boolean) : []
-  const routeOrigin = riderLocation || pickup
-  const route = routeOrigin && destination ? { origin: routeOrigin, destination, travelMode: mode } : null
+  const routeOrigin = riderLocation || (navigatingToPickup ? null : pickup)
+  const route = routeOrigin && navigationTarget ? { origin: routeOrigin, destination: navigationTarget, travelMode: mode } : null
   const updatedAt = order?.riderLocation?.updatedAt
   const lastUpdate = updatedAt?.toDate ? updatedAt.toDate() : updatedAt ? new Date(updatedAt) : null
 
@@ -59,7 +66,7 @@ function RiderRouteMap({ orders, order, transportType, sharing, onShareLocation,
             <div><span>Progress</span><strong>{order.riderStatus || order.status}</strong></div>
             <div><span>Location</span><strong>{hasRiderLocation ? 'GPS position available' : 'Not shared yet'}</strong></div>
             {hasRiderLocation && lastUpdate && !Number.isNaN(lastUpdate.getTime()) && <small>Last GPS update: {lastUpdate.toLocaleTimeString()}</small>}
-            {directionsUrl ? <a href={directionsUrl} target="_blank" rel="noreferrer"><FiNavigation /> Open navigation</a> : <p>A verified destination pin is not available. Confirm the address with the customer before navigating.</p>}
+            {directionsUrl ? <a href={directionsUrl} target="_blank" rel="noreferrer"><FiNavigation /> Navigate to {navigationLabel}{mode === 'driving' ? ' · OpenStreetMap' : ''}</a> : <p>A verified {navigationLabel} pin is not available. Confirm the address with the customer before navigating.</p>}
           </> : <p>Your selected active delivery route will appear here. No location is shown until GPS sharing is enabled.</p>}
         </aside>
       </div>

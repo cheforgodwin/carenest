@@ -10,12 +10,13 @@ import jobsHandler from './api/jobs.js'
 import notificationsHandler from './api/notifications.js'
 import accountHandler from './api/account.js'
 import marketplaceHandler from './api/marketplace.js'
+import peerDeliveryHandler from './api/peer-delivery.js'
 
 function fapshiDevApi() {
   return {
     name: 'carenest-fapshi-dev-api',
     configureServer(server) {
-      for (const [url, handler] of [['/api/account', accountHandler], ['/api/jobs', jobsHandler], ['/api/notifications', notificationsHandler], ['/api/marketplace', marketplaceHandler]]) {
+      for (const [url, handler] of [['/api/account', accountHandler], ['/api/jobs', jobsHandler], ['/api/notifications', notificationsHandler], ['/api/marketplace', marketplaceHandler], ['/api/peer-delivery', peerDeliveryHandler]]) {
         server.middlewares.use(url, (req, res) => {
           const chunks = []; req.on('data', chunk => chunks.push(chunk)); req.on('end', async () => {
             try { req.body = JSON.parse(Buffer.concat(chunks).toString() || '{}') } catch { req.body = {} }

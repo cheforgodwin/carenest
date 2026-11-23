@@ -17,3 +17,13 @@ export function googleMapsDirectionsUrl(destination, mode = 'driving', origin) {
   if (start) params.set('origin', start)
   return `https://www.google.com/maps/dir/?${params.toString()}`
 }
+
+export function openStreetMapDirectionsUrl(destination, origin) {
+  const target = pointQuery(destination)
+  if (!target) return ''
+  const start = pointQuery(origin)
+  const params = new URLSearchParams({ engine: 'fossgis_osrm_car' })
+  if (start) params.set('route', `${start};${target}`)
+  else params.set('to', target)
+  return `https://www.openstreetmap.org/directions?${params.toString()}`
+}

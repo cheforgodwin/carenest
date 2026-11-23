@@ -5,15 +5,15 @@ CareNest address forms can use Google's Place Autocomplete widget to save a sele
 ## Configure Google Cloud
 
 1. Select the Google Cloud project used for CareNest and enable billing.
-2. Enable **Maps JavaScript API** and **Places API (New)**.
+2. Enable **Maps JavaScript API**, **Places API (New)**, and **Directions API** for map route estimates.
 3. Create a browser API key for CareNest.
 4. Apply a website (HTTP referrer) restriction for the deployed CareNest domains and local development origins.
-5. Apply an API restriction allowing only Maps JavaScript API and Places API (New).
+5. Apply an API restriction allowing only Maps JavaScript API, Places API (New), and Directions API.
 6. Set `VITE_GOOGLE_MAPS_API_KEY` in the local environment and deployment environment, then rebuild the frontend.
 
 This is a browser key and will be visible in network requests and the built application. Protect it with the website and API restrictions above; do not use a server-side web-service key here.
 
-The picker currently restricts suggestions to Cameroon. New order documents save `addressCoordinates: { lat, lng }` and `addressPlaceId` when a Google place is selected. Existing and manually entered addresses keep working without coordinates. This prepares order data for a later map view; it does not display a map or provide live rider tracking.
+The picker currently restricts suggestions to Cameroon. New order documents save `addressCoordinates: { lat, lng }` and `addressPlaceId` when a Google place is selected. The customer package flow previews the selected pickup and destination, then shows verified delivery pins and the assigned rider's last shared position. Rider dashboards show the active delivery route and navigation link; the admin delivery view shows the selected route and all available delivery pins. Existing and manually entered addresses keep working without coordinates, with a clear empty map state until verified coordinates are available.
 
 ## Saved and current locations
 
