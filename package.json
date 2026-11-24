@@ -20,6 +20,7 @@
     "check:payments": "node scripts/check-fapshi-credentials.mjs"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "dompurify": "^3.4.15",
     "firebase": "^12.15.0",
     "firebase-admin": "^13.6.0",

@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Analytics } from '@vercel/analytics/react'
 import HomePage from './pages/HomePage'
 import ProtectedRoute from './auth/ProtectedRoute'
 import NotificationListener from './components/NotificationListener'
@@ -47,6 +48,7 @@ function App() {
         <PublicFooter />
         <SupportShortcut />
       </BrowserRouter>
+      <Analytics />
     </>
   )
 }
